@@ -1,0 +1,136 @@
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler: /usr/bin/c++ 
+Build flags: -03
+Id flags:  
+
+The output was:
+1
+c++: error: unrecognized command line option ‘-03’
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler: /usr/bin/c++ 
+Build flags: -03
+Id flags: -c 
+
+The output was:
+1
+c++: error: unrecognized command line option ‘-03’
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler: /usr/bin/c++ 
+Build flags: -03
+Id flags: --c++ 
+
+The output was:
+1
+c++: error: unrecognized command line option ‘-03’
+c++: error: unrecognized command line option ‘--c++’
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler: /usr/bin/c++ 
+Build flags: -03
+Id flags: --ec++ 
+
+The output was:
+1
+c++: error: unrecognized command line option ‘-03’
+c++: error: unrecognized command line option ‘--ec++’; did you mean ‘-Weffc++’?
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler: /usr/bin/c++ 
+Build flags: -03
+Id flags: --target=arm-arm-none-eabi;-mcpu=cortex-m3 
+
+The output was:
+1
+c++: warning: ‘-mcpu=’ is deprecated; use ‘-mtune=’ or ‘-march=’ instead
+c++: error: unrecognized command line option ‘-03’
+c++: error: unrecognized command line option ‘--target=arm-arm-none-eabi’
+
+
+Determining if the CXX compiler works failed with the following output:
+Change Dir: /home/ben/AMSwarm/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/make cmTC_eae3a/fast && /usr/bin/make -f CMakeFiles/cmTC_eae3a.dir/build.make CMakeFiles/cmTC_eae3a.dir/build
+make[1]: Entering directory '/home/ben/AMSwarm/build/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_eae3a.dir/testCXXCompiler.cxx.o
+/usr/bin/c++    -03    -o CMakeFiles/cmTC_eae3a.dir/testCXXCompiler.cxx.o -c /home/ben/AMSwarm/build/CMakeFiles/CMakeTmp/testCXXCompiler.cxx
+c++: error: unrecognized command line option ‘-03’
+make[1]: *** [CMakeFiles/cmTC_eae3a.dir/build.make:66: CMakeFiles/cmTC_eae3a.dir/testCXXCompiler.cxx.o] Error 1
+make[1]: Leaving directory '/home/ben/AMSwarm/build/CMakeFiles/CMakeTmp'
+make: *** [Makefile:121: cmTC_eae3a/fast] Error 2
+
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler: /usr/bin/c++ 
+Build flags: -03
+Id flags:  
+
+The output was:
+1
+c++: error: unrecognized command line option ‘-03’
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler: /usr/bin/c++ 
+Build flags: -03
+Id flags: -c 
+
+The output was:
+1
+c++: error: unrecognized command line option ‘-03’
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler: /usr/bin/c++ 
+Build flags: -03
+Id flags: --c++ 
+
+The output was:
+1
+c++: error: unrecognized command line option ‘-03’
+c++: error: unrecognized command line option ‘--c++’
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler: /usr/bin/c++ 
+Build flags: -03
+Id flags: --ec++ 
+
+The output was:
+1
+c++: error: unrecognized command line option ‘-03’
+c++: error: unrecognized command line option ‘--ec++’; did you mean ‘-Weffc++’?
+
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" failed.
+Compiler: /usr/bin/c++ 
+Build flags: -03
+Id flags: --target=arm-arm-none-eabi;-mcpu=cortex-m3 
+
+The output was:
+1
+c++: warning: ‘-mcpu=’ is deprecated; use ‘-mtune=’ or ‘-march=’ instead
+c++: error: unrecognized command line option ‘-03’
+c++: error: unrecognized command line option ‘--target=arm-arm-none-eabi’
+
+
+Determining if the CXX compiler works failed with the following output:
+Change Dir: /home/ben/AMSwarm/build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/make cmTC_1ec69/fast && /usr/bin/make -f CMakeFiles/cmTC_1ec69.dir/build.make CMakeFiles/cmTC_1ec69.dir/build
+make[1]: Entering directory '/home/ben/AMSwarm/build/CMakeFiles/CMakeTmp'
+Building CXX object CMakeFiles/cmTC_1ec69.dir/testCXXCompiler.cxx.o
+/usr/bin/c++    -03    -o CMakeFiles/cmTC_1ec69.dir/testCXXCompiler.cxx.o -c /home/ben/AMSwarm/build/CMakeFiles/CMakeTmp/testCXXCompiler.cxx
+c++: error: unrecognized command line option ‘-03’
+make[1]: *** [CMakeFiles/cmTC_1ec69.dir/build.make:66: CMakeFiles/cmTC_1ec69.dir/testCXXCompiler.cxx.o] Error 1
+make[1]: Leaving directory '/home/ben/AMSwarm/build/CMakeFiles/CMakeTmp'
+make: *** [Makefile:121: cmTC_1ec69/fast] Error 2
+
+
+
