@@ -1,2 +1,0 @@
-/usr/bin/ar qc libAMSwarm.a  CMakeFiles/AMSwarm.dir/src/drone.cpp.o CMakeFiles/AMSwarm.dir/src/swarm.cpp.o CMakeFiles/AMSwarm.dir/src/simulator.cpp.o CMakeFiles/AMSwarm.dir/src/utils.cpp.o
-/usr/bin/ranlib libAMSwarm.a
