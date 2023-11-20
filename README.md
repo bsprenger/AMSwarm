@@ -41,8 +41,16 @@ Usage in python:
 
 ```
 import amswarm
+import numpy as np
 
-sim = amswarm.Simulator()
+# any size can be input right now, will add constraints to ensure correct waypoints dims later
+
+waypoints = np.array([[1.0, 2.0], [3.0, 4.0]])
+
+sim = amswarm.Simulator(waypoints)
+
+results = sim.run_simulation()
+print(results)
 ```
 
 

@@ -9,7 +9,9 @@
 
 class Simulator {
     public:
-        Simulator();
+        Simulator(const Eigen::MatrixXd&);
+
+        Eigen::MatrixXd runSimulation();
 };
 
 
