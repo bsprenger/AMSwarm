@@ -4,16 +4,17 @@
 #include <cmath>
 #include <yaml-cpp/yaml.h>
 #include <algorithm>
+#include <stdexcept>
 
 
-Drone::Drone(int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd p_max, float w_g_p, float w_g_v, float w_s, int kappa, float v_bar, float f_bar, Eigen::VectorXd initial_pos, Eigen::MatrixXd waypoints)
+Drone::Drone(int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd p_max, float w_g_p, float w_g_v, float w_s, int kappa, float v_bar, float f_bar, Eigen::VectorXd initial_pos, Eigen::MatrixXd waypoints, std::string& params_filepath)
     : K(K), n(n), delta_t(delta_t), p_min(p_min), p_max(p_max), w_g_p(w_g_p), w_g_v(w_g_v), w_s(w_s), kappa(kappa), v_bar(v_bar), f_bar(f_bar),
     t_f(delta_t*(K-1)), W(3*K,3*(n+1)), W_dot(3*K,3*(n+1)), S_x(), S_u(), S_x_prime(), S_u_prime(), waypoints(waypoints), input_traj_vector(3 * K), state_traj_vector(6 * K), pos_traj_vector(3 * K), input_traj_matrix(3,K), state_traj_matrix(6,K), pos_traj_matrix(3,K), collision_envelope(3,3)
 {
     // initialize input parameterization (Bernstein matrices) and full horizon dynamics matrices - these will not change ever during the simulation
     Drone::generateAndAssignBernsteinMatrices();
-    Drone::generateFullHorizonDynamicsMatrices();
-
+    Drone::generateFullHorizonDynamicsMatrices(params_filepath);
+    
     // initialize collision envelope - later move this to a yaml or something
     collision_envelope.insert(0,0) = 1.2; collision_envelope.insert(1,1) = 1.2; collision_envelope.insert(2,2) = 0.8;
 
@@ -31,21 +32,31 @@ Drone::Drone(int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd
 
 
 void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const int j, std::vector<Eigen::SparseMatrix<double>> thetas, const Eigen::VectorXd xi) {
-    
+    std::cout << "here" << std::endl;
     // select the relevant waypoints within the current horizon (if a waypoint exists at k <= 0, ignore it, if waypoint exists > K, ignore it)
     Eigen::MatrixXd extracted_waypoints = Drone::extractWaypointsInCurrentHorizon(current_time, waypoints);
-
+std::cout << "here2" << std::endl;
+    if (extracted_waypoints.size() == 0) {
+        throw std::runtime_error("Error: no waypoints within current horizon. Either increase horizon length or add waypoints.");
+    }
+    std::cout << extracted_waypoints << std::endl;
+    std::cout << "here3" << std::endl;
     // extract the penalized steps from the first column of extracted_waypoints
     // note that our optimization is over x(1) to x(K). penalized_steps lines up with these indexes, i.e. the first possible penalized step is 1, NOT 0
-    Eigen::VectorXd penalized_steps = extracted_waypoints.block(0,0,extracted_waypoints.rows(),1);
-    
+    // check if extracted_waypoints is empty -- if so, then penalized_steps is empty
+    Eigen::VectorXd penalized_steps;
+    if (extracted_waypoints.size() != 0) {
+        penalized_steps.resize(extracted_waypoints.rows());
+        penalized_steps = extracted_waypoints.block(0,0,extracted_waypoints.rows(),1);
+    }
+std::cout << "here4" << std::endl;
     // construct X_g
     Eigen::SparseMatrix<double> X_g(6 * K, 1); // position and velocity for time steps 1 to K
     for (int i = 0; i < penalized_steps.size(); ++i) {
         Eigen::MatrixXd tmp_waypoint = extracted_waypoints.block(i,1,1,extracted_waypoints.cols()-1).transpose();
         utils::replaceSparseBlock(X_g, tmp_waypoint,(penalized_steps(i) - 1) * 6, 0);
     }
-
+std::cout << "here5" << std::endl;
     // intermediate matrices used in building selection matrices
     Eigen::SparseMatrix<double> eye3 = Eigen::SparseMatrix<double>(3, 3);
     eye3.setIdentity();
@@ -144,7 +155,6 @@ void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const in
     
     // calculate intermediate cost values that won't change
     Eigen::SparseMatrix<double> A_check_const_G_terms = G_eq.transpose() * G_eq + G_pos.transpose() * G_pos;
-
     Eigen::VectorXd zeta_1(3*(n+1));
 
     int max_iters = 1000;
@@ -218,14 +228,20 @@ void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const in
     input_traj_matrix = Eigen::Map<Eigen::MatrixXd>(input_traj_vector.data(), 3, K);
     state_traj_matrix = Eigen::Map<Eigen::MatrixXd>(state_traj_vector.data(), 6, K);
     pos_traj_matrix = Eigen::Map<Eigen::MatrixXd>(pos_traj_vector.data(), 3, K);
+    
 };
 
 
 Eigen::MatrixXd Drone::extractWaypointsInCurrentHorizon(const double t, const Eigen::MatrixXd& waypoints) {
     // round all the waypoints to the nearest time step. 
     // negative time steps are allowed -- we will filter them out later
-
     Eigen::MatrixXd current_waypoints;
+
+    // if waypoints is empty, then return empty matrix
+    if (waypoints.size() == 0) {
+        return current_waypoints;
+    }
+    
     int num_waypoints = waypoints.rows();
 
     Eigen::MatrixXd rounded_waypoints = waypoints;
@@ -235,7 +251,7 @@ Eigen::MatrixXd Drone::extractWaypointsInCurrentHorizon(const double t, const Ei
     if (rounded_waypoints(num_waypoints - 1, 0) < 1) {
         return current_waypoints;
     }
-
+    std::cout << "rounded waypoints" << rounded_waypoints << std::endl;
     // Find the range of indices satisfying the condition
     int start_index = 0;
     while (start_index < num_waypoints && rounded_waypoints(start_index, 0) < 1) {
@@ -385,9 +401,9 @@ std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::Spar
 }
 
 
-void Drone::generateFullHorizonDynamicsMatrices() {
-    std::string executablePath = utils::getExecutablePath(); 
-    std::string modelParamsYamlPath = executablePath + "/../params/model_params.yaml";
+void Drone::generateFullHorizonDynamicsMatrices(std::string& params_filepath) {
+    // std::string executablePath = utils::getExecutablePath(); 
+    std::string modelParamsYamlPath = params_filepath + "/model_params.yaml";
 
     // std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> matrices = loadDynamicsMatricesFromFile(modelParamsYamlPath);
     std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> matrices = loadSparseDynamicsMatricesFromFile(modelParamsYamlPath);

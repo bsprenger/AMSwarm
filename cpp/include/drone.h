@@ -9,14 +9,14 @@
 
 class Drone {
     public:
-        Drone(int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd p_max, float w_g_p, float w_g_v, float w_s, int kappa, float v_bar, float f_bar, Eigen::VectorXd initial_pos, Eigen::MatrixXd waypoints);
+        Drone(int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd p_max, float w_g_p, float w_g_v, float w_s, int kappa, float v_bar, float f_bar, Eigen::VectorXd initial_pos, Eigen::MatrixXd waypoints, std::string& params_filepath);
 
         void solve(const double, const Eigen::VectorXd, const int, const std::vector<Eigen::SparseMatrix<double>>, const Eigen::VectorXd);
         Eigen::MatrixXd extractWaypointsInCurrentHorizon(const double, const Eigen::MatrixXd&);
         void generateAndAssignBernsteinMatrices();
         std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> loadDynamicsMatricesFromFile(const std::string&);
         std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> loadSparseDynamicsMatricesFromFile(const std::string&);
-        void generateFullHorizonDynamicsMatrices();
+        void generateFullHorizonDynamicsMatrices(std::string&);
 
         int K;
         int n;
