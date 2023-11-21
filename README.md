@@ -43,11 +43,32 @@ Usage in python:
 import amswarm
 import numpy as np
 
-# any size can be input right now, will add constraints to ensure correct waypoints dims later
+# for now, waypoint timing MUST BE IN ORDER - will give bad results if time steps are not in order
+# if one drone has no waypoints remaining while others do, it will drift - make sure that all drones have a waypoint at final position to avoid this.
+# first index: drone ID from 0 to num_drones - 1
+# second index: time
+# remaining indices: xyz position, xyz velocity
+waypoints = np.array([[0, 1, 1, 1, 1, 0,0,0], [1, 1, 2, 2, 2, 0, 0, 0], [2, 1, 3, 3, 3, 0, 0, 0]])
 
-waypoints = np.array([[1.0, 2.0], [3.0, 4.0]])
+num_drones = 3
+K = 15
+n = 10
+delta_t = 0.2
+p_min = np.array([[-10,-10,-10]])
+p_max = np.array([[10, 10, 10]])
+w_g_p = 7000
+w_g_v = 0
+w_s = 0
+kappa = 1
+v_bar = 1
+f_bar = 10
 
-sim = amswarm.Simulator(waypoints)
+initial_positions = np.array([[0,9,9,9],[1,1,2,3],[2,2,3,4]])
+
+params_filepath = "/home/ben/AMSwarm/cpp/params"
+
+
+sim = amswarm.Simulator(num_drones, K, n, delta_t, p_min, p_max, w_g_p, w_g_v, w_s, kappa, v_bar, f_bar, initial_positions, waypoints, params_filepath)
 
 results = sim.run_simulation()
 print(results)

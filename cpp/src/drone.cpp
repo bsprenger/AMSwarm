@@ -32,15 +32,14 @@ Drone::Drone(int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd
 
 
 void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const int j, std::vector<Eigen::SparseMatrix<double>> thetas, const Eigen::VectorXd xi) {
-    std::cout << "here" << std::endl;
+
     // select the relevant waypoints within the current horizon (if a waypoint exists at k <= 0, ignore it, if waypoint exists > K, ignore it)
     Eigen::MatrixXd extracted_waypoints = Drone::extractWaypointsInCurrentHorizon(current_time, waypoints);
-std::cout << "here2" << std::endl;
+
     if (extracted_waypoints.size() == 0) {
         throw std::runtime_error("Error: no waypoints within current horizon. Either increase horizon length or add waypoints.");
     }
-    std::cout << extracted_waypoints << std::endl;
-    std::cout << "here3" << std::endl;
+
     // extract the penalized steps from the first column of extracted_waypoints
     // note that our optimization is over x(1) to x(K). penalized_steps lines up with these indexes, i.e. the first possible penalized step is 1, NOT 0
     // check if extracted_waypoints is empty -- if so, then penalized_steps is empty
@@ -49,14 +48,14 @@ std::cout << "here2" << std::endl;
         penalized_steps.resize(extracted_waypoints.rows());
         penalized_steps = extracted_waypoints.block(0,0,extracted_waypoints.rows(),1);
     }
-std::cout << "here4" << std::endl;
+
     // construct X_g
     Eigen::SparseMatrix<double> X_g(6 * K, 1); // position and velocity for time steps 1 to K
     for (int i = 0; i < penalized_steps.size(); ++i) {
         Eigen::MatrixXd tmp_waypoint = extracted_waypoints.block(i,1,1,extracted_waypoints.cols()-1).transpose();
         utils::replaceSparseBlock(X_g, tmp_waypoint,(penalized_steps(i) - 1) * 6, 0);
     }
-std::cout << "here5" << std::endl;
+
     // intermediate matrices used in building selection matrices
     Eigen::SparseMatrix<double> eye3 = Eigen::SparseMatrix<double>(3, 3);
     eye3.setIdentity();
@@ -235,38 +234,23 @@ std::cout << "here5" << std::endl;
 Eigen::MatrixXd Drone::extractWaypointsInCurrentHorizon(const double t, const Eigen::MatrixXd& waypoints) {
     // round all the waypoints to the nearest time step. 
     // negative time steps are allowed -- we will filter them out later
-    Eigen::MatrixXd current_waypoints;
-
-    // if waypoints is empty, then return empty matrix
-    if (waypoints.size() == 0) {
-        return current_waypoints;
-    }
-    
-    int num_waypoints = waypoints.rows();
-
     Eigen::MatrixXd rounded_waypoints = waypoints;
     rounded_waypoints.col(0) = ((rounded_waypoints.col(0).array() - t) / delta_t).round();
 
-    // check if current time is greater than last index -- if so return empty matrix
-    if (rounded_waypoints(num_waypoints - 1, 0) < 1) {
-        return current_waypoints;
-    }
-    std::cout << "rounded waypoints" << rounded_waypoints << std::endl;
-    // Find the range of indices satisfying the condition
-    int start_index = 0;
-    while (start_index < num_waypoints && rounded_waypoints(start_index, 0) < 1) {
-        start_index++;
+    // filter out waypoints that are outside the current horizon
+    std::vector<int> rows_in_horizon;
+
+    for (int i = 0; i < rounded_waypoints.rows(); ++i) {
+        if (rounded_waypoints(i, 0) >= 1 && rounded_waypoints(i, 0) <= K) {
+            rows_in_horizon.push_back(i);
+        }
     }
 
-    int end_index = start_index;
-    while (end_index < num_waypoints - 1 && rounded_waypoints(end_index + 1, 0) <= K) {
-        end_index++;
-    }
+    // keep all columns
+    Eigen::VectorXi cols = Eigen::VectorXi::LinSpaced(rounded_waypoints.cols(), 0,rounded_waypoints.cols());
 
-    // slice the matrix from startIndex to endIndex
-    current_waypoints = rounded_waypoints.block(start_index, 0, end_index - start_index + 1, rounded_waypoints.cols());
-
-    return current_waypoints;
+    // return the rounded waypoints that are within the current horizon. if none, will return empty matrix. error handling elsewhere
+    return rounded_waypoints(rows_in_horizon,cols);
 };
 
 
