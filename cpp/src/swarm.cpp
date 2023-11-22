@@ -25,7 +25,8 @@ Swarm::Swarm(int num_drones, int K, int n, float delta_t, Eigen::VectorXd p_min,
 
         // create vector defining collision envelope for each drone across all time steps
         // at each time step, each drone will take the relevant thetas from this vector
-        Eigen::SparseMatrix<double> eyeK = Eigen::SparseMatrix<double>(K,K); eyeK.setIdentity();
+        Eigen::SparseMatrix<double> eyeK = Eigen::SparseMatrix<double>(K,K);
+        eyeK.setIdentity();
         all_thetas.push_back(utils::kroneckerProduct(eyeK, drones[i].collision_envelope)); // contains collision envelope for all drones for all time steps
     }
 };

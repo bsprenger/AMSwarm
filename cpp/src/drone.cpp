@@ -16,7 +16,7 @@ Drone::Drone(int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd
     Drone::generateFullHorizonDynamicsMatrices(params_filepath);
     
     // initialize collision envelope - later move this to a yaml or something
-    collision_envelope.insert(0,0) = 1.2; collision_envelope.insert(1,1) = 1.2; collision_envelope.insert(2,2) = 0.8;
+    collision_envelope.insert(0,0) = 5.8824; collision_envelope.insert(1,1) = 5.8824; collision_envelope.insert(2,2) = 2.2222;
 
     // initialize input trajectory to zero, we assume that no predetermined input trajectory is given
     input_traj_vector.setZero();
@@ -59,6 +59,8 @@ void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const in
     // intermediate matrices used in building selection matrices
     Eigen::SparseMatrix<double> eye3 = Eigen::SparseMatrix<double>(3, 3);
     eye3.setIdentity();
+    Eigen::SparseMatrix<double> eye6 = Eigen::SparseMatrix<double>(6, 6);
+    eye6.setIdentity();
     Eigen::SparseMatrix<double> eyeK = Eigen::SparseMatrix<double>(K,K);
     eyeK.setIdentity();
     Eigen::SparseMatrix<double> eyeK2j = Eigen::SparseMatrix<double>((2 + j) * K, (2 + j) * K);
@@ -79,9 +81,20 @@ void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const in
     Eigen::SparseMatrix<double> M_x = utils::kroneckerProduct(eyeK2j, x_step);
     Eigen::SparseMatrix<double> M_y = utils::kroneckerProduct(eyeK2j, y_step);
     Eigen::SparseMatrix<double> M_z = utils::kroneckerProduct(eyeK2j, z_step);
+    Eigen::SparseMatrix<double> M_waypoints_penalized(6 * penalized_steps.size(), 6 * K); // selection matrix for penalized STATES - xyz pos and xyz vel for penalized steps only - x as state should really be renamed to avoid confusion with x coord
+    // Eigen::SparseMatrix<double> M_p_penalized(3 * penalized_steps.size(), 3 * K); // selection matrix for waypoint position steps - xyz pos for penalized steps only
+    for (int i = 0; i < penalized_steps.size(); ++i) {
+        utils::replaceSparseBlock(M_waypoints_penalized, eye6, 6 * i, 6 * (penalized_steps(i) - 1));
+        // utils::replaceSparseBlock(M_p_penalized, eye3, 3 * i, 3 * (penalized_steps(i) - 1));
+    }
 
     // create S_theta from the vector of thetas
     Eigen::SparseMatrix<double> S_theta = utils::blkDiag(thetas);
+
+    // calculate waypoint constraint matrices
+    Eigen::SparseMatrix<double> G_waypoints = M_waypoints_penalized * S_u * W;
+    Eigen::VectorXd c_waypoints = M_waypoints_penalized * S_x * x_0;
+    Eigen::VectorXd h_waypoints = extracted_waypoints.block(0,1,extracted_waypoints.rows(),extracted_waypoints.cols()-1).reshaped<Eigen::RowMajor>();
 
     // Calculate G_eq
     Eigen::SparseMatrix<double> G_eq_blk1 = M_v * S_u * W;
@@ -130,10 +143,12 @@ void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const in
     // initialize lambda
     Eigen::VectorXd lambda_eq = Eigen::VectorXd::Zero((2 + j) * 3 * K);
     Eigen::VectorXd lambda_pos = Eigen::VectorXd::Zero(6 * K);
+    Eigen::VectorXd lambda_waypoints = Eigen::VectorXd::Zero(6 * penalized_steps.size());
 
     // initialize residuals
     Eigen::VectorXd res_eq = Eigen::VectorXd::Ones((2 + j) * 3 * K);
     Eigen::VectorXd res_pos = Eigen::VectorXd::Ones(6 * K);
+    Eigen::VectorXd res_waypoints = Eigen::VectorXd::Ones(6 * penalized_steps.size());
 
     // initialize R_g_tilde
     std::vector<Eigen::SparseMatrix<double>> tmp_cost_vec = {eye3 * w_g_p, eye3 * w_g_v};
@@ -154,20 +169,30 @@ void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const in
     
     // calculate intermediate cost values that won't change
     Eigen::SparseMatrix<double> A_check_const_G_terms = G_eq.transpose() * G_eq + G_pos.transpose() * G_pos;
+    if (hard_waypoint_constraints) {
+        A_check_const_G_terms += G_waypoints.transpose() * G_waypoints;
+    }
     Eigen::VectorXd zeta_1(3*(n+1));
 
     int max_iters = 1000;
     double rho_init = 1.3;
-    double threshold = 0.01;
+    double threshold = 0.1;
 
     int iters = 0;
-    while (iters < max_iters && res_eq.cwiseAbs().maxCoeff() > threshold && res_pos.maxCoeff() > threshold) {
+    while (iters < max_iters && 
+           (res_eq.cwiseAbs().maxCoeff() > threshold ||
+           res_pos.maxCoeff() > threshold ||
+           (hard_waypoint_constraints && res_waypoints.cwiseAbs().maxCoeff() > threshold))) {
+        
         ++iters;
         double rho = std::min(std::pow(rho_init, iters), 5.0e5);
 
         // STEP 1: solve for zeta_1
         Eigen::SparseMatrix<double> A_check = Q + rho * A_check_const_G_terms;
         Eigen::SparseVector<double> b_check = -q - G_eq.transpose() * lambda_eq - G_pos.transpose() * lambda_pos + rho * G_eq.transpose() * (h_eq - c_eq) + rho * G_pos.transpose() * (h_pos - s);
+        if (hard_waypoint_constraints) {
+            b_check = b_check - G_waypoints.transpose() * lambda_waypoints + rho * G_waypoints.transpose() * (h_waypoints - c_waypoints);
+        }
         
         // Solve the sparse linear system A_check * zeta_1 = b_check
         Eigen::SparseQR<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> solver;
@@ -216,10 +241,12 @@ void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const in
         // STEP 5: calculate residuals and update lagrange multipliers
         res_eq = G_eq * zeta_1 + c_eq - h_eq;
         res_pos = G_pos * zeta_1 + s - h_pos;
+        res_waypoints = G_waypoints * zeta_1 + c_waypoints - h_waypoints;
         lambda_eq += rho * res_eq;
         lambda_pos += rho * res_pos;
+        lambda_waypoints += rho * res_waypoints;
     } // end iterative loop
-
+    
     // calculate and return inputs and predicted trajectory
     input_traj_vector = W * zeta_1;
     state_traj_vector = S_x * x_0 + S_u * input_traj_vector;
@@ -227,6 +254,12 @@ void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const in
     input_traj_matrix = Eigen::Map<Eigen::MatrixXd>(input_traj_vector.data(), 3, K);
     state_traj_matrix = Eigen::Map<Eigen::MatrixXd>(state_traj_vector.data(), 6, K);
     pos_traj_matrix = Eigen::Map<Eigen::MatrixXd>(pos_traj_vector.data(), 3, K);
+
+    // std::cout << "Waypoints in horizon:" << std::endl << extracted_waypoints << std::endl;
+    // std::cout << "State traj matrix:" << std::endl << state_traj_matrix << std::endl;
+    // std::cout << "Res eq: " << res_eq.cwiseAbs() << std::endl;
+    // std::cout << "Res pos: " << res_pos.maxCoeff() << std::endl;
+    // std::cout << "Res waypoints: " << res_waypoints.cwiseAbs().maxCoeff() << std::endl;
     
 };
 

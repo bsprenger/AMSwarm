@@ -44,6 +44,8 @@ class Drone {
         Eigen::MatrixXd pos_traj_matrix;
 
         Eigen::SparseMatrix<double> collision_envelope; // this drone's collision envelope - NOT the other obstacles' collision envelopes
+
+        bool hard_waypoint_constraints = true;
 };
 
 #endif
