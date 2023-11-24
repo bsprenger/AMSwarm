@@ -18,7 +18,7 @@ std::unordered_map<int, Eigen::MatrixXd> Simulator::runSimulation() {
     double final_waypoint_time = 0.0;
     for (const auto& item : waypoints) {
         Eigen::MatrixXd waypoint = item.second;
-        double max_time = waypoint.col(1).maxCoeff();
+        double max_time = waypoint.col(0).maxCoeff();
         if (max_time > final_waypoint_time) {
             final_waypoint_time = max_time;
         }
@@ -31,20 +31,20 @@ std::unordered_map<int, Eigen::MatrixXd> Simulator::runSimulation() {
     
     for (float t = 0.0; t < final_waypoint_time; t+=delta_t) {
         for (int j = 0; j < num_drones; ++j) {
-            Eigen::VectorXd row(5); // 1 extra element for the drone number
-            row << j, t, swarm.drones[j].pos_traj_vector[0], swarm.drones[j].pos_traj_vector[1], swarm.drones[j].pos_traj_vector[2];
+            Eigen::VectorXd row(4); // time, x, y, z
+            row << t, swarm.drones[j].pos_traj_vector[0], swarm.drones[j].pos_traj_vector[1], swarm.drones[j].pos_traj_vector[2];
             
-            positions[j].conservativeResize(positions[j].rows() + 1, 5);
+            positions[j].conservativeResize(positions[j].rows() + 1, 4);
             positions[j].row(positions[j].rows()-1) = row;
         }
         swarm.solve(t);
     }
     // get last position at final waypoint time
     for (int j = 0; j < num_drones; ++j) {
-        Eigen::VectorXd row(5); // 1 extra element for the drone number
-        row << j, final_waypoint_time, swarm.drones[j].pos_traj_vector[0], swarm.drones[j].pos_traj_vector[1], swarm.drones[j].pos_traj_vector[2];
+        Eigen::VectorXd row(4); // time, x, y, z
+        row << final_waypoint_time, swarm.drones[j].pos_traj_vector[0], swarm.drones[j].pos_traj_vector[1], swarm.drones[j].pos_traj_vector[2];
         
-        positions[j].conservativeResize(positions[j].rows() + 1, 5);
+        positions[j].conservativeResize(positions[j].rows() + 1, 4);
         positions[j].row(positions[j].rows()-1) = row;
     }
     return positions;

@@ -35,7 +35,7 @@ std::unordered_map<int, Eigen::VectorXd> dictToVectorMap(py::dict d) {
         auto buffer = array.request();
         
         // Map the NumPy array to Eigen::MatrixXd
-        Eigen::VectorXd value = Eigen::Map<Eigen::VectorXd>(static_cast<double*>(buffer.ptr), buffer.shape[1]);
+        Eigen::VectorXd value = Eigen::Map<Eigen::VectorXd>(static_cast<double*>(buffer.ptr), buffer.shape[0]);
 
         result[key] = value;
     }
@@ -47,7 +47,7 @@ std::unordered_map<int, Eigen::VectorXd> dictToVectorMap(py::dict d) {
 PYBIND11_MODULE(amswarm, m) {
     py::class_<Simulator>(m, "Simulator")
         .def(py::init<int, int, int, float, Eigen::VectorXd, Eigen::VectorXd, float, float, float, int, float, float, std::unordered_map<int, Eigen::VectorXd>, std::unordered_map<int, Eigen::MatrixXd>, std::string&>())
-        .def("__init__", [](Simulator& instance, int num_drones, 
+        .def(py::init([](int num_drones, 
                             int K, int n, float delta_t, py::array_t<double> p_min_npy, py::array_t<double> p_max_npy, float w_g_p, float w_g_v, float w_s, int kappa, float v_bar, float f_bar, py::dict initial_positions_dict, py::dict waypoints_dict, std::string& params_filepath) {
             
             // Convert the NumPy array to Eigen MatrixXd
@@ -62,8 +62,8 @@ PYBIND11_MODULE(amswarm, m) {
             std::unordered_map<int, Eigen::MatrixXd> waypoints = dictToMatrixMap(waypoints_dict);
 
             // Call the constructor with the parameters and waypoints as Eigen MatrixXd
-            new (&instance) Simulator(num_drones, K, n, delta_t, p_min, p_max, w_g_p, w_g_v, w_s, kappa, v_bar, f_bar, initial_positions, waypoints, params_filepath);
-        })
+            return new Simulator(num_drones, K, n, delta_t, p_min, p_max, w_g_p, w_g_v, w_s, kappa, v_bar, f_bar, initial_positions, waypoints, params_filepath);
+        }))
         .def("run_simulation", [](Simulator& instance) {
             std::unordered_map<int, Eigen::MatrixXd> result = instance.runSimulation();
 
