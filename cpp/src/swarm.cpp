@@ -8,21 +8,22 @@ Swarm::Swarm() {
     // Default initialization logic
 }
 
-Swarm::Swarm(int num_drones, int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd p_max, float w_g_p, float w_g_v, float w_s, int kappa, float v_bar, float f_bar, std::vector<Eigen::VectorXd> initial_positions, std::vector<Eigen::MatrixXd> waypoints, std::string& params_filepath)
+Swarm::Swarm(int num_drones, int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd p_max, float w_g_p, float w_g_v, float w_s, int kappa, float v_bar, float f_bar, std::unordered_map<int, Eigen::VectorXd> initial_positions, std::unordered_map<int, Eigen::MatrixXd> waypoints, std::string& params_filepath)
     : num_drones(num_drones), K(K)
 {
+    
     // set size of drone vector
     drones.reserve(num_drones);
-    
+
+    // hack to get drone IDs for now
+    std::vector<int> drone_ids;
+    for(std::unordered_map<int, Eigen::VectorXd>::iterator it = initial_positions.begin(); it != initial_positions.end(); ++it) {
+        drone_ids.push_back(it->first);
+    }
     // create drones
     for (int i = 0; i < num_drones; ++i) {
-        // temporarily create waypoints - to replace with loading from file or some other method to get the waypoints
-        // Eigen::MatrixXd waypoints = Eigen::MatrixXd::Zero(1,7);
-        // waypoints(0,0) = 2.4; waypoints(0,1) = -i-1; waypoints(0,2) = -i-1; waypoints(0,3) = -i-1;
+        drones.emplace_back(Drone(K, n, delta_t, p_min, p_max, w_g_p, w_g_v, w_s, kappa, v_bar, f_bar, initial_positions[drone_ids[i]], waypoints[drone_ids[i]], params_filepath));
         
-        // add new drone to vector at initial_position
-        drones.emplace_back(Drone(K, n, delta_t, p_min, p_max, w_g_p, w_g_v, w_s, kappa, v_bar, f_bar, initial_positions[i], waypoints[i], params_filepath));
-
         // create vector defining collision envelope for each drone across all time steps
         // at each time step, each drone will take the relevant thetas from this vector
         Eigen::SparseMatrix<double> eyeK = Eigen::SparseMatrix<double>(K,K);

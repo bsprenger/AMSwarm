@@ -9,13 +9,13 @@
 
 class Simulator {
     public:
-        Simulator(int, int, int, float, Eigen::VectorXd, Eigen::VectorXd, float, float, float, int, float, float, Eigen::MatrixXd, Eigen::MatrixXd, std::string&);
+        Simulator(int, int, int, float, Eigen::VectorXd, Eigen::VectorXd, float, float, float, int, float, float, std::unordered_map<int, Eigen::VectorXd>, std::unordered_map<int, Eigen::MatrixXd>, std::string&);
 
-        Eigen::MatrixXd runSimulation();
+        std::unordered_map<int, Eigen::MatrixXd> runSimulation();
 
         int num_drones;
-        Eigen::MatrixXd waypoints;
-        Eigen::MatrixXd initial_positions;
+        std::unordered_map<int, Eigen::MatrixXd> waypoints;
+        std::unordered_map<int, Eigen::VectorXd> initial_positions;
         int K;
         int n;
         float delta_t;

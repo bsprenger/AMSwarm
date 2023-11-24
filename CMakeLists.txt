@@ -25,7 +25,7 @@ list(APPEND CMAKE_PREFIX_PATH ${PYBIND11_INSTALL_PATH})
 find_package(pybind11 REQUIRED) 
 
 # source files for Python wrapper
-file(GLOB PYTHON_WRAPPER_FILES "python/*.cpp")
+file(GLOB PYTHON_WRAPPER_FILES "pybindings/*.cpp")
 
 # Link the C++ library with pybind11
 pybind11_add_module(amswarm MODULE ${PYTHON_WRAPPER_FILES})

@@ -14,14 +14,12 @@ Drone::Drone(int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd
     // initialize input parameterization (Bernstein matrices) and full horizon dynamics matrices - these will not change ever during the simulation
     Drone::generateAndAssignBernsteinMatrices();
     Drone::generateFullHorizonDynamicsMatrices(params_filepath);
-    
     // initialize collision envelope - later move this to a yaml or something
     collision_envelope.insert(0,0) = 5.8824; collision_envelope.insert(1,1) = 5.8824; collision_envelope.insert(2,2) = 2.2222;
 
     // initialize input trajectory to zero, we assume that no predetermined input trajectory is given
     input_traj_vector.setZero();
     input_traj_matrix.setZero();
-
     // initialize the state trajectory to the given initial position and zero velocity
     Eigen::VectorXd initial_state(6); initial_state << initial_pos, Eigen::VectorXd::Zero(3);
     state_traj_vector = initial_state.replicate(K,1);
@@ -35,7 +33,9 @@ void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const in
 
     // select the relevant waypoints within the current horizon (if a waypoint exists at k <= 0, ignore it, if waypoint exists > K, ignore it)
     Eigen::MatrixXd extracted_waypoints = Drone::extractWaypointsInCurrentHorizon(current_time, waypoints);
-
+    // std::cout << "Time: " << current_time << std::endl;
+    // std::cout << "All waypoints: " << std::endl << waypoints << std::endl;
+    // std::cout << "Extracted wpts: "<< extracted_waypoints << std::endl;
     if (extracted_waypoints.size() == 0) {
         throw std::runtime_error("Error: no waypoints within current horizon. Either increase horizon length or add waypoints.");
     }
@@ -176,7 +176,7 @@ void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const in
 
     int max_iters = 1000;
     double rho_init = 1.3;
-    double threshold = 0.1;
+    double threshold = 0.01;
 
     int iters = 0;
     while (iters < max_iters && 
@@ -257,10 +257,10 @@ void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const in
 
     // std::cout << "Waypoints in horizon:" << std::endl << extracted_waypoints << std::endl;
     // std::cout << "State traj matrix:" << std::endl << state_traj_matrix << std::endl;
-    // std::cout << "Res eq: " << res_eq.cwiseAbs() << std::endl;
+    // std::cout << "Res eq: " << res_eq.cwiseAbs().maxCoeff() << std::endl;
     // std::cout << "Res pos: " << res_pos.maxCoeff() << std::endl;
     // std::cout << "Res waypoints: " << res_waypoints.cwiseAbs().maxCoeff() << std::endl;
-    
+    // std::cout << iters << std::endl;
 };
 
 
