@@ -24,19 +24,20 @@ std::unordered_map<int, Eigen::MatrixXd> Simulator::runSimulation() {
         }
     }
 
-    final_waypoint_time = std::round(final_waypoint_time / delta_t) * delta_t;
-
+    final_waypoint_time = std::round(final_waypoint_time / delta_t) * delta_t; // round to nearest delta_t
+    std::cout << final_waypoint_time << std::endl;
     // Eigen::MatrixXd result;
     std::unordered_map<int, Eigen::MatrixXd> positions;
     
-    for (float t = 0.0; t < final_waypoint_time; t+=delta_t) {
+    for (float t = 0.0; t < final_waypoint_time - delta_t; t+=delta_t) { // the -1e6 is to avoid floating point errors with frequencies that have irrational time stamps e.g. 48Hz, 6Hz
         for (int j = 0; j < num_drones; ++j) {
             Eigen::VectorXd row(4); // time, x, y, z
             row << t, swarm.drones[j].pos_traj_vector[0], swarm.drones[j].pos_traj_vector[1], swarm.drones[j].pos_traj_vector[2];
-            
+
             positions[j].conservativeResize(positions[j].rows() + 1, 4);
             positions[j].row(positions[j].rows()-1) = row;
         }
+        
         swarm.solve(t);
     }
     // get last position at final waypoint time

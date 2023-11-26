@@ -37,6 +37,8 @@ void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const in
     // std::cout << "All waypoints: " << std::endl << waypoints << std::endl;
     // std::cout << "Extracted wpts: "<< extracted_waypoints << std::endl;
     if (extracted_waypoints.size() == 0) {
+        std::cout << "Current time: " << current_time << std::endl;
+        std::cout << "All waypoints: " << std::endl << waypoints << std::endl;
         throw std::runtime_error("Error: no waypoints within current horizon. Either increase horizon length or add waypoints.");
     }
 
@@ -257,7 +259,7 @@ void Drone::solve(const double current_time, const Eigen::VectorXd x_0, const in
 
     // std::cout << "Waypoints in horizon:" << std::endl << extracted_waypoints << std::endl;
     // std::cout << "State traj matrix:" << std::endl << state_traj_matrix << std::endl;
-    // std::cout << "Res eq: " << res_eq.cwiseAbs().maxCoeff() << std::endl;
+    // std::cout << "Res eq: " << res_eq.cwiseAbs() << std::endl;
     // std::cout << "Res pos: " << res_pos.maxCoeff() << std::endl;
     // std::cout << "Res waypoints: " << res_waypoints.cwiseAbs().maxCoeff() << std::endl;
     // std::cout << iters << std::endl;
