@@ -117,6 +117,12 @@ namespace utils
         return result;
     }
 
+    Eigen::SparseMatrix<double> getSparseIdentity(int n) {
+        Eigen::SparseMatrix<double> result(n, n);
+        result.setIdentity();
+        return result;
+    }
+
     Eigen::MatrixXd blkDiag(const std::vector<Eigen::MatrixXd>& matrices) {
         if (matrices.empty()) {
             // Return an empty matrix or handle the case as needed

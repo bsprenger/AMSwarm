@@ -20,6 +20,7 @@ namespace utils
     Eigen::MatrixXd vertcat(const Eigen::MatrixXd&, const Eigen::MatrixXd&);
     Eigen::SparseMatrix<double> vertcat(const Eigen::SparseMatrix<double>&, const Eigen::SparseMatrix<double>&);
     Eigen::SparseMatrix<double> replicateSparseMatrix(const Eigen::SparseMatrix<double>&, int, int);
+    Eigen::SparseMatrix<double> getSparseIdentity(int);
     Eigen::MatrixXd blkDiag(const std::vector<Eigen::MatrixXd>&);
     Eigen::SparseMatrix<double> blkDiag(const std::vector<Eigen::SparseMatrix<double>>&);
     void replaceSparseBlock(Eigen::SparseMatrix<double>&, const Eigen::MatrixXd&, int, int);
