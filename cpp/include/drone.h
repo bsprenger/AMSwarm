@@ -11,7 +11,7 @@ class Drone {
     public:
         Drone(std::string& params_filepath, Eigen::MatrixXd waypoints, // necessary inputs
                 Eigen::VectorXd initial_pos = Eigen::VectorXd::Zero(3), // optional inputs - default values are set
-                int K = 25, int n = 10, float delta_t = 1/6,
+                int K = 25, int n = 10, float delta_t = 1.0/6.0, // FIX THIS cast to float always
                 Eigen::VectorXd p_min = Eigen::VectorXd::Constant(3,-10),
                 Eigen::VectorXd p_max = Eigen::VectorXd::Constant(3,10),
                 float w_g_p = 7000, float w_g_v = 1000, float w_s = 100,
@@ -48,6 +48,45 @@ class Drone {
         bool hard_waypoint_constraints = true;
 
     private:
+        struct ConstSelectionMatrices {
+            Eigen::SparseMatrix<double> M_p, M_v, M_a; // maybe rename to p,v,a
+        };
+
+        struct VariableSelectionMatrices {
+            Eigen::SparseMatrix<double> M_x, M_y, M_z, M_waypoints_penalized; // maybe rename to x,y,z,timestep?
+        };
+
+        struct Constraints {
+            Eigen::SparseMatrix<double> G_eq, G_pos, G_waypoints;
+            Eigen::VectorXd h_eq, h_pos, h_waypoints;
+            Eigen::VectorXd c_eq, c_waypoints;
+        };
+
+        struct Residuals {
+            Eigen::VectorXd eq; // equality constraint residuals
+            Eigen::VectorXd pos; // position constraint residuals
+            Eigen::VectorXd waypoints; // waypoint constraint residuals
+        };
+
+        struct LagrangeMultipliers {
+            Eigen::VectorXd eq; // equality constraint residuals
+            Eigen::VectorXd pos; // position constraint residuals
+            Eigen::VectorXd waypoints; // waypoint constraint residuals
+        };
+
+        struct CostMatrices {
+            Eigen::SparseMatrix<double> Q, q; // why is q a matrix? --> clarify this later
+            Eigen::SparseMatrix<double> A_check_const_terms;
+            Eigen::SparseMatrix<double> A_check;
+            Eigen::SparseVector<double> b_check;
+        };
+
+        
+
+        ConstSelectionMatrices constSelectionMatrices;
+        void initConstSelectionMatrices();
+
+
         Eigen::MatrixXd extractWaypointsInCurrentHorizon(const double, const Eigen::MatrixXd&);
         void generateBernsteinMatrices();
         std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> loadDynamicsMatricesFromFile(const std::string&);
@@ -58,74 +97,70 @@ class Drone {
                                     Eigen::VectorXd x_0,
                                     Eigen::VectorXd xi,
                                     double current_time,
-                                    Eigen::SparseMatrix<double>& M_p,
-                                    Eigen::SparseMatrix<double>& M_v,
-                                    Eigen::SparseMatrix<double>& M_a,
-                                    Eigen::SparseMatrix<double>& M_x,
-                                    Eigen::SparseMatrix<double>& M_y,
-                                    Eigen::SparseMatrix<double>& M_z,
                                     std::vector<Eigen::SparseMatrix<double>>& thetas,
                                     Eigen::VectorXd& alpha,
                                     Eigen::VectorXd& beta,
                                     Eigen::VectorXd& d,
                                     Eigen::VectorXd& zeta_1,
-                                    Eigen::SparseMatrix<double>& G_waypoints,
-                                    Eigen::SparseMatrix<double>& G_eq,
-                                    Eigen::SparseMatrix<double>& G_pos,
-                                    Eigen::VectorXd& c_waypoints,
-                                    Eigen::VectorXd& c_eq,
-                                    Eigen::VectorXd& h_waypoints,
-                                    Eigen::VectorXd& h_pos,
-                                    Eigen::VectorXd& h_eq, Eigen::VectorXd& s,
-                                    Eigen::VectorXd& res_eq,
-                                    Eigen::VectorXd& res_pos,
-                                    Eigen::VectorXd& res_waypoints,
-                                    Eigen::VectorXd& lambda_eq,
-                                    Eigen::VectorXd& lambda_pos,
-                                    Eigen::VectorXd& lambda_waypoints,
-                                    Eigen::SparseMatrix<double>& Q,
-                                    Eigen::SparseMatrix<double>& q, 
-                                    Eigen::SparseMatrix<double>& A_check_const_terms);
+                                    Eigen::VectorXd& s,
+                                    VariableSelectionMatrices& variableSelectionMatrices,
+                                    Residuals& residuals,
+                                    LagrangeMultipliers& lambda,
+                                    Constraints& constraints,
+                                    CostMatrices& costMatrices);
 
-        void initSelectionMatrices(int, Eigen::VectorXd&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&);
+        void initVariableSelectionMatrices(int j, Eigen::VectorXd& penalized_steps,
+                            VariableSelectionMatrices& variableSelectionMatrices);
+                            
         void initOptimizationVariables(int, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&);
-        void initConstConstraintMatrices(int, Eigen::VectorXd, Eigen::VectorXd, Eigen::SparseMatrix<double>&, Eigen::MatrixXd&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&,Eigen::VectorXd&,Eigen::VectorXd&,Eigen::VectorXd&,Eigen::VectorXd&);
-        void initCostMatrices(Eigen::VectorXd&, Eigen::SparseMatrix<double>&, Eigen::VectorXd, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&);
-        void initResiduals(int j, int num_penalized_steps, Eigen::VectorXd& res_eq, Eigen::VectorXd& res_pos, Eigen::VectorXd& res_waypoints);
-        void initLagrangeMultipliers(int j, int num_penalized_steps, Eigen::VectorXd& lambda_eq, Eigen::VectorXd& lambda_pos, Eigen::VectorXd& lambda_waypoints);
+
+        void initConstConstraintMatrices(int j, Eigen::VectorXd x_0,
+                                Eigen::VectorXd xi,
+                                Eigen::SparseMatrix<double>& S_theta,
+                                Eigen::MatrixXd& extracted_waypoints,
+                                Eigen::SparseMatrix<double>& M_waypoints_penalized,
+                                Constraints& constraints);
+
+        void initCostMatrices(Eigen::VectorXd& penalized_steps,
+                            Eigen::VectorXd x_0,
+                            Eigen::SparseMatrix<double>& X_g,
+                            CostMatrices& costMatrices);
+
+        void initResiduals(int j, int num_penalized_steps, Residuals& residuals);
+        void initLagrangeMultipliers(int j, int num_penalized_steps,
+                                    LagrangeMultipliers& lambda);
 
         void computeX_g(Eigen::MatrixXd& extracted_waypoints, Eigen::VectorXd& penalized_steps, Eigen::SparseMatrix<double>& X_g);
 
-        void computeZeta1(double rho,
-                        Eigen::SparseQR<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>>& solver,
-                        Eigen::SparseMatrix<double>& A_check,
-                        Eigen::SparseVector<double>& b_check,
-                        Eigen::SparseMatrix<double>& A_check_const_terms,
-                        Eigen::SparseMatrix<double>& Q,
-                        Eigen::SparseMatrix<double>& q,
-                        Eigen::SparseMatrix<double>& G_waypoints,
-                        Eigen::SparseMatrix<double>& G_eq,
-                        Eigen::SparseMatrix<double>& G_pos,
-                        Eigen::VectorXd& c_waypoints,
-                        Eigen::VectorXd& c_eq, 
-                        Eigen::VectorXd& h_waypoints,
-                        Eigen::VectorXd& h_pos,
-                        Eigen::VectorXd& h_eq,
+        void computeZeta1(int iters, double rho,
+                        Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>>& solver,
+                        CostMatrices& costMatrices,
+                        Constraints& constraints,
                         Eigen::VectorXd& s,
-                        Eigen::VectorXd& lambda_eq,
-                        Eigen::VectorXd& lambda_pos,
-                        Eigen::VectorXd& lambda_waypoints,
+                        LagrangeMultipliers& lambda,
                         Eigen::VectorXd& zeta_1);
 
         void compute_h_eq(int, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&,Eigen::VectorXd&);
-        void compute_d(int, int, double, Eigen::SparseMatrix<double>&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&);
-        void computeAlphaBeta(double, Eigen::SparseMatrix<double>&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::VectorXd&, Eigen::VectorXd&);
-        void computeResiduals(Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::SparseMatrix<double>&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&);
-        void updateLagrangeMultipliers(double rho, Eigen::VectorXd& res_eq, Eigen::VectorXd& res_pos, Eigen::VectorXd& res_waypoints, Eigen::VectorXd& lambda_eq, Eigen::VectorXd& lambda_pos, Eigen::VectorXd& lambda_waypoints);
+        void compute_d(int K, int j, double rho,
+                    Constraints& constraints, Eigen::VectorXd& zeta_1,
+                    LagrangeMultipliers& lambda,
+                    Eigen::VectorXd& alpha, Eigen::VectorXd& beta,
+                    Eigen::VectorXd& d);
+        void computeAlphaBeta(double rho, Constraints& constraints,
+                            Eigen::VectorXd& zeta_1,
+                            LagrangeMultipliers& lambda, 
+                            Eigen::VectorXd& alpha, Eigen::VectorXd& beta,
+                            VariableSelectionMatrices& variableSelectionMatrices);
+                            
+        void computeResiduals(Constraints& constraints,
+                            Eigen::VectorXd& zeta_1, Eigen::VectorXd& s,
+                            Residuals& residuals);
+
+        void updateLagrangeMultipliers(double rho, Residuals& residuals, LagrangeMultipliers& lambda);
 
         void computeInputOverHorizon(Eigen::VectorXd& zeta_1);
         void computeStatesOverHorizon(const Eigen::VectorXd x_0);
-        void computePositionOverHorizon(Eigen::SparseMatrix<double>& M_p);
+        void computePositionOverHorizon();
 };
 
 #endif

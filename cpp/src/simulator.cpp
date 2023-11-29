@@ -25,7 +25,6 @@ std::unordered_map<int, Eigen::MatrixXd> Simulator::runSimulation() {
     }
 
     final_waypoint_time = std::round(final_waypoint_time / delta_t) * delta_t; // round to nearest delta_t
-    std::cout << final_waypoint_time << std::endl;
     // Eigen::MatrixXd result;
     std::unordered_map<int, Eigen::MatrixXd> positions;
     
