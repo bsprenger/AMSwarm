@@ -8,7 +8,7 @@ Swarm::Swarm() {
     // Default initialization logic
 }
 
-Swarm::Swarm(int num_drones, int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd p_max, float w_g_p, float w_g_v, float w_s, int kappa, float v_bar, float f_bar, std::unordered_map<int, Eigen::VectorXd> initial_positions, std::unordered_map<int, Eigen::MatrixXd> waypoints, std::string& params_filepath)
+Swarm::Swarm(int num_drones, int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd p_max, float w_g_p, float w_g_v, float w_s, int kappa, float v_bar, float f_bar, std::map<int, Eigen::VectorXd> initial_positions, std::map<int, Eigen::MatrixXd> waypoints, std::string& params_filepath)
     : num_drones(num_drones), K(K)
 {
     
@@ -17,7 +17,7 @@ Swarm::Swarm(int num_drones, int K, int n, float delta_t, Eigen::VectorXd p_min,
 
     // hack to get drone IDs for now
     std::vector<int> drone_ids;
-    for(std::unordered_map<int, Eigen::VectorXd>::iterator it = initial_positions.begin(); it != initial_positions.end(); ++it) {
+    for(std::map<int, Eigen::VectorXd>::iterator it = initial_positions.begin(); it != initial_positions.end(); ++it) {
         drone_ids.push_back(it->first);
     }
     // create drones
@@ -34,9 +34,6 @@ Swarm::Swarm(int num_drones, int K, int n, float delta_t, Eigen::VectorXd p_min,
 
 
 void Swarm::solve(const double current_time) {
-    // Vector to hold threads
-    std::vector<std::thread> threads;
-
     // Vector to hold collision variables for each drone
     std::vector<CollisionParameters> collisionParameters;
 

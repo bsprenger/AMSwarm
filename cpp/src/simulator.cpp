@@ -3,7 +3,7 @@
 #include <fstream>
 
 Simulator::Simulator(int num_drones, int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd p_max,
-                    float w_g_p, float w_g_v, float w_s, int kappa, float v_bar, float f_bar, std::unordered_map<int, Eigen::VectorXd> initial_positions, std::unordered_map<int, Eigen::MatrixXd> waypoints, std::string& params_filepath) : 
+                    float w_g_p, float w_g_v, float w_s, int kappa, float v_bar, float f_bar, std::map<int, Eigen::VectorXd> initial_positions, std::map<int, Eigen::MatrixXd> waypoints, std::string& params_filepath) : 
                         num_drones(num_drones), K(K), n(n), delta_t(delta_t), p_min(p_min), p_max(p_max), w_g_p(w_g_p),
                         w_g_v(w_g_v), w_s(w_s), kappa(kappa), v_bar(v_bar), f_bar(f_bar), initial_positions(initial_positions), waypoints(waypoints) {
 
@@ -11,7 +11,7 @@ Simulator::Simulator(int num_drones, int K, int n, float delta_t, Eigen::VectorX
     
 };
 
-std::unordered_map<int, Eigen::MatrixXd> Simulator::runSimulation() {
+std::map<int, Eigen::MatrixXd> Simulator::runSimulation() {
     float t = 0.0;
 
     // get max waypoint time (1st column of each MatrixXd from waypoints unordered map)
@@ -26,7 +26,7 @@ std::unordered_map<int, Eigen::MatrixXd> Simulator::runSimulation() {
 
     final_waypoint_time = std::round(final_waypoint_time / delta_t) * delta_t; // round to nearest delta_t
     // Eigen::MatrixXd result;
-    std::unordered_map<int, Eigen::MatrixXd> positions;
+    std::map<int, Eigen::MatrixXd> positions;
     
     for (float t = 0.0; t < final_waypoint_time - delta_t; t+=delta_t) { // the -1e6 is to avoid floating point errors with frequencies that have irrational time stamps e.g. 48Hz, 6Hz
         for (int j = 0; j < num_drones; ++j) {

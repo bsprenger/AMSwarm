@@ -50,7 +50,7 @@ Drone::OptimizationResult Drone::solve(const double current_time, const Eigen::V
     CostMatrices costMatrices;
 
     Eigen::VectorXd alpha, beta, d, zeta_1, s;
-    
+
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
 
     initOptimizationParams(j, x_0, xi, current_time,
@@ -578,7 +578,7 @@ void Drone::initConstConstraintMatrices(int j, Eigen::VectorXd x_0,
     constraints.c_eq << c_eq_blk1, c_eq_blk2, c_eq_blk3;
 }
 
-
+// should be removed for struct constructors
 void Drone::initResiduals(int j, int num_penalized_steps, Residuals& residuals) {
     residuals.eq = Eigen::VectorXd::Ones((2 + j) * 3 * K); // TODO something more intelligent then setting these to 1 -> they should be bigger than threshold
     residuals.pos = Eigen::VectorXd::Ones(6 * K);
@@ -586,7 +586,7 @@ void Drone::initResiduals(int j, int num_penalized_steps, Residuals& residuals) 
     residuals.accel = Eigen::VectorXd::Ones(6 * num_penalized_steps);
 }
 
-
+// these should be removed for struct constructors
 void Drone::initLagrangeMultipliers(int j, int num_penalized_steps, LagrangeMultipliers& lambda) {
     lambda.eq = Eigen::VectorXd::Zero((2 + j) * 3 * K);
     lambda.pos = Eigen::VectorXd::Zero(6 * K);
