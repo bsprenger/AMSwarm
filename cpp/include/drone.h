@@ -2,13 +2,24 @@
 #define DRONE_H
 
 #include <cmath>
+#include <vector>
+
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <Eigen/SparseQR>
-#include <vector>
+
 
 class Drone {
     public:
+        struct OptimizationResult {
+            Eigen::VectorXd input_traj_vector;
+            Eigen::VectorXd state_traj_vector;
+            Eigen::VectorXd pos_traj_vector;
+            Eigen::MatrixXd input_traj_matrix; // each column is a time step. each row contains an x, y, or z input position
+            Eigen::MatrixXd state_traj_matrix;
+            Eigen::MatrixXd pos_traj_matrix;
+        };
+
         Drone(std::string& params_filepath, Eigen::MatrixXd waypoints, // necessary inputs
                 Eigen::VectorXd initial_pos = Eigen::VectorXd::Zero(3), // optional inputs - default values are set
                 int K = 25, int n = 10, float delta_t = 1.0/6.0, // FIX THIS cast to float always
@@ -17,25 +28,9 @@ class Drone {
                 float w_g_p = 7000, float w_g_v = 1000, float w_s = 100,
                 float v_bar = 1.73, float f_bar = 1.5*9.8);
 
-        void solve(const double, const Eigen::VectorXd, const int, const std::vector<Eigen::SparseMatrix<double>>, const Eigen::VectorXd);
+        OptimizationResult solve(const double, const Eigen::VectorXd, const int, const std::vector<Eigen::SparseMatrix<double>>, const Eigen::VectorXd);
 
-        int K;
-        int n;
-        float delta_t;
-        float t_f;
-        Eigen::VectorXd p_min;
-        Eigen::VectorXd p_max;
-        float w_g_p;
-        float w_g_v;
-        float w_s;
-        double v_bar;
-        double f_bar;
-
-        Eigen::SparseMatrix<double> W, W_dot;
-        Eigen::SparseMatrix<double> S_x, S_u, S_x_prime, S_u_prime;
-
-        Eigen::MatrixXd waypoints;
-
+        // to remove
         Eigen::VectorXd input_traj_vector;
         Eigen::VectorXd state_traj_vector;
         Eigen::VectorXd pos_traj_vector;
@@ -43,9 +38,9 @@ class Drone {
         Eigen::MatrixXd state_traj_matrix;
         Eigen::MatrixXd pos_traj_matrix;
 
+        // to do: make private or protected
         Eigen::SparseMatrix<double> collision_envelope; // this drone's collision envelope - NOT the other obstacles' collision envelopes
-
-        bool hard_waypoint_constraints = true;
+        
 
     private:
         struct ConstSelectionMatrices {
@@ -57,21 +52,23 @@ class Drone {
         };
 
         struct Constraints {
-            Eigen::SparseMatrix<double> G_eq, G_pos, G_waypoints;
-            Eigen::VectorXd h_eq, h_pos, h_waypoints;
-            Eigen::VectorXd c_eq, c_waypoints;
+            Eigen::SparseMatrix<double> G_eq, G_pos, G_waypoints, G_accel;
+            Eigen::VectorXd h_eq, h_pos, h_waypoints, h_accel;
+            Eigen::VectorXd c_eq, c_waypoints, c_accel;
         };
 
         struct Residuals {
             Eigen::VectorXd eq; // equality constraint residuals
             Eigen::VectorXd pos; // position constraint residuals
             Eigen::VectorXd waypoints; // waypoint constraint residuals
+            Eigen::VectorXd accel; // acceleration constraint residuals --> to do change this
         };
 
         struct LagrangeMultipliers {
             Eigen::VectorXd eq; // equality constraint residuals
             Eigen::VectorXd pos; // position constraint residuals
             Eigen::VectorXd waypoints; // waypoint constraint residuals
+            Eigen::VectorXd accel; // acceleration constraint residuals --> to do change this
         };
 
         struct CostMatrices {
@@ -82,6 +79,22 @@ class Drone {
         };
 
         
+        Eigen::SparseMatrix<double> W, W_dot;
+        Eigen::SparseMatrix<double> S_x, S_u, S_x_prime, S_u_prime;
+        int K;
+        int n;
+        float delta_t;
+        float t_f;
+        Eigen::VectorXd p_min;
+        Eigen::VectorXd p_max;
+        float w_g_p;
+        float w_g_v;
+        float w_s;
+        double v_bar;
+        double f_bar;
+        bool hard_waypoint_constraints = true;
+        bool acceleration_constraints = true;
+        Eigen::MatrixXd waypoints;
 
         ConstSelectionMatrices constSelectionMatrices;
         void initConstSelectionMatrices();
@@ -161,6 +174,7 @@ class Drone {
         void computeInputOverHorizon(Eigen::VectorXd& zeta_1);
         void computeStatesOverHorizon(const Eigen::VectorXd x_0);
         void computePositionOverHorizon();
+        OptimizationResult computeOptimizationResult(Eigen::VectorXd& zeta_1,Eigen::VectorXd x_0);
 };
 
 #endif
