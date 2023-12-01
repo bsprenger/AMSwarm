@@ -30,17 +30,11 @@ class Drone {
 
         OptimizationResult solve(const double, const Eigen::VectorXd, const int, const std::vector<Eigen::SparseMatrix<double>>, const Eigen::VectorXd);
 
-        // to remove
-        Eigen::VectorXd input_traj_vector;
-        Eigen::VectorXd state_traj_vector;
-        Eigen::VectorXd pos_traj_vector;
-        Eigen::MatrixXd input_traj_matrix; // each column is a time step. each row contains an x, y, or z input position
-        Eigen::MatrixXd state_traj_matrix;
-        Eigen::MatrixXd pos_traj_matrix;
-
         // to do: make private or protected
         Eigen::SparseMatrix<double> collision_envelope; // this drone's collision envelope - NOT the other obstacles' collision envelopes
         
+        // Getters TO DO
+        Eigen::VectorXd getInitialPosition();
 
     private:
         struct ConstSelectionMatrices {
@@ -95,6 +89,7 @@ class Drone {
         bool hard_waypoint_constraints = true;
         bool acceleration_constraints = true;
         Eigen::MatrixXd waypoints;
+        Eigen::VectorXd initial_pos;
 
         ConstSelectionMatrices constSelectionMatrices;
         void initConstSelectionMatrices();
@@ -171,9 +166,6 @@ class Drone {
 
         void updateLagrangeMultipliers(double rho, Residuals& residuals, LagrangeMultipliers& lambda);
 
-        void computeInputOverHorizon(Eigen::VectorXd& zeta_1);
-        void computeStatesOverHorizon(const Eigen::VectorXd x_0);
-        void computePositionOverHorizon();
         OptimizationResult computeOptimizationResult(Eigen::VectorXd& zeta_1,Eigen::VectorXd x_0);
 };
 

@@ -11,12 +11,10 @@ Drone::Drone(std::string& params_filepath, Eigen::MatrixXd waypoints,
             Eigen::VectorXd initial_pos, int K, int n, float delta_t,
             Eigen::VectorXd p_min, Eigen::VectorXd p_max, float w_g_p,
             float w_g_v, float w_s, float v_bar, float f_bar)
-    : waypoints(waypoints), K(K), n(n), delta_t(delta_t), p_min(p_min), 
+    : waypoints(waypoints), initial_pos(initial_pos), K(K), n(n), delta_t(delta_t), p_min(p_min), 
     p_max(p_max), w_g_p(w_g_p), w_g_v(w_g_v), w_s(w_s), v_bar(v_bar),
     f_bar(f_bar), t_f(delta_t*(K-1)), W(3*K,3*(n+1)), W_dot(3*K,3*(n+1)),
-    S_x(), S_u(), S_x_prime(), S_u_prime(), input_traj_vector(3 * K),
-    state_traj_vector(6 * K), pos_traj_vector(3 * K), input_traj_matrix(3,K),
-    state_traj_matrix(6,K), pos_traj_matrix(3,K), collision_envelope(3,3)
+    S_x(), S_u(), S_x_prime(), S_u_prime(), collision_envelope(3,3)
 {   
 
     // initialize input parameterization (Bernstein matrices) and full horizon dynamics matrices - these will not change ever during the simulation
@@ -25,16 +23,6 @@ Drone::Drone(std::string& params_filepath, Eigen::MatrixXd waypoints,
 
     // initialize collision envelope - later move this to a yaml or something
     collision_envelope.insert(0,0) = 5.8824; collision_envelope.insert(1,1) = 5.8824; collision_envelope.insert(2,2) = 2.2222;
-
-    // initialize input trajectory to zero, we assume that no predetermined input trajectory is given
-    input_traj_vector.setZero();
-    input_traj_matrix.setZero();
-    // initialize the state trajectory to the given initial position and zero velocity
-    Eigen::VectorXd initial_state(6); initial_state << initial_pos, Eigen::VectorXd::Zero(3);
-    state_traj_vector = initial_state.replicate(K,1);
-    pos_traj_vector = initial_pos.replicate(K,1); // this is defined for convenience, to avoid having to extract the position from the state vector for other drones' collision avoidance
-    state_traj_matrix = Eigen::Map<Eigen::MatrixXd>(state_traj_vector.data(), 6, K);
-    pos_traj_matrix = Eigen::Map<Eigen::MatrixXd>(pos_traj_vector.data(), 3, K);
 
     initConstSelectionMatrices();
 };
@@ -93,10 +81,6 @@ Drone::OptimizationResult Drone::solve(const double current_time, const Eigen::V
     } // end iterative loop
     
     // calculate and return inputs and predicted trajectory
-    computeInputOverHorizon(zeta_1);
-    computeStatesOverHorizon(x_0);
-    computePositionOverHorizon();
-
     OptimizationResult result = computeOptimizationResult(zeta_1, x_0);
     return result;
 
@@ -613,24 +597,6 @@ void Drone::updateLagrangeMultipliers(double rho, Residuals& residuals,
 }
 
 
-void Drone::computeInputOverHorizon(Eigen::VectorXd& zeta_1) {
-    input_traj_vector = W * zeta_1;
-    input_traj_matrix = Eigen::Map<Eigen::MatrixXd>(input_traj_vector.data(), 3, K);
-}
-
-
-void Drone::computeStatesOverHorizon(const Eigen::VectorXd x_0) {
-    state_traj_vector = S_x * x_0 + S_u * input_traj_vector;
-    state_traj_matrix = Eigen::Map<Eigen::MatrixXd>(state_traj_vector.data(), 6, K);
-}
-
-
-void Drone::computePositionOverHorizon() {
-    pos_traj_vector = constSelectionMatrices.M_p * state_traj_vector;
-    pos_traj_matrix = Eigen::Map<Eigen::MatrixXd>(pos_traj_vector.data(), 3, K);
-}
-
-
 Drone::OptimizationResult Drone::computeOptimizationResult(Eigen::VectorXd& zeta_1, Eigen::VectorXd x_0) {
     Drone::OptimizationResult result;
 
@@ -647,4 +613,9 @@ Drone::OptimizationResult Drone::computeOptimizationResult(Eigen::VectorXd& zeta
     result.pos_traj_matrix = Eigen::Map<Eigen::MatrixXd>(result.pos_traj_vector.data(), 3, K);
 
     return result;
+}
+
+
+Eigen::VectorXd Drone::getInitialPosition() {
+    return initial_pos;
 }

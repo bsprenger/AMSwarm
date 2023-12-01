@@ -8,32 +8,29 @@ Swarm::Swarm() {
     // Default initialization logic
 }
 
-Swarm::Swarm(int num_drones, int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd p_max, float w_g_p, float w_g_v, float w_s, int kappa, float v_bar, float f_bar, std::map<int, Eigen::VectorXd> initial_positions, std::map<int, Eigen::MatrixXd> waypoints, std::string& params_filepath)
-    : num_drones(num_drones), K(K)
+Swarm::Swarm(std::vector<Drone> drones, int K)
+    : drones(drones), K(K)
 {
-    
-    // set size of drone vector
-    drones.reserve(num_drones);
+    // get length of drones vector
+    num_drones = drones.size();
 
-    // hack to get drone IDs for now
-    std::vector<int> drone_ids;
-    for(std::map<int, Eigen::VectorXd>::iterator it = initial_positions.begin(); it != initial_positions.end(); ++it) {
-        drone_ids.push_back(it->first);
-    }
-    // create drones
+    // create collision matrices
     for (int i = 0; i < num_drones; ++i) {
-        drones.emplace_back(Drone(params_filepath, waypoints[drone_ids[i]], initial_positions[drone_ids[i]], K, n, delta_t, p_min, p_max, w_g_p, w_g_v, w_s, v_bar, f_bar));
-        
         // create vector defining collision envelope for each drone across all time steps
         // at each time step, each drone will take the relevant thetas from this vector
         Eigen::SparseMatrix<double> eyeK = Eigen::SparseMatrix<double>(K,K);
         eyeK.setIdentity();
         all_thetas.push_back(utils::kroneckerProduct(eyeK, drones[i].collision_envelope)); // contains collision envelope for all drones for all time steps
+
+        // initialize trajectories vector, assuming that each drone stays in its initial position over the horizon. this will be updated after each optimization routine
+        pos_trajectories.push_back(drones[i].getInitialPosition().replicate(K,1));
+        Eigen::VectorXd initial_state(6); initial_state << drones[i].getInitialPosition(), Eigen::VectorXd::Zero(3);
+        state_trajectories.push_back(initial_state.replicate(K,1));
     }
 };
 
 
-void Swarm::solve(const double current_time) {
+std::vector<Drone::OptimizationResult> Swarm::solve(const double current_time) {
     // Vector to hold collision variables for each drone
     std::vector<CollisionParameters> collisionParameters;
 
@@ -54,7 +51,8 @@ void Swarm::solve(const double current_time) {
         int index = 0;
         for (int drone = 0; drone < drones.size(); ++drone) {
             if (drone != i) {
-                xi.segment(3 * K * index, 3 * K) = drones[drone].pos_traj_vector;
+                // xi.segment(3 * K * index, 3 * K) = drones[drone].pos_traj_vector;
+                xi.segment(3 * K * index, 3 * K) = pos_trajectories[drone];
                 ++index;
             }
         }
@@ -65,8 +63,19 @@ void Swarm::solve(const double current_time) {
 
     // now we have a vector of drones and a corresponding vector of collisionParameters
     // we can now solve each drone's trajectory in parallel
-    // to do: multithread this
+    std::vector<Drone::OptimizationResult> results(drones.size());
+
+    # pragma omp parallel for
     for (int i = 0; i < drones.size(); ++i) {
-        drones[i].solve(current_time, drones[i].state_traj_vector.head(6), j, collisionParameters[i].thetas, collisionParameters[i].xi);
+        Drone::OptimizationResult result = drones[i].solve(current_time, state_trajectories[i].head(6), j, collisionParameters[i].thetas, collisionParameters[i].xi);
+
+        // use a critical section to update shared vectors
+        # pragma omp critical
+        {
+            results[i] = result;;
+            pos_trajectories[i] = result.pos_traj_vector;
+            state_trajectories[i] = result.state_traj_vector;
+        }
     }
+    return results;
 }

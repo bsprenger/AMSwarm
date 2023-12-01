@@ -6,12 +6,12 @@
 
 class Swarm {
     public:
-        Swarm(int num_drones, int K, int n, float delta_t, Eigen::VectorXd p_min, Eigen::VectorXd p_max, float w_g_p, float w_g_v, float w_s, int kappa, float v_bar, float f_bar, std::map<int, Eigen::VectorXd> initial_positions, std::map<int, Eigen::MatrixXd> waypoints, std::string& params_filepath);
+        Swarm(std::vector<Drone> drones, int K);
         Swarm(); // default constructor - this should be removed later, quick hack to allow simulator to keep a swarm as a member variable on initialization
 
-        void solve(const double);
+        std::vector<Drone::OptimizationResult> solve(const double);
         int num_drones;
-        int K;
+        int K;  // to do remove this
         std::vector<Drone> drones;
         std::vector<Eigen::SparseMatrix<double>> all_thetas;
 
@@ -20,6 +20,8 @@ class Swarm {
             Eigen::VectorXd xi;
         };
 
+        std::vector<Eigen::VectorXd> pos_trajectories; // drone trajectories -> swarm has to keep track of each drone's trajectory so that it can be passed to the next optimization routine
+        std::vector<Eigen::VectorXd> state_trajectories;
         
 };
 

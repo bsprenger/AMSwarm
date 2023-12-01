@@ -7,7 +7,22 @@ Simulator::Simulator(int num_drones, int K, int n, float delta_t, Eigen::VectorX
                         num_drones(num_drones), K(K), n(n), delta_t(delta_t), p_min(p_min), p_max(p_max), w_g_p(w_g_p),
                         w_g_v(w_g_v), w_s(w_s), kappa(kappa), v_bar(v_bar), f_bar(f_bar), initial_positions(initial_positions), waypoints(waypoints) {
 
-    swarm = Swarm(num_drones, K, n, delta_t, p_min, p_max, w_g_p, w_g_v, w_s, kappa, v_bar, f_bar, initial_positions, waypoints, params_filepath);
+    std::vector<Drone> drones;
+    drones.reserve(num_drones);
+
+    // hack to get drone IDs for now
+    std::vector<int> drone_ids;
+    for(std::map<int, Eigen::VectorXd>::iterator it = initial_positions.begin(); it != initial_positions.end(); ++it) {
+        drone_ids.push_back(it->first);
+    }
+
+    // create drones
+    for (int i = 0; i < num_drones; ++i) {
+        drones.emplace_back(Drone(params_filepath, waypoints[drone_ids[i]], initial_positions[drone_ids[i]], K, n, delta_t, p_min, p_max, w_g_p, w_g_v, w_s, v_bar, f_bar));
+    }
+
+    // initialize swarm
+    swarm = Swarm(drones,K);
     
 };
 
@@ -27,22 +42,24 @@ std::map<int, Eigen::MatrixXd> Simulator::runSimulation() {
     final_waypoint_time = std::round(final_waypoint_time / delta_t) * delta_t; // round to nearest delta_t
     // Eigen::MatrixXd result;
     std::map<int, Eigen::MatrixXd> positions;
+
+    std::vector<Drone::OptimizationResult> result = swarm.solve(0.0); // todo: initial optimization routine for first position when they don't have each others' trajectories
     
-    for (float t = 0.0; t < final_waypoint_time - delta_t; t+=delta_t) { // the -1e6 is to avoid floating point errors with frequencies that have irrational time stamps e.g. 48Hz, 6Hz
+    for (float t = 0.0; t < final_waypoint_time - delta_t; t+=delta_t) { // todo something more elegant than this
         for (int j = 0; j < num_drones; ++j) {
             Eigen::VectorXd row(4); // time, x, y, z
-            row << t, swarm.drones[j].pos_traj_vector[0], swarm.drones[j].pos_traj_vector[1], swarm.drones[j].pos_traj_vector[2];
+            row << t, result[j].input_traj_vector[0], result[j].input_traj_vector[1], result[j].input_traj_vector[2];
 
             positions[j].conservativeResize(positions[j].rows() + 1, 4);
             positions[j].row(positions[j].rows()-1) = row;
         }
         
-        swarm.solve(t);
+        result = swarm.solve(t);
     }
     // get last position at final waypoint time
     for (int j = 0; j < num_drones; ++j) {
         Eigen::VectorXd row(4); // time, x, y, z
-        row << final_waypoint_time, swarm.drones[j].pos_traj_vector[0], swarm.drones[j].pos_traj_vector[1], swarm.drones[j].pos_traj_vector[2];
+        row << final_waypoint_time, result[j].input_traj_vector[0], result[j].input_traj_vector[1], result[j].input_traj_vector[2];
         
         positions[j].conservativeResize(positions[j].rows() + 1, 4);
         positions[j].row(positions[j].rows()-1) = row;
