@@ -7,19 +7,48 @@
 #include <stdexcept>
 
 
-Drone::Drone(std::string& params_filepath, Eigen::MatrixXd waypoints,
-            Eigen::VectorXd initial_pos, int K, int n, float delta_t,
-            Eigen::VectorXd p_min, Eigen::VectorXd p_max, float w_g_p,
-            float w_g_v, float w_s, float v_bar, float f_bar)
-    : waypoints(waypoints), initial_pos(initial_pos), K(K), n(n), delta_t(delta_t), p_min(p_min), 
-    p_max(p_max), w_g_p(w_g_p), w_g_v(w_g_v), w_s(w_s), v_bar(v_bar),
-    f_bar(f_bar), t_f(delta_t*(K-1)), W(3*K,3*(n+1)), W_dot(3*K,3*(n+1)),
-    S_x(), S_u(), S_x_prime(), S_u_prime(), collision_envelope(3,3)
+Drone::Drone(std::string& params_filepath,
+            Eigen::MatrixXd waypoints,
+            Eigen::VectorXd initial_pos,
+            bool hard_waypoint_constraints,
+            bool acceleration_constraints,
+            int K,
+            int n,
+            float delta_t,
+            Eigen::VectorXd p_min,
+            Eigen::VectorXd p_max,
+            float w_g_p,
+            float w_g_v,
+            float w_s,
+            float v_bar,
+            float f_bar)
+    : waypoints(waypoints),
+    initial_pos(initial_pos),
+    hard_waypoint_constraints(hard_waypoint_constraints),
+    acceleration_constraints(acceleration_constraints),
+    K(K),
+    n(n),
+    delta_t(delta_t),
+    p_min(p_min), 
+    p_max(p_max),
+    w_g_p(w_g_p),
+    w_g_v(w_g_v),
+    w_s(w_s),
+    v_bar(v_bar),
+    f_bar(f_bar),
+    t_f(delta_t*(K-1)),
+    W(3*K,3*(n+1)),
+    W_dot(3*K,3*(n+1)),
+    S_x(),
+    S_u(),
+    S_x_prime(),
+    S_u_prime(),
+    collision_envelope(3,3)
 {   
 
     // initialize input parameterization (Bernstein matrices) and full horizon dynamics matrices - these will not change ever during the simulation
-    generateBernsteinMatrices(); // move this out of this class
-    generateFullHorizonDynamicsMatrices(params_filepath);
+    generateBernsteinMatrices(); // move to struct and constructor
+    generateFullHorizonDynamicsMatrices(params_filepath); // move to struct and constructor
 
     // initialize collision envelope - later move this to a yaml or something
     collision_envelope.insert(0,0) = 5.8824; collision_envelope.insert(1,1) = 5.8824; collision_envelope.insert(2,2) = 2.2222;
@@ -30,10 +59,22 @@ Drone::Drone(std::string& params_filepath, Eigen::MatrixXd waypoints,
 
 Drone::OptimizationResult Drone::solve(const double current_time, const Eigen::VectorXd x_0, const int j, std::vector<Eigen::SparseMatrix<double>> thetas, const Eigen::VectorXd xi) {
 
+    // extract waypoints in current horizon
+    Eigen::MatrixXd extracted_waypoints = extractWaypointsInCurrentHorizon(current_time, waypoints);
+    if (extracted_waypoints.size() == 0) {
+        throw std::runtime_error("Error: no waypoints within current horizon. Either increase horizon length or add waypoints.");
+    }
+
+    // extract the penalized steps from the first column of extracted_waypoints
+    // note that our optimization is over x(1) to x(K). penalized_steps lines up with these indexes, i.e. the first possible penalized step is 1, NOT 0
+    Eigen::VectorXd penalized_steps;
+    penalized_steps.resize(extracted_waypoints.rows());
+    penalized_steps = extracted_waypoints.block(0,0,extracted_waypoints.rows(),1);
+
     // initialize optimization parameters
     VariableSelectionMatrices variableSelectionMatrices;
-    Residuals residuals;
-    LagrangeMultipliers lambda;
+    Residuals residuals(j, K, penalized_steps.size());
+    LagrangeMultipliers lambda(j, K ,penalized_steps.size());
     Constraints constraints;
     CostMatrices costMatrices;
 
@@ -41,15 +82,15 @@ Drone::OptimizationResult Drone::solve(const double current_time, const Eigen::V
 
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
 
-    initOptimizationParams(j, x_0, xi, current_time,
+    initOptimizationParams(extracted_waypoints, penalized_steps, j, x_0, xi, current_time,
                             thetas, alpha, beta, d, zeta_1, s, variableSelectionMatrices,
-                            residuals, lambda, constraints, costMatrices);
+                            constraints, costMatrices);
 
     // initialize solver hyperparameters
     int max_iters = 1000;
     double rho_init = 1.3;
     double threshold = 0.01;
-
+    
     // solve loop
     int iters = 0;
     while (iters < max_iters && 
@@ -464,7 +505,9 @@ void Drone::computeResiduals(Constraints& constraints,
 }
 
 
-void Drone::initOptimizationParams(int j,
+void Drone::initOptimizationParams(Eigen::MatrixXd& extracted_waypoints,
+                                    Eigen::VectorXd& penalized_steps,
+                                    int j,
                                     Eigen::VectorXd x_0,
                                     Eigen::VectorXd xi,
                                     double current_time,
@@ -475,23 +518,11 @@ void Drone::initOptimizationParams(int j,
                                     Eigen::VectorXd& zeta_1,
                                     Eigen::VectorXd& s,
                                     VariableSelectionMatrices& variableSelectionMatrices,
-                                    Residuals& residuals,
-                                    LagrangeMultipliers& lambda,
                                     Constraints& constraints,
                                     CostMatrices& costMatrices
                                     ) {
                                         
-    // select the relevant waypoints within the current horizon (if a waypoint exists at k <= 0, ignore it, if waypoint exists > K, ignore it)
-    Eigen::MatrixXd extracted_waypoints = extractWaypointsInCurrentHorizon(current_time, waypoints);
-    if (extracted_waypoints.size() == 0) {
-        throw std::runtime_error("Error: no waypoints within current horizon. Either increase horizon length or add waypoints.");
-    }
-
-    // extract the penalized steps from the first column of extracted_waypoints
-    // note that our optimization is over x(1) to x(K). penalized_steps lines up with these indexes, i.e. the first possible penalized step is 1, NOT 0
-    Eigen::VectorXd penalized_steps;
-    penalized_steps.resize(extracted_waypoints.rows());
-    penalized_steps = extracted_waypoints.block(0,0,extracted_waypoints.rows(),1);
+    
     Eigen::SparseMatrix<double> X_g;
     computeX_g(extracted_waypoints, penalized_steps, X_g);
     initVariableSelectionMatrices(j, penalized_steps, variableSelectionMatrices);
@@ -500,8 +531,6 @@ void Drone::initOptimizationParams(int j,
     initConstConstraintMatrices(j, x_0, xi, S_theta, extracted_waypoints, variableSelectionMatrices.M_waypoints_penalized, constraints);
     compute_h_eq(j, alpha, beta, d, constraints.h_eq);
     s = Eigen::VectorXd::Zero(6 * K);
-    initResiduals(j, penalized_steps.size(), residuals);
-    initLagrangeMultipliers(j, penalized_steps.size(), lambda);
     initCostMatrices(penalized_steps, x_0, X_g, costMatrices);
     costMatrices.A_check_const_terms = constraints.G_eq.transpose() * constraints.G_eq + constraints.G_pos.transpose() * constraints.G_pos;
     if (hard_waypoint_constraints) {
@@ -532,7 +561,7 @@ void Drone::initConstConstraintMatrices(int j, Eigen::VectorXd x_0,
     constraints.G_waypoints = M_waypoints_penalized * S_u * W;
     constraints.c_waypoints = M_waypoints_penalized * S_x * x_0;
     constraints.h_waypoints = extracted_waypoints.block(0,1,extracted_waypoints.rows(),extracted_waypoints.cols()-1).reshaped<Eigen::RowMajor>();
-
+    
     // Add waypoint acceleration constraints --> this needs to be improved
     constraints.G_accel = M_waypoints_penalized * S_u_prime * W;
     constraints.c_accel = M_waypoints_penalized * S_x_prime * x_0;
@@ -554,7 +583,7 @@ void Drone::initConstConstraintMatrices(int j, Eigen::VectorXd x_0,
     Eigen::VectorXd h_pos_blk2 = -p_min.replicate(K, 1) + constSelectionMatrices.M_p * S_x * x_0;
     constraints.h_pos.resize(h_pos_blk1.rows() + h_pos_blk2.rows());
     constraints.h_pos << h_pos_blk1, h_pos_blk2;
-
+    
     Eigen::VectorXd c_eq_blk1 = constSelectionMatrices.M_v * S_x * x_0;
     Eigen::VectorXd c_eq_blk2 = constSelectionMatrices.M_a * S_x_prime * x_0;
     Eigen::VectorXd c_eq_blk3 = S_theta * ( (constSelectionMatrices.M_p * S_x * x_0).replicate(j,1) - xi );
@@ -562,21 +591,7 @@ void Drone::initConstConstraintMatrices(int j, Eigen::VectorXd x_0,
     constraints.c_eq << c_eq_blk1, c_eq_blk2, c_eq_blk3;
 }
 
-// should be removed for struct constructors
-void Drone::initResiduals(int j, int num_penalized_steps, Residuals& residuals) {
-    residuals.eq = Eigen::VectorXd::Ones((2 + j) * 3 * K); // TODO something more intelligent then setting these to 1 -> they should be bigger than threshold
-    residuals.pos = Eigen::VectorXd::Ones(6 * K);
-    residuals.waypoints = Eigen::VectorXd::Ones(6 * num_penalized_steps);
-    residuals.accel = Eigen::VectorXd::Ones(6 * num_penalized_steps);
-}
 
-// these should be removed for struct constructors
-void Drone::initLagrangeMultipliers(int j, int num_penalized_steps, LagrangeMultipliers& lambda) {
-    lambda.eq = Eigen::VectorXd::Zero((2 + j) * 3 * K);
-    lambda.pos = Eigen::VectorXd::Zero(6 * K);
-    lambda.waypoints = Eigen::VectorXd::Zero(6 * num_penalized_steps);
-    lambda.accel = Eigen::VectorXd::Zero(6 * num_penalized_steps);
-}
 
 
 void Drone::computeX_g(Eigen::MatrixXd& extracted_waypoints, Eigen::VectorXd& penalized_steps, Eigen::SparseMatrix<double>& X_g) {
@@ -618,4 +633,8 @@ Drone::OptimizationResult Drone::computeOptimizationResult(Eigen::VectorXd& zeta
 
 Eigen::VectorXd Drone::getInitialPosition() {
     return initial_pos;
+}
+
+Eigen::SparseMatrix<double> Drone::getCollisionEnvelope() {
+    return collision_envelope;
 }

@@ -18,7 +18,7 @@ Simulator::Simulator(int num_drones, int K, int n, float delta_t, Eigen::VectorX
 
     // create drones
     for (int i = 0; i < num_drones; ++i) {
-        drones.emplace_back(Drone(params_filepath, waypoints[drone_ids[i]], initial_positions[drone_ids[i]], K, n, delta_t, p_min, p_max, w_g_p, w_g_v, w_s, v_bar, f_bar));
+        drones.emplace_back(Drone(params_filepath, waypoints[drone_ids[i]], initial_positions[drone_ids[i]], false, false, K, n, delta_t, p_min, p_max, w_g_p, w_g_v, w_s, v_bar, f_bar));
     }
 
     // initialize swarm

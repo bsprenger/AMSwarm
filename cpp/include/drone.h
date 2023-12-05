@@ -11,6 +11,7 @@
 
 class Drone {
     public:
+        // Public struct definitions
         struct OptimizationResult {
             Eigen::VectorXd input_traj_vector;
             Eigen::VectorXd state_traj_vector;
@@ -20,23 +21,36 @@ class Drone {
             Eigen::MatrixXd pos_traj_matrix;
         };
 
-        Drone(std::string& params_filepath, Eigen::MatrixXd waypoints, // necessary inputs
+        // Constructors
+        Drone(std::string& params_filepath, // necessary input
+                Eigen::MatrixXd waypoints, // necessary input
                 Eigen::VectorXd initial_pos = Eigen::VectorXd::Zero(3), // optional inputs - default values are set
-                int K = 25, int n = 10, float delta_t = 1.0/6.0, // FIX THIS cast to float always
+                bool hard_waypoint_constraints = true,
+                bool acceleration_constraints = true,
+                int K = 25,
+                int n = 10,
+                float delta_t = 1.0/6.0, // FIX THIS cast to float always
                 Eigen::VectorXd p_min = Eigen::VectorXd::Constant(3,-10),
                 Eigen::VectorXd p_max = Eigen::VectorXd::Constant(3,10),
-                float w_g_p = 7000, float w_g_v = 1000, float w_s = 100,
-                float v_bar = 1.73, float f_bar = 1.5*9.8);
+                float w_g_p = 7000,
+                float w_g_v = 1000,
+                float w_s = 100,
+                float v_bar = 1.73,
+                float f_bar = 1.5*9.8);
 
+        // Public methods
         OptimizationResult solve(const double, const Eigen::VectorXd, const int, const std::vector<Eigen::SparseMatrix<double>>, const Eigen::VectorXd);
-
-        // to do: make private or protected
-        Eigen::SparseMatrix<double> collision_envelope; // this drone's collision envelope - NOT the other obstacles' collision envelopes
         
-        // Getters TO DO
+        // Getters
         Eigen::VectorXd getInitialPosition();
+        Eigen::SparseMatrix<double> getCollisionEnvelope();
+
+        // Setters
+        // To do
+
 
     private:
+        // Private struct definitions 
         struct ConstSelectionMatrices {
             Eigen::SparseMatrix<double> M_p, M_v, M_a; // maybe rename to p,v,a
         };
@@ -56,6 +70,13 @@ class Drone {
             Eigen::VectorXd pos; // position constraint residuals
             Eigen::VectorXd waypoints; // waypoint constraint residuals
             Eigen::VectorXd accel; // acceleration constraint residuals --> to do change this
+
+            Residuals(int j, int K, int num_penalized_steps) {
+                eq = Eigen::VectorXd::Ones((2 + j) * 3 * K); // TODO something more intelligent then setting these to 1 -> they should be bigger than threshold
+                pos = Eigen::VectorXd::Ones(6 * K);
+                waypoints = Eigen::VectorXd::Ones(6 * num_penalized_steps);
+                accel = Eigen::VectorXd::Ones(6 * num_penalized_steps);
+            }
         };
 
         struct LagrangeMultipliers {
@@ -63,6 +84,13 @@ class Drone {
             Eigen::VectorXd pos; // position constraint residuals
             Eigen::VectorXd waypoints; // waypoint constraint residuals
             Eigen::VectorXd accel; // acceleration constraint residuals --> to do change this
+
+            LagrangeMultipliers(int j, int K, int num_penalized_steps) {
+                eq = Eigen::VectorXd::Zero((2 + j) * 3 * K);
+                pos = Eigen::VectorXd::Zero(6 * K);
+                waypoints = Eigen::VectorXd::Zero(6 * num_penalized_steps);
+                accel = Eigen::VectorXd::Zero(6 * num_penalized_steps);
+            }
         };
 
         struct CostMatrices {
@@ -73,6 +101,7 @@ class Drone {
         };
 
         
+        // Private variables
         Eigen::SparseMatrix<double> W, W_dot;
         Eigen::SparseMatrix<double> S_x, S_u, S_x_prime, S_u_prime;
         int K;
@@ -86,13 +115,15 @@ class Drone {
         float w_s;
         double v_bar;
         double f_bar;
-        bool hard_waypoint_constraints = true;
-        bool acceleration_constraints = true;
+        bool hard_waypoint_constraints;
+        bool acceleration_constraints;
         Eigen::MatrixXd waypoints;
         Eigen::VectorXd initial_pos;
+        Eigen::SparseMatrix<double> collision_envelope; // this drone's collision envelope - NOT the other obstacles' collision envelopes
 
+        // Private methods
         ConstSelectionMatrices constSelectionMatrices;
-        void initConstSelectionMatrices();
+        void initConstSelectionMatrices(); // to do remove this for a default constructor
 
 
         Eigen::MatrixXd extractWaypointsInCurrentHorizon(const double, const Eigen::MatrixXd&);
@@ -101,7 +132,9 @@ class Drone {
         std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> loadSparseDynamicsMatricesFromFile(const std::string&);
         void generateFullHorizonDynamicsMatrices(std::string&);
 
-        void initOptimizationParams(int j,
+        void initOptimizationParams(Eigen::MatrixXd& extracted_waypoints,
+                                    Eigen::VectorXd& penalized_steps,
+                                    int j,
                                     Eigen::VectorXd x_0,
                                     Eigen::VectorXd xi,
                                     double current_time,
@@ -112,8 +145,6 @@ class Drone {
                                     Eigen::VectorXd& zeta_1,
                                     Eigen::VectorXd& s,
                                     VariableSelectionMatrices& variableSelectionMatrices,
-                                    Residuals& residuals,
-                                    LagrangeMultipliers& lambda,
                                     Constraints& constraints,
                                     CostMatrices& costMatrices);
 
@@ -133,10 +164,6 @@ class Drone {
                             Eigen::VectorXd x_0,
                             Eigen::SparseMatrix<double>& X_g,
                             CostMatrices& costMatrices);
-
-        void initResiduals(int j, int num_penalized_steps, Residuals& residuals);
-        void initLagrangeMultipliers(int j, int num_penalized_steps,
-                                    LagrangeMultipliers& lambda);
 
         void computeX_g(Eigen::MatrixXd& extracted_waypoints, Eigen::VectorXd& penalized_steps, Eigen::SparseMatrix<double>& X_g);
 

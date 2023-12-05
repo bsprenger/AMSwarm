@@ -1,7 +1,6 @@
 #include <swarm.h>
 #include <utils.h>
 #include <iostream>
-#include <thread>
 
 
 Swarm::Swarm() {
@@ -20,7 +19,7 @@ Swarm::Swarm(std::vector<Drone> drones, int K)
         // at each time step, each drone will take the relevant thetas from this vector
         Eigen::SparseMatrix<double> eyeK = Eigen::SparseMatrix<double>(K,K);
         eyeK.setIdentity();
-        all_thetas.push_back(utils::kroneckerProduct(eyeK, drones[i].collision_envelope)); // contains collision envelope for all drones for all time steps
+        all_thetas.push_back(utils::kroneckerProduct(eyeK, drones[i].getCollisionEnvelope())); // contains collision envelope for all drones for all time steps
 
         // initialize trajectories vector, assuming that each drone stays in its initial position over the horizon. this will be updated after each optimization routine
         pos_trajectories.push_back(drones[i].getInitialPosition().replicate(K,1));
