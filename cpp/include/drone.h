@@ -203,6 +203,8 @@ class Drone {
         void updateLagrangeMultipliers(double rho, Residuals& residuals, LagrangeMultipliers& lambda);
 
         DroneResult computeDroneResult(double current_time, Eigen::VectorXd& zeta_1,Eigen::VectorXd x_0);
+
+        void printUnsatisfiedResiduals(const Residuals& residuals, double threshold);
 };
 
 #endif
