@@ -1,17 +1,12 @@
 #include <swarm.h>
 #include <utils.h>
-#include <iostream>
 
-
-Swarm::Swarm() {
-    // Default initialization logic
-}
-
-Swarm::Swarm(std::vector<Drone> drones, int K)
-    : drones(drones), K(K)
+Swarm::Swarm(std::vector<Drone> drones)
+    : drones(drones)
 {
     // get length of drones vector
     num_drones = drones.size();
+    int K = drones[0].getK();
 
     // create collision matrices
     for (int i = 0; i < num_drones; ++i) {
@@ -20,61 +15,127 @@ Swarm::Swarm(std::vector<Drone> drones, int K)
         Eigen::SparseMatrix<double> eyeK = Eigen::SparseMatrix<double>(K,K);
         eyeK.setIdentity();
         all_thetas.push_back(utils::kroneckerProduct(eyeK, drones[i].getCollisionEnvelope())); // contains collision envelope for all drones for all time steps
-
-        // initialize trajectories vector, assuming that each drone stays in its initial position over the horizon. this will be updated after each optimization routine
-        pos_trajectories.push_back(drones[i].getInitialPosition().replicate(K,1));
-        Eigen::VectorXd initial_state(6); initial_state << drones[i].getInitialPosition(), Eigen::VectorXd::Zero(3);
-        state_trajectories.push_back(initial_state.replicate(K,1));
     }
 };
 
 
-std::vector<Drone::OptimizationResult> Swarm::solve(const double current_time) {
-    // Vector to hold collision variables for each drone
-    std::vector<CollisionParameters> collisionParameters;
-
-    // Get number of obstacles, both dynamic and static
+Swarm::SwarmResult Swarm::solve(const double current_time, std::vector<Eigen::VectorXd> x_0_vector, std::vector<Eigen::VectorXd> prev_trajectories) {
+    int K = drones[0].getK();
     int j = num_drones - 1; // for now, consider all drones as obstacles - later only consider some within radius
-    
-    // Get obstacle collision envelopes and paths for each drone
-    for (int i = 0; i < drones.size(); ++i) {
-        // Get all the collision envelopes for all OTHER drones - start will all envelopes including for self, then remove theta for self
-        // this should be changed at some point to only select relevant obstacles within radius
-        std::vector<Eigen::SparseMatrix<double>> thetas = all_thetas;
-        thetas.erase(thetas.begin() + i); // remove the collision envelope for drone i - drone should not consider "self collisions"
 
-        // initialize empty vector to store paths of all obstacles
+    SwarmResult swarm_result;
+    swarm_result.drone_results.resize(num_drones);
+    
+    # pragma omp parallel for
+    for (int i = 0; i < drones.size(); ++i) {
+        std::vector<Eigen::SparseMatrix<double>> thetas = all_thetas;
+        thetas.erase(thetas.begin() + i);
         Eigen::VectorXd xi(3 * K * j);
 
         // assign each each obstacle's trajectory to xi - in this case, all OTHER drones
         int index = 0;
         for (int drone = 0; drone < drones.size(); ++drone) {
             if (drone != i) {
-                // xi.segment(3 * K * index, 3 * K) = drones[drone].pos_traj_vector;
-                xi.segment(3 * K * index, 3 * K) = pos_trajectories[drone];
+                xi.segment(3 * K * index, 3 * K) = prev_trajectories[drone];
                 ++index;
             }
         }
 
-        // add collision parameters to vector
-        collisionParameters.push_back({thetas, xi});
-    }
-
-    // now we have a vector of drones and a corresponding vector of collisionParameters
-    // we can now solve each drone's trajectory in parallel
-    std::vector<Drone::OptimizationResult> results(drones.size());
-
-    # pragma omp parallel for
-    for (int i = 0; i < drones.size(); ++i) {
-        Drone::OptimizationResult result = drones[i].solve(current_time, state_trajectories[i].head(6), j, collisionParameters[i].thetas, collisionParameters[i].xi);
-
+        Drone::DroneResult result = drones[i].solve(current_time, x_0_vector[i], j, thetas, xi);
+        
         // use a critical section to update shared vectors
         # pragma omp critical
         {
-            results[i] = result;;
-            pos_trajectories[i] = result.pos_traj_vector;
-            state_trajectories[i] = result.state_traj_vector;
+            swarm_result.drone_results[i] = result;
         }
     }
-    return results;
+    
+    return swarm_result;
+}
+
+
+Swarm::SwarmResult Swarm::runSimulation() {
+    int K = drones[0].getK();
+
+    float delta_t = drones[0].getDeltaT();
+    
+    SwarmResult swarm_result;
+    swarm_result.drone_results.resize(num_drones);
+
+    for (int i = 0; i < num_drones; ++i) {
+        Eigen::VectorXd row(3);
+        row << drones[i].getInitialPosition();
+        swarm_result.drone_results[i].position_trajectory.conservativeResize(1, 3);
+        swarm_result.drone_results[i].position_trajectory.row(0) = row;
+        swarm_result.drone_results[i].position_state_time_stamps.conservativeResize(1);
+        swarm_result.drone_results[i].position_state_time_stamps(0) = 0.0;
+    }
+
+    // get max waypoint time (iterate over each drone, and get max time from waypoints)
+    double final_waypoint_time = 0.0;
+    for (int i = 0; i < num_drones; ++i) {
+        double max_time = drones[i].getWaypoints().col(0).maxCoeff();
+        if (max_time > final_waypoint_time) {
+            final_waypoint_time = max_time;
+        }
+    }
+
+    // round final_waypoint_time to nearest delta_t
+    final_waypoint_time = std::round(final_waypoint_time / delta_t) * delta_t;
+    
+    // initialize trajectory vectors to be the initial positions
+    std::vector<Eigen::VectorXd> prev_trajectories;
+    std::vector<Eigen::VectorXd> x_0_vector;
+    for (int i = 0; i < num_drones; ++i) {
+        prev_trajectories.push_back(drones[i].getInitialPosition().replicate(K,1));
+        Eigen::VectorXd initial_state(6); initial_state << drones[i].getInitialPosition(), Eigen::VectorXd::Zero(3);
+        x_0_vector.push_back(initial_state);
+    }
+
+    // solve for initial trajectories THIS CAN BE IMPROVED
+    SwarmResult solve_result = solve(0.0, x_0_vector, prev_trajectories);
+    prev_trajectories.clear();
+    for (int i = 0; i < num_drones; ++i) {
+        prev_trajectories.push_back(solve_result.drone_results[i].position_trajectory_vector);
+    }
+
+    // iterate over time
+    for (float t = 0.0; t < final_waypoint_time - delta_t; t+=delta_t) {
+        // Solve for next trajectories
+        solve_result = solve(t, x_0_vector, prev_trajectories);
+
+        // Build necessary matrices
+        // previous trajectories need to be moved one time step forward and the last time step needs to be extrapolated
+        prev_trajectories.clear();
+        x_0_vector.clear();
+        // Get simulation output - positions and control inputs
+        for (int j = 0; j < num_drones; ++j) {
+            prev_trajectories.push_back(solve_result.drone_results[j].position_trajectory_vector);
+            x_0_vector.push_back(solve_result.drone_results[j].state_trajectory_vector.head(6)); // THIS NEEDS TO BE FIXED, FIRST ITERATION SHOULD NOT HAVE VELOCITY
+        
+
+            // time
+            swarm_result.drone_results[j].control_input_time_stamps.conservativeResize(swarm_result.drone_results[j].control_input_time_stamps.size() + 1);
+            swarm_result.drone_results[j].control_input_time_stamps(swarm_result.drone_results[j].control_input_time_stamps.size() - 1) = t;
+
+            swarm_result.drone_results[j].position_state_time_stamps.conservativeResize(swarm_result.drone_results[j].position_state_time_stamps.size() + 1);
+            swarm_result.drone_results[j].position_state_time_stamps(swarm_result.drone_results[j].position_state_time_stamps.size() - 1) = t + delta_t;
+
+            // First, inputs at current time
+            Eigen::VectorXd input_row(3); // time, x, y, z
+            input_row << solve_result.drone_results[j].control_input_trajectory_vector[0], solve_result.drone_results[j].control_input_trajectory_vector[1], solve_result.drone_results[j].control_input_trajectory_vector[2];
+            int current_input_size = swarm_result.drone_results[j].control_input_trajectory.rows();
+            swarm_result.drone_results[j].control_input_trajectory.conservativeResize(current_input_size + 1, 3);
+            swarm_result.drone_results[j].control_input_trajectory.row(current_input_size) = input_row;
+
+            // Second, predicted positions at the next time
+            Eigen::VectorXd pos_row(3); // time, x, y, z
+            pos_row << solve_result.drone_results[j].position_trajectory_vector[0], solve_result.drone_results[j].position_trajectory_vector[1], solve_result.drone_results[j].position_trajectory_vector[2]; // next position predicted, not current position
+            int current_position_size = swarm_result.drone_results[j].position_trajectory.rows();
+            swarm_result.drone_results[j].position_trajectory.conservativeResize(current_position_size + 1, 3);
+            swarm_result.drone_results[j].position_trajectory.row(current_position_size) = pos_row;
+        }
+        
+    }
+    return swarm_result;
 }

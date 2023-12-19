@@ -57,8 +57,7 @@ Drone::Drone(std::string& params_filepath,
 };
 
 
-Drone::OptimizationResult Drone::solve(const double current_time, const Eigen::VectorXd x_0, const int j, std::vector<Eigen::SparseMatrix<double>> thetas, const Eigen::VectorXd xi) {
-
+Drone::DroneResult Drone::solve(const double current_time, const Eigen::VectorXd x_0, const int j, std::vector<Eigen::SparseMatrix<double>> thetas, const Eigen::VectorXd xi) {
     // extract waypoints in current horizon
     Eigen::MatrixXd extracted_waypoints = extractWaypointsInCurrentHorizon(current_time, waypoints);
     if (extracted_waypoints.size() == 0) {
@@ -77,15 +76,14 @@ Drone::OptimizationResult Drone::solve(const double current_time, const Eigen::V
     LagrangeMultipliers lambda(j, K ,penalized_steps.size());
     Constraints constraints;
     CostMatrices costMatrices;
-
     Eigen::VectorXd alpha, beta, d, zeta_1, s;
 
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
-
+    
     initOptimizationParams(extracted_waypoints, penalized_steps, j, x_0, xi, current_time,
                             thetas, alpha, beta, d, zeta_1, s, variableSelectionMatrices,
                             constraints, costMatrices);
-
+    
     // initialize solver hyperparameters
     int max_iters = 1000;
     double rho_init = 1.3;
@@ -120,17 +118,14 @@ Drone::OptimizationResult Drone::solve(const double current_time, const Eigen::V
         computeResiduals(constraints, zeta_1, s, residuals);
         updateLagrangeMultipliers(rho, residuals, lambda);
     } // end iterative loop
+
+    // if (iters == max_iters) {
+    //     throw std::runtime_error("Error: maximum iterations reached. Constraints cannot be satisfied. Either adjust waypoints, loosen constraints, or increase maximum iterations.");
+    // }
     
     // calculate and return inputs and predicted trajectory
-    OptimizationResult result = computeOptimizationResult(zeta_1, x_0);
-    return result;
-
-    // std::cout << "Waypoints in horizon:" << std::endl << extracted_waypoints << std::endl;
-    // std::cout << "State traj matrix:" << std::endl << state_traj_matrix << std::endl;
-    // std::cout << "Res eq: " << res_eq.cwiseAbs() << std::endl;
-    // std::cout << "Res pos: " << res_pos.maxCoeff() << std::endl;
-    // std::cout << "Res waypoints: " << res_waypoints.cwiseAbs().maxCoeff() << std::endl;
-    // std::cout << iters << std::endl;
+    DroneResult drone_result = computeDroneResult(current_time, zeta_1, x_0);
+    return drone_result;    
 };
 
 
@@ -612,22 +607,34 @@ void Drone::updateLagrangeMultipliers(double rho, Residuals& residuals,
 }
 
 
-Drone::OptimizationResult Drone::computeOptimizationResult(Eigen::VectorXd& zeta_1, Eigen::VectorXd x_0) {
-    Drone::OptimizationResult result;
+Drone::DroneResult Drone::computeDroneResult(double current_time, Eigen::VectorXd& zeta_1, Eigen::VectorXd x_0) {
+    DroneResult drone_result;
 
     // input trajectory
-    result.input_traj_vector = W * zeta_1;
-    result.input_traj_matrix = Eigen::Map<Eigen::MatrixXd>(result.input_traj_vector.data(), 3, K);
+    drone_result.control_input_trajectory_vector = W * zeta_1;
+    drone_result.control_input_trajectory = Eigen::Map<Eigen::MatrixXd>(drone_result.control_input_trajectory_vector.data(), 3, K).transpose();
 
     // state trajectory
-    result.state_traj_vector = S_x * x_0 + S_u * result.input_traj_vector;
-    result.state_traj_matrix = Eigen::Map<Eigen::MatrixXd>(result.state_traj_vector.data(), 6, K);
+    drone_result.state_trajectory_vector = S_x * x_0 + S_u * drone_result.control_input_trajectory_vector;
+    drone_result.state_trajectory = Eigen::Map<Eigen::MatrixXd>(drone_result.state_trajectory_vector.data(), 6, K).transpose();
 
     // position trajectory
-    result.pos_traj_vector = constSelectionMatrices.M_p * result.state_traj_vector;
-    result.pos_traj_matrix = Eigen::Map<Eigen::MatrixXd>(result.pos_traj_vector.data(), 3, K);
+    drone_result.position_trajectory_vector = constSelectionMatrices.M_p * drone_result.state_trajectory_vector;
+    drone_result.position_trajectory = Eigen::Map<Eigen::MatrixXd>(drone_result.position_trajectory_vector.data(), 3, K).transpose();
 
-    return result;
+    // Time stamps for position and state trajectories
+    drone_result.position_state_time_stamps.resize(K);
+    for (int i = 0; i < K; ++i) {
+        drone_result.position_state_time_stamps(i) = current_time + (i+1) * delta_t;
+    }
+
+    // Time stamps for control input trajectory
+    drone_result.control_input_time_stamps.resize(K);
+    for (int i = 0; i < K; ++i) {
+        drone_result.control_input_time_stamps(i) = current_time + i * delta_t;
+    }
+
+    return drone_result;
 }
 
 
@@ -637,4 +644,16 @@ Eigen::VectorXd Drone::getInitialPosition() {
 
 Eigen::SparseMatrix<double> Drone::getCollisionEnvelope() {
     return collision_envelope;
+}
+
+Eigen::MatrixXd Drone::getWaypoints() {
+    return waypoints;
+}
+
+float Drone::getDeltaT() {
+    return delta_t;
+}
+
+int Drone::getK() {
+    return K;
 }

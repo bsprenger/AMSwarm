@@ -12,13 +12,19 @@
 class Drone {
     public:
         // Public struct definitions
-        struct OptimizationResult {
-            Eigen::VectorXd input_traj_vector;
-            Eigen::VectorXd state_traj_vector;
-            Eigen::VectorXd pos_traj_vector;
-            Eigen::MatrixXd input_traj_matrix; // each column is a time step. each row contains an x, y, or z input position
-            Eigen::MatrixXd state_traj_matrix;
-            Eigen::MatrixXd pos_traj_matrix;
+
+        class DroneResult {
+            public:
+                Eigen::VectorXd position_state_time_stamps; // time stamps for both position and state
+                Eigen::VectorXd control_input_time_stamps;
+
+                Eigen::MatrixXd position_trajectory;
+                Eigen::MatrixXd state_trajectory;
+                Eigen::MatrixXd control_input_trajectory;
+
+                Eigen::VectorXd position_trajectory_vector;
+                Eigen::VectorXd state_trajectory_vector;
+                Eigen::VectorXd control_input_trajectory_vector;
         };
 
         // Constructors
@@ -39,11 +45,14 @@ class Drone {
                 float f_bar = 1.5*9.8);
 
         // Public methods
-        OptimizationResult solve(const double, const Eigen::VectorXd, const int, const std::vector<Eigen::SparseMatrix<double>>, const Eigen::VectorXd);
+        DroneResult solve(const double, const Eigen::VectorXd, const int, const std::vector<Eigen::SparseMatrix<double>>, const Eigen::VectorXd);
         
         // Getters
         Eigen::VectorXd getInitialPosition();
         Eigen::SparseMatrix<double> getCollisionEnvelope();
+        Eigen::MatrixXd getWaypoints();
+        float getDeltaT();
+        int getK();
 
         // Setters
         // To do
@@ -193,7 +202,7 @@ class Drone {
 
         void updateLagrangeMultipliers(double rho, Residuals& residuals, LagrangeMultipliers& lambda);
 
-        OptimizationResult computeOptimizationResult(Eigen::VectorXd& zeta_1,Eigen::VectorXd x_0);
+        DroneResult computeDroneResult(double current_time, Eigen::VectorXd& zeta_1,Eigen::VectorXd x_0);
 };
 
 #endif
