@@ -121,7 +121,8 @@ Drone::DroneResult Drone::solve(const double current_time, const Eigen::VectorXd
 
     if (iters == max_iters) {
         printUnsatisfiedResiduals(residuals, threshold);
-        throw std::runtime_error("ERROR: maximum iterations reached. Constraints cannot be satisfied. Either adjust waypoints, loosen constraints, or increase maximum iterations.");
+        // TODO figure out how to handle wpt errors early in horizon...
+        // throw std::runtime_error("ERROR: maximum iterations reached. Constraints cannot be satisfied. Either adjust waypoints, loosen constraints, or increase maximum iterations.");
     }
     
     // calculate and return inputs and predicted trajectory
@@ -639,28 +640,44 @@ Drone::DroneResult Drone::computeDroneResult(double current_time, Eigen::VectorX
 }
 
 void Drone::printUnsatisfiedResiduals(const Residuals& residuals, double threshold) {
+    // Helper function to print indices where residuals exceed threshold
+    auto printExceedingIndices = [threshold](const Eigen::VectorXd& residual, int start, int end, const std::string& message) {
+        std::vector<int> exceedingIndices;
+        for (int i = start; i < end; ++i) {
+            if (std::abs(residual[i]) > threshold) {
+                exceedingIndices.push_back(i);
+            }
+        }
+        if (!exceedingIndices.empty()) {
+            std::cout << message << " at indices: ";
+            for (size_t i = 0; i < exceedingIndices.size(); ++i) {
+                if (i > 0) std::cout << ", ";
+                std::cout << exceedingIndices[i];
+            }
+            std::cout << std::endl;
+        }
+    };
+
+    // Check equality constraints
     if (residuals.eq.cwiseAbs().maxCoeff() > threshold) {
-        // Check velocity constraints (first 3*K elements)
-        if (residuals.eq.head(3*K).cwiseAbs().maxCoeff() > threshold) {
-            std::cout << "ERROR: Velocity constraints residual exceeds threshold." << std::endl;
-        }
-        // Check acceleration constraints (next 3*K elements)
-        if (residuals.eq.segment(3*K, 3*K).cwiseAbs().maxCoeff() > threshold) {
-            std::cout << "ERROR: Acceleration constraints residual exceeds threshold." << std::endl;
-        }
-        // Check collision constraints (remaining elements)
-        if (residuals.eq.tail(residuals.eq.size() - 6*K).cwiseAbs().maxCoeff() > threshold) {
-            std::cout << "ERROR: Collision constraints residual exceeds threshold." << std::endl;
-        }
+        printExceedingIndices(residuals.eq, 0, 3*K, "Velocity constraints residual exceeds threshold");
+        printExceedingIndices(residuals.eq, 3*K, 6*K, "Acceleration constraints residual exceeds threshold");
+        printExceedingIndices(residuals.eq, 6*K, residuals.eq.size(), "Collision constraints residual exceeds threshold");
     }
+
+    // Check position constraints
     if (residuals.pos.maxCoeff() > threshold) {
-        std::cout << "ERROR: Position constraints residual exceeds threshold." << std::endl;
+        printExceedingIndices(residuals.pos, 0, residuals.pos.size(), "Position constraints residual exceeds threshold");
     }
+
+    // Check waypoint constraints
     if (hard_waypoint_constraints && residuals.waypoints.cwiseAbs().maxCoeff() > threshold) {
-        std::cout << "ERROR: Waypoint constraints residual exceeds threshold." << std::endl;
+        printExceedingIndices(residuals.waypoints, 0, residuals.waypoints.size(), "Waypoint constraints residual exceeds threshold");
     }
+
+    // Check acceleration constraints
     if (acceleration_constraints && residuals.accel.cwiseAbs().maxCoeff() > threshold) {
-        std::cout << "ERROR: Acceleration constraints residual exceeds threshold." << std::endl;
+        printExceedingIndices(residuals.accel, 0, residuals.accel.size(), "Acceleration constraints residual exceeds threshold");
     }
 }
 
