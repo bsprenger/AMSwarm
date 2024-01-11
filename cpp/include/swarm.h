@@ -19,7 +19,9 @@ class Swarm {
 
         SwarmResult solve(const double current_time,
                             std::vector<Eigen::VectorXd> x_0_vector, // rename these
-                            std::vector<Eigen::VectorXd> prev_trajectories);
+                            std::vector<Eigen::VectorXd> prev_trajectories,
+                            std::vector<bool> waypoint_constraints, 
+                            std::vector<bool> acceleration_constraints);
 
         SwarmResult runSimulation();
 

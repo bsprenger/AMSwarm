@@ -10,8 +10,6 @@
 Drone::Drone(std::string& params_filepath,
             Eigen::MatrixXd waypoints,
             Eigen::VectorXd initial_pos,
-            bool hard_waypoint_constraints,
-            bool acceleration_constraints,
             int K,
             int n,
             float delta_t,
@@ -24,8 +22,6 @@ Drone::Drone(std::string& params_filepath,
             float f_bar)
     : waypoints(waypoints),
     initial_pos(initial_pos),
-    hard_waypoint_constraints(hard_waypoint_constraints),
-    acceleration_constraints(acceleration_constraints),
     K(K),
     n(n),
     delta_t(delta_t),
@@ -57,7 +53,13 @@ Drone::Drone(std::string& params_filepath,
 };
 
 
-Drone::DroneResult Drone::solve(const double current_time, const Eigen::VectorXd x_0, const int j, std::vector<Eigen::SparseMatrix<double>> thetas, const Eigen::VectorXd xi) {
+Drone::DroneResult Drone::solve(const double current_time,
+                                const Eigen::VectorXd x_0,
+                                const int j,
+                                std::vector<Eigen::SparseMatrix<double>> thetas,
+                                const Eigen::VectorXd xi,
+                                bool hard_waypoint_constraints,
+                                bool acceleration_constraints) {
     // extract waypoints in current horizon
     Eigen::MatrixXd extracted_waypoints = extractWaypointsInCurrentHorizon(current_time, waypoints);
     if (extracted_waypoints.size() == 0) {
@@ -82,7 +84,7 @@ Drone::DroneResult Drone::solve(const double current_time, const Eigen::VectorXd
     
     initOptimizationParams(extracted_waypoints, penalized_steps, j, x_0, xi, current_time,
                             thetas, alpha, beta, d, zeta_1, s, variableSelectionMatrices,
-                            constraints, costMatrices);
+                            constraints, costMatrices, hard_waypoint_constraints, acceleration_constraints);
     
     // initialize solver hyperparameters
     int max_iters = 1000;
@@ -101,7 +103,7 @@ Drone::DroneResult Drone::solve(const double current_time, const Eigen::VectorXd
         double rho = std::min(std::pow(rho_init, iters), 5.0e5);
 
         // STEP 1: solve for zeta_1
-        computeZeta1(iters, rho, solver, costMatrices, constraints, s, lambda, zeta_1);
+        computeZeta1(iters, rho, solver, costMatrices, constraints, s, lambda, zeta_1, hard_waypoint_constraints, acceleration_constraints);
         
 
         // STEP 2: solve for alpha and beta (zeta_2)
@@ -119,19 +121,27 @@ Drone::DroneResult Drone::solve(const double current_time, const Eigen::VectorXd
         updateLagrangeMultipliers(rho, residuals, lambda);
     } // end iterative loop
 
-    if (iters == max_iters) {
-        printUnsatisfiedResiduals(residuals, threshold);
-        // TODO figure out how to handle wpt errors early in horizon...
-        // throw std::runtime_error("ERROR: maximum iterations reached. Constraints cannot be satisfied. Either adjust waypoints, loosen constraints, or increase maximum iterations.");
-    }
+    // if (iters == max_iters) {
+    //     printUnsatisfiedResiduals(residuals, threshold, hard_waypoint_constraints, acceleration_constraints);
+    //     // TODO figure out how to handle wpt errors early in horizon...
+    //     // throw std::runtime_error("ERROR: maximum iterations reached. Constraints cannot be satisfied. Either adjust waypoints, loosen constraints, or increase maximum iterations.");
+    // }
+    
     
     // calculate and return inputs and predicted trajectory
     DroneResult drone_result = computeDroneResult(current_time, zeta_1, x_0);
+    if (iters < max_iters) {
+        drone_result.is_successful = true; // Solution found within max iterations
+    } else {
+        drone_result.is_successful = false; // Max iterations reached, constraints not satisfied
+        printUnsatisfiedResiduals(residuals, threshold, hard_waypoint_constraints, acceleration_constraints);
+    }
     return drone_result;    
 };
 
 
-Eigen::MatrixXd Drone::extractWaypointsInCurrentHorizon(const double t, const Eigen::MatrixXd& waypoints) {
+Eigen::MatrixXd Drone::extractWaypointsInCurrentHorizon(const double t,
+                                                        const Eigen::MatrixXd& waypoints) {
     // round all the waypoints to the nearest time step. 
     // negative time steps are allowed -- we will filter them out later
     Eigen::MatrixXd rounded_waypoints = waypoints;
@@ -413,7 +423,9 @@ void Drone::computeZeta1(int iters, double rho,
                         Constraints& constraints,
                         Eigen::VectorXd& s,
                         LagrangeMultipliers& lambda,
-                        Eigen::VectorXd& zeta_1) {
+                        Eigen::VectorXd& zeta_1,
+                        bool hard_waypoint_constraints,
+                        bool acceleration_constraints) {
 
     costMatrices.A_check = costMatrices.Q + rho * costMatrices.A_check_const_terms;
     costMatrices.b_check = -costMatrices.q - constraints.G_eq.transpose() * lambda.eq - constraints.G_pos.transpose() * lambda.pos + rho * constraints.G_eq.transpose() * (constraints.h_eq - constraints.c_eq) + rho * constraints.G_pos.transpose() * (constraints.h_pos - s);
@@ -516,7 +528,9 @@ void Drone::initOptimizationParams(Eigen::MatrixXd& extracted_waypoints,
                                     Eigen::VectorXd& s,
                                     VariableSelectionMatrices& variableSelectionMatrices,
                                     Constraints& constraints,
-                                    CostMatrices& costMatrices
+                                    CostMatrices& costMatrices,
+                                    bool hard_waypoint_constraints,
+                                    bool acceleration_constraints
                                     ) {
                                         
     
@@ -639,47 +653,53 @@ Drone::DroneResult Drone::computeDroneResult(double current_time, Eigen::VectorX
     return drone_result;
 }
 
-void Drone::printUnsatisfiedResiduals(const Residuals& residuals, double threshold) {
-    // Helper function to print indices where residuals exceed threshold
-    auto printExceedingIndices = [threshold](const Eigen::VectorXd& residual, int start, int end, const std::string& message) {
-        std::vector<int> exceedingIndices;
-        for (int i = start; i < end; ++i) {
-            if (std::abs(residual[i]) > threshold) {
-                exceedingIndices.push_back(i);
+void Drone::printUnsatisfiedResiduals(const Residuals& residuals,
+                                    double threshold,
+                                    bool hard_waypoint_constraints,
+                                    bool acceleration_constraints) {
+    // Helper function to print steps where residuals exceed threshold
+    auto printExceedingSteps = [this, threshold](const Eigen::VectorXd& residual, int start, int end, const std::string& message, bool wrap = false) {
+        std::vector<int> exceedingSteps;
+        for (int i = start; i < end; i += 3) { // Iterate in steps of 3
+            if (std::abs(residual[i]) > threshold || (i + 1 < end && std::abs(residual[i+1]) > threshold) || (i + 2 < end && std::abs(residual[i+2]) > threshold)) {
+                int step = (i - start) / 3 + 1;
+                if (wrap) {
+                    step = (step - 1) % K + 1; // Wrap step number if it exceeds K
+                }
+                exceedingSteps.push_back(step); // Adjust for relative step number
             }
         }
-        if (!exceedingIndices.empty()) {
-            std::cout << message << " at indices: ";
-            for (size_t i = 0; i < exceedingIndices.size(); ++i) {
+        if (!exceedingSteps.empty()) {
+            std::cout << message << " at steps: ";
+            for (size_t i = 0; i < exceedingSteps.size(); ++i) {
                 if (i > 0) std::cout << ", ";
-                std::cout << exceedingIndices[i];
+                std::cout << exceedingSteps[i];
             }
             std::cout << std::endl;
         }
     };
 
-    // Check equality constraints
+    // Check and print for each type of constraint
     if (residuals.eq.cwiseAbs().maxCoeff() > threshold) {
-        printExceedingIndices(residuals.eq, 0, 3*K, "Velocity constraints residual exceeds threshold");
-        printExceedingIndices(residuals.eq, 3*K, 6*K, "Acceleration constraints residual exceeds threshold");
-        printExceedingIndices(residuals.eq, 6*K, residuals.eq.size(), "Collision constraints residual exceeds threshold");
+        printExceedingSteps(residuals.eq, 0, 3*K, "Velocity constraints residual exceeds threshold");
+        printExceedingSteps(residuals.eq, 3*K, 6*K, "Acceleration constraints residual exceeds threshold");
+        // For collision constraints, wrap the step number if it exceeds K
+        printExceedingSteps(residuals.eq, 6*K, residuals.eq.size(), "Collision constraints residual exceeds threshold", true);
     }
 
-    // Check position constraints
     if (residuals.pos.maxCoeff() > threshold) {
-        printExceedingIndices(residuals.pos, 0, residuals.pos.size(), "Position constraints residual exceeds threshold");
+        printExceedingSteps(residuals.pos, 0, residuals.pos.size(), "Position constraints residual exceeds threshold");
     }
 
-    // Check waypoint constraints
     if (hard_waypoint_constraints && residuals.waypoints.cwiseAbs().maxCoeff() > threshold) {
-        printExceedingIndices(residuals.waypoints, 0, residuals.waypoints.size(), "Waypoint constraints residual exceeds threshold");
+        printExceedingSteps(residuals.waypoints, 0, residuals.waypoints.size(), "Waypoint constraints residual exceeds threshold");
     }
 
-    // Check acceleration constraints
     if (acceleration_constraints && residuals.accel.cwiseAbs().maxCoeff() > threshold) {
-        printExceedingIndices(residuals.accel, 0, residuals.accel.size(), "Acceleration constraints residual exceeds threshold");
+        printExceedingSteps(residuals.accel, 0, residuals.accel.size(), "Acceleration constraints residual exceeds threshold");
     }
 }
+
 
 
 Eigen::VectorXd Drone::getInitialPosition() {

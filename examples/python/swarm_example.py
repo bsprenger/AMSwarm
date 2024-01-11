@@ -3,54 +3,107 @@ import numpy as np
 
 # Define initial positions and waypoints
 initial_positions = {72: np.array([1,0,1]), 1: np.array([0,1,1]), 2: np.array([0,-1,1])}
-waypoints = {72: np.array([[2.25, 1, 0, 1, 0, 0, 0],
-                    [4.13, 1.3, 0.7, 1.5, 0, 0, 0],
-                    [6.04, 1, 1, 2, 0, 0, 0],
-                    [7.92, 0.7, 0.7, 2.5, 0, 0, 0],
-                    [9.82, 0, 1, 3, 0, 0, 0],
-                    [11.7, -0.7, 0.7, 2.5, 0, 0, 0],
-                    [13.61, -1, 1, 2, 0, 0, 0],
-                    [15.51, -0.7, 0.7, 1.5, 0, 0, 0],
-                    [17.41, -1, 0, 1, 0, 0, 0],
-                    [19.3, -0.7, -0.7, 1.5, 0, 0, 0],
-                    [21.2, 0, -1, 2, 0, 0, 0],
-                    [23.08, 0.7, -0.7, 2.5, 0, 0, 0],
-                    [24.98, 1, -1, 3, 0, 0, 0],
-                    [26.89, 1.3, -0.7, 2.5, 0, 0, 0],
-                    [28.79, 1, 0, 2, 0, 0, 0],
-                    [30.67, 1, 0, 1, 0, 0, 0]]),
-            1: np.array([[2.25, 0, 1, 1, 0, 0, 0],
-                    [4.13, -0.7, 1.3, 1.5, 0, 0, 0],
-                    [6.04, -1, 1, 2, 0, 0, 0],
-                    [7.92, -0.7, 0.7, 2.5, 0, 0, 0],
-                    [9.82, -1, 0, 3, 0, 0, 0],
-                    [11.7, -0.7, -0.7, 2.5, 0, 0, 0],
-                    [13.61, -1, -1, 2, 0, 0, 0],
-                    [15.51, -0.7, -0.7, 1.5, 0, 0, 0],
-                    [17.41, 0, -1, 1, 0, 0, 0],
-                    [19.3, 0.7, -0.7, 1.5, 0, 0, 0],
-                    [21.2, 1, -1, 2, 0, 0, 0],
-                    [23.08, 1.3, -0.7, 2.5, 0, 0, 0],
-                    [24.98, 1, 0, 3, 0, 0, 0],
-                    [26.89, 0.7, 0.7, 2.5, 0, 0, 0],
-                    [28.79, 1, 1, 2, 0, 0, 0],
-                    [30.67, 1, 1, 1, 0, 0, 0]]),
-            2: np.array([[2.25, 0, -1, 1, 0, 0, 0],
-                    [4.13, 0.7, -1.3, 1.5, 0, 0, 0],
-                    [6.04, 1, -1, 2, 0, 0, 0],
-                    [7.92, 0.7, -0.7, 2.5, 0, 0, 0],
-                    [9.82, 1, 0, 3, 0, 0, 0],
-                    [11.7, 0.7, 0.7, 2.5, 0, 0, 0],
-                    [13.61, 1, 1, 2, 0, 0, 0],
-                    [15.51, 0.7, 0.7, 1.5, 0, 0, 0],
-                    [17.41, 0, 1, 1, 0, 0, 0],
-                    [19.3, -0.7, 0.7, 1.5, 0, 0, 0],
-                    [21.2, -1, 1, 2, 0, 0, 0],
-                    [23.08, -1.3, 0.7, 2.5, 0, 0, 0],
-                    [24.98, -1, 0, 3, 0, 0, 0],
-                    [26.89, -0.7, -0.7, 2.5, 0, 0, 0],
-                    [28.79, -1, -1, 2, 0, 0, 0],
-                    [30.67, -1, -1, 1, 0, 0, 0]])}
+# waypoints = {72: np.array([[2.25, 1, 0, 1, 0, 0, 0],
+#                     [4.13, 1.3, 0.7, 1.5, 0, 0, 0],
+#                     [6.04, 1, 1, 2, 0, 0, 0],
+#                     [7.92, 0.7, 0.7, 2.5, 0, 0, 0],
+#                     [9.82, 0, 1, 3, 0, 0, 0],
+#                     [11.7, -0.7, 0.7, 2.5, 0, 0, 0],
+#                     [13.61, -1, 1, 2, 0, 0, 0],
+#                     [15.51, -0.7, 0.7, 1.5, 0, 0, 0],
+#                     [17.41, -1, 0, 1, 0, 0, 0],
+#                     [19.3, -0.7, -0.7, 1.5, 0, 0, 0],
+#                     [21.2, 0, -1, 2, 0, 0, 0],
+#                     [23.08, 0.7, -0.7, 2.5, 0, 0, 0],
+#                     [24.98, 1, -1, 3, 0, 0, 0],
+#                     [26.89, 1.3, -0.7, 2.5, 0, 0, 0],
+#                     [28.79, 1, 0, 2, 0, 0, 0],
+#                     [30.67, 1, 0, 1, 0, 0, 0]]),
+#             1: np.array([[2.25, 0, 1, 1, 0, 0, 0],
+#                     [4.13, -0.7, 1.3, 1.5, 0, 0, 0],
+#                     [6.04, -1, 1, 2, 0, 0, 0],
+#                     [7.92, -0.7, 0.7, 2.5, 0, 0, 0],
+#                     [9.82, -1, 0, 3, 0, 0, 0],
+#                     [11.7, -0.7, -0.7, 2.5, 0, 0, 0],
+#                     [13.61, -1, -1, 2, 0, 0, 0],
+#                     [15.51, -0.7, -0.7, 1.5, 0, 0, 0],
+#                     [17.41, 0, -1, 1, 0, 0, 0],
+#                     [19.3, 0.7, -0.7, 1.5, 0, 0, 0],
+#                     [21.2, 1, -1, 2, 0, 0, 0],
+#                     [23.08, 1.3, -0.7, 2.5, 0, 0, 0],
+#                     [24.98, 1, 0, 3, 0, 0, 0],
+#                     [26.89, 0.7, 0.7, 2.5, 0, 0, 0],
+#                     [28.79, 1, 1, 2, 0, 0, 0],
+#                     [30.67, 1, 1, 1, 0, 0, 0]]),
+#             2: np.array([[2.25, 0, -1, 1, 0, 0, 0],
+#                     [4.13, 0.7, -1.3, 1.5, 0, 0, 0],
+#                     [6.04, 1, -1, 2, 0, 0, 0],
+#                     [7.92, 0.7, -0.7, 2.5, 0, 0, 0],
+#                     [9.82, 1, 0, 3, 0, 0, 0],
+#                     [11.7, 0.7, 0.7, 2.5, 0, 0, 0],
+#                     [13.61, 1, 1, 2, 0, 0, 0],
+#                     [15.51, 0.7, 0.7, 1.5, 0, 0, 0],
+#                     [17.41, 0, 1, 1, 0, 0, 0],
+#                     [19.3, -0.7, 0.7, 1.5, 0, 0, 0],
+#                     [21.2, -1, 1, 2, 0, 0, 0],
+#                     [23.08, -1.3, 0.7, 2.5, 0, 0, 0],
+#                     [24.98, -1, 0, 3, 0, 0, 0],
+#                     [26.89, -0.7, -0.7, 2.5, 0, 0, 0],
+#                     [28.79, -1, -1, 2, 0, 0, 0],
+#                     [30.67, -1, -1, 1, 0, 0, 0]])}
+
+initial_positions = {72: np.array([0,0,1]), 1: np.array([1,1,1]), 2: np.array([-1,-1,1])}
+waypoints = {72: np.array([[0.00, 0.00, 0.00, 1.00, 0.00, 0.00, 0.00],
+                            [2.25, 0.50, 0.00, 1.50, 0.00, 0.00, 0.00],
+                            [4.13, 1.00, 0.50, 1.50, 0.00, 0.00, 0.00],
+                            [6.04, 0.50, 1.00, 1.50, 0.00, 0.00, 0.00],
+                            [7.92, 0.00, 0.50, 1.50, 0.00, 0.00, 0.00],
+                            [9.82, 0.50, 0.00, 1.50, 0.00, 0.00, 0.00],
+                            [11.70, 1.00, 0.50, 1.50, 0.00, 0.00, 0.00],
+                            [13.61, 0.50, 1.00, 1.50, 0.00, 0.00, 0.00],
+                            [15.51, 0.00, 0.50, 1.50, 0.00, 0.00, 0.00],
+                            [17.41, 0.50, 0.00, 1.50, 0.00, 0.00, 0.00],
+                            [19.30, 1.00, 0.50, 1.50, 0.00, 0.00, 0.00],
+                            [21.20, 0.50, 1.00, 1.50, 0.00, 0.00, 0.00],
+                            [23.08, 0.00, 0.50, 1.50, 0.00, 0.00, 0.00],
+                            [24.98, 0.50, 0.00, 1.50, 0.00, 0.00, 0.00],
+                            [26.89, 1.00, 0.50, 1.50, 0.00, 0.00, 0.00],
+                            [28.79, 0.50, 1.00, 1.50, 0.00, 0.00, 0.00],
+                            [30.67, 0.00, 0.50, 1.50, 0.00, 0.00, 0.00]]),
+            1: np.array([[0.00, 1.00, 1.00, 1.00, 0.00, 0.00, 0.00],
+                        [2.25, 1.00, 1.00, 1.50, 0.00, 0.00, 0.00],
+                        [4.13, 1.00, -1.00, 1.50, 0.00, 0.00, 0.00],
+                        [6.04, -1.00, -1.00, 1.50, 0.00, 0.00, 0.00],
+                        [7.92, -1.00, 1.00, 1.50, 0.00, 0.00, 0.00],
+                        [9.82, 1.00, 1.00, 1.50, 0.00, 0.00, 0.00],
+                        [11.70, 1.00, -1.00, 1.50, 0.00, 0.00, 0.00],
+                        [13.61, -1.00, -1.00, 1.50, 0.00, 0.00, 0.00],
+                        [15.51, -1.00, 1.00, 1.50, 0.00, 0.00, 0.00],
+                        [17.41, 1.00, 1.00, 1.50, 0.00, 0.00, 0.00],
+                        [19.30, 1.00, -1.00, 1.50, 0.00, 0.00, 0.00],
+                        [21.20, -1.00, -1.00, 1.50, 0.00, 0.00, 0.00],
+                        [23.08, -1.00, 1.00, 1.50, 0.00, 0.00, 0.00],
+                        [24.98, 1.00, 1.00, 1.50, 0.00, 0.00, 0.00],
+                        [26.89, 1.00, -1.00, 1.50, 0.00, 0.00, 0.00],
+                        [28.79, -1.00, -1.00, 1.50, 0.00, 0.00, 0.00],
+                        [30.67, -1.00, 1.00, 1.50, 0.00, 0.00, 0.00]]),
+            2: np.array([[0, -1, -1, 1, 0, 0, 0],
+                    [2.25, -1, -1, 1.5, 0, 0, 0],
+                    [4.13, -1, 1, 1.5, 0, 0, 0],
+                    [6.04, 1, 1, 1.5, 0, 0, 0],
+                    [7.92, 1, -1, 1.5, 0, 0, 0],
+                    [9.82, -1,-1, 1.5, 0, 0, 0],
+                    [11.7, -1, 1, 1.5, 0, 0, 0],
+                    [13.61, 1, 1, 1.5, 0, 0, 0],
+                    [15.51, 1, -1, 1.5, 0, 0, 0],
+                    [17.41, -1, -1, 1.5, 0, 0, 0],
+                    [19.3, -1, 1, 1.5, 0, 0, 0],
+                    [21.2, 1, 1, 1.5, 0, 0, 0],
+                    [23.08, 1, -1, 1.5, 0, 0, 0],
+                    [24.98, -1, -1, 1.5, 0, 0, 0],
+                    [26.89, -1, 1, 1.5, 0, 0, 0],
+                    [28.79, 1, 1, 1.5, 0, 0, 0],
+                    [30.67, 1, -1, 1.5, 0, 0, 0]])}
 
 
 # Define params that are constant for all drones
@@ -64,10 +117,8 @@ amswarm_kwargs["w_g_p"] = 7000
 amswarm_kwargs["w_g_v"] = 1000
 amswarm_kwargs["w_s"] = 100
 amswarm_kwargs["v_bar"] = 1.73
-amswarm_kwargs["f_bar"] = 1.5 * 9.81
+amswarm_kwargs["f_bar"] = 0.75 * 9.81
 amswarm_kwargs["params_filepath"] = "/home/ben/AMSwarm/cpp/params"
-amswarm_kwargs["hard_waypoint_constraints"] = False
-amswarm_kwargs["acceleration_constraints"] = False
 
 
 ## --------------------------- CREATE SWARM -------------------------------- ##
@@ -110,7 +161,7 @@ swarm = amswarm.Swarm(drones)
 # almost certainly not be able to if we run the optimizer in closed-loop with 
 # a higher-fidelity simulator like gym-pybullet-drones.
 
-sim_result = swarm.run_simulation()
+# sim_result = swarm.run_simulation()
 
 # The output sim_result is a class/struct with one main parameter that we use:
 #   - drone_results -> a list of DroneResult classes/structs, one for each drone
@@ -162,7 +213,17 @@ for key in waypoints:
     prev_trajectories.append(np.tile(initial_positions[key], amswarm_kwargs["K"]))
 
 # Get our initial guesses for the drone trajectories
-step_result = swarm.solve(0.0, initial_states, prev_trajectories)
+waypoint_constraints = [False] * len(drones)
+acceleration_constraints = [False] * len(drones)
+step_result = swarm.solve(0.0, initial_states, prev_trajectories, waypoint_constraints, acceleration_constraints)
+failed_drones = [index for index, drone_result in enumerate(step_result.drone_results) if not drone_result.is_successful]    
+if failed_drones:
+    for index in failed_drones:
+        waypoint_constraints[index] = False
+        acceleration_constraints[index] = False
+    # Re-solve for failed drones with updated constraints
+    step_result = swarm.solve(0.0, initial_states, prev_trajectories, waypoint_constraints, acceleration_constraints)
+
 prev_trajectories.clear()
 for i in range(len(drones)):
     prev_trajectories.append(step_result.drone_results[i].position_trajectory_vector)
@@ -184,11 +245,29 @@ num_steps = int(final_waypoint_time / amswarm_kwargs["delta_t"])-1 # stop one ti
 # Now we can solve for the trajectory at each time step, apply it to the drones,
 # measure the new state, and repeat.
 for i in range(num_steps):
-    
     # Solve for the control input given the current state and guesses for the 
     # other drones' trajectories from the previous optimization
     current_time = i * amswarm_kwargs["delta_t"]
-    step_result = swarm.solve(current_time, initial_states, prev_trajectories)
+    # print("Current time: ", current_time)
+    # print("Initial states: ", initial_states)
+    # print("Previous trajectories: ", prev_trajectories)
+    
+    # reset constraints to True and attempt to solve first with constraints on
+    waypoint_constraints = [False] * len(drones)
+    acceleration_constraints = [False] * len(drones)
+    
+    step_result = swarm.solve(current_time, initial_states, prev_trajectories, waypoint_constraints, acceleration_constraints)
+    
+    # Check for drones that failed and prepare to re-solve for them
+    failed_drones = [index for index, drone_result in enumerate(step_result.drone_results) if not drone_result.is_successful]
+    
+    if failed_drones:
+        print("Failed, resolving...")
+        for index in failed_drones:
+            waypoint_constraints[index] = False
+            acceleration_constraints[index] = False
+        # Re-solve for failed drones with updated constraints
+        step_result = swarm.solve(current_time, initial_states, prev_trajectories, waypoint_constraints, acceleration_constraints)
     
     # Here, we would apply the control inputs to the drones in real life or in
     # a simulator. For now, we will just print the control inputs that would be
@@ -206,7 +285,16 @@ for i in range(num_steps):
     prev_trajectories.clear()
     for i in range(len(drones)):
         initial_states.append(step_result.drone_results[i].state_trajectory[0,:])
-        prev_trajectories.append(step_result.drone_results[i].position_trajectory_vector)
+        
+        # Get the last two points of the trajectory
+        last_point = step_result.drone_results[i].position_trajectory[-1][:3]  # Only take x, y, z coordinates
+        second_last_point = step_result.drone_results[i].position_trajectory[-2][:3]  # Only take x, y, z coordinates
+        extrapolated_point = 2 * last_point - second_last_point
+
+        new_trajectory = np.hstack((step_result.drone_results[i].position_trajectory_vector[3:], extrapolated_point))
+        prev_trajectories.append(new_trajectory)
+        
+        # prev_trajectories.append(step_result.drone_results[i].position_trajectory_vector)
         
         # Here we also keep track of our position and control input for plotting later
         position_results[i] = np.vstack((position_results[i], step_result.drone_results[i].position_trajectory[0,:]))

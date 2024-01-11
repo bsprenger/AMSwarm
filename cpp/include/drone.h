@@ -25,14 +25,14 @@ class Drone {
                 Eigen::VectorXd position_trajectory_vector;
                 Eigen::VectorXd state_trajectory_vector;
                 Eigen::VectorXd control_input_trajectory_vector;
+
+                bool is_successful;
         };
 
         // Constructors
         Drone(std::string& params_filepath, // necessary input
                 Eigen::MatrixXd waypoints, // necessary input
                 Eigen::VectorXd initial_pos = Eigen::VectorXd::Zero(3), // optional inputs - default values are set
-                bool hard_waypoint_constraints = true,
-                bool acceleration_constraints = true,
                 int K = 25,
                 int n = 10,
                 float delta_t = 1.0/6.0, // FIX THIS cast to float always
@@ -45,7 +45,13 @@ class Drone {
                 float f_bar = 1.5*9.8);
 
         // Public methods
-        DroneResult solve(const double, const Eigen::VectorXd, const int, const std::vector<Eigen::SparseMatrix<double>>, const Eigen::VectorXd);
+        DroneResult solve(const double current_time,
+                                const Eigen::VectorXd x_0,
+                                const int j,
+                                std::vector<Eigen::SparseMatrix<double>> thetas,
+                                const Eigen::VectorXd xi,
+                                bool hard_waypoint_constraints,
+                                bool acceleration_constraints);
         
         // Getters
         Eigen::VectorXd getInitialPosition();
@@ -124,8 +130,6 @@ class Drone {
         float w_s;
         double v_bar;
         double f_bar;
-        bool hard_waypoint_constraints;
-        bool acceleration_constraints;
         Eigen::MatrixXd waypoints;
         Eigen::VectorXd initial_pos;
         Eigen::SparseMatrix<double> collision_envelope; // this drone's collision envelope - NOT the other obstacles' collision envelopes
@@ -155,7 +159,9 @@ class Drone {
                                     Eigen::VectorXd& s,
                                     VariableSelectionMatrices& variableSelectionMatrices,
                                     Constraints& constraints,
-                                    CostMatrices& costMatrices);
+                                    CostMatrices& costMatrices,
+                                    bool hard_waypoint_constraints,
+                                    bool acceleration_constraints);
 
         void initVariableSelectionMatrices(int j, Eigen::VectorXd& penalized_steps,
                             VariableSelectionMatrices& variableSelectionMatrices);
@@ -182,7 +188,9 @@ class Drone {
                         Constraints& constraints,
                         Eigen::VectorXd& s,
                         LagrangeMultipliers& lambda,
-                        Eigen::VectorXd& zeta_1);
+                        Eigen::VectorXd& zeta_1,
+                        bool hard_waypoint_constraints,
+                        bool acceleration_constraints);
 
         void compute_h_eq(int, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&,Eigen::VectorXd&);
         void compute_d(int K, int j, double rho,
@@ -204,7 +212,10 @@ class Drone {
 
         DroneResult computeDroneResult(double current_time, Eigen::VectorXd& zeta_1,Eigen::VectorXd x_0);
 
-        void printUnsatisfiedResiduals(const Residuals& residuals, double threshold);
+        void printUnsatisfiedResiduals(const Residuals& residuals,
+                                        double threshold,
+                                        bool hard_waypoint_constraints,
+                                        bool acceleration_constraints);
 };
 
 #endif

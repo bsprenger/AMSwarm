@@ -19,7 +19,11 @@ Swarm::Swarm(std::vector<Drone> drones)
 };
 
 
-Swarm::SwarmResult Swarm::solve(const double current_time, std::vector<Eigen::VectorXd> x_0_vector, std::vector<Eigen::VectorXd> prev_trajectories) {
+Swarm::SwarmResult Swarm::solve(const double current_time,
+                                std::vector<Eigen::VectorXd> x_0_vector,
+                                std::vector<Eigen::VectorXd> prev_trajectories,
+                                std::vector<bool> waypoint_constraints, 
+                                std::vector<bool> acceleration_constraints) {
     int K = drones[0].getK();
     int j = num_drones - 1; // for now, consider all drones as obstacles - later only consider some within radius
 
@@ -41,7 +45,7 @@ Swarm::SwarmResult Swarm::solve(const double current_time, std::vector<Eigen::Ve
             }
         }
 
-        Drone::DroneResult result = drones[i].solve(current_time, x_0_vector[i], j, thetas, xi);
+        Drone::DroneResult result = drones[i].solve(current_time, x_0_vector[i], j, thetas, xi, waypoint_constraints[i], acceleration_constraints[i]);
         
         // use a critical section to update shared vectors
         # pragma omp critical
@@ -93,7 +97,10 @@ Swarm::SwarmResult Swarm::runSimulation() {
     }
 
     // solve for initial trajectories THIS CAN BE IMPROVED
-    SwarmResult solve_result = solve(0.0, x_0_vector, prev_trajectories);
+    // create a vector of bools of all false for the drones
+    std::vector<bool> waypoint_constraints(num_drones, false);
+    std::vector<bool> acceleration_constraints(num_drones, false);
+    SwarmResult solve_result = solve(0.0, x_0_vector, prev_trajectories, waypoint_constraints, acceleration_constraints);
     prev_trajectories.clear();
     for (int i = 0; i < num_drones; ++i) {
         prev_trajectories.push_back(solve_result.drone_results[i].position_trajectory_vector);
@@ -102,7 +109,7 @@ Swarm::SwarmResult Swarm::runSimulation() {
     // iterate over time
     for (float t = 0.0; t < final_waypoint_time - delta_t; t+=delta_t) {
         // Solve for next trajectories
-        solve_result = solve(t, x_0_vector, prev_trajectories);
+        solve_result = solve(t, x_0_vector, prev_trajectories, waypoint_constraints, acceleration_constraints);
 
         // Build necessary matrices
         // previous trajectories need to be moved one time step forward and the last time step needs to be extrapolated
