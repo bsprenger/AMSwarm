@@ -70,12 +70,17 @@ PYBIND11_MODULE(amswarm, m)
                                             w_s, v_bar, f_bar);}),
             py::arg("params_filepath"), py::arg("waypoints"), py::arg("initial_pos"), py::arg("K"), py::arg("n"), py::arg("delta_t"), py::arg("p_min"),
             py::arg("p_max"), py::arg("w_g_p"), py::arg("w_g_v"), py::arg("w_s"), py::arg("v_bar"), py::arg("f_bar"))
-        .def("solve", [](Drone &instance, double current_time, py::array_t<double> x_0_npy, int j, py::list thetas_py, py::array_t<double> xi_npy, bool hard_waypoint_constraints, bool acceleration_constraints)
+        .def("solve", [](Drone &instance, double current_time, py::array_t<double> x_0_npy, py::array_t<double> initial_guess_control_input_trajectory_vector_py, int j, py::list thetas_py, py::array_t<double> xi_npy, bool waypoint_position_constraints, bool waypoint_velocity_constraints, bool waypoint_acceleration_constraints)
             {
                 // convert current state from numpy to eigen
                 py::array_t<double> array = x_0_npy.cast<py::array_t<double>>();
                 auto buffer = array.request();
                 Eigen::VectorXd x_0 = Eigen::Map<Eigen::VectorXd>(static_cast<double *>(buffer.ptr), buffer.shape[0]);
+
+                // convert initial guess from numpy to eigen
+                array = initial_guess_control_input_trajectory_vector_py.cast<py::array_t<double>>();
+                buffer = array.request();
+                Eigen::VectorXd initial_guess_control_input_trajectory_vector = Eigen::Map<Eigen::VectorXd>(static_cast<double *>(buffer.ptr), buffer.shape[0]);
 
                 // convert thetas to std::vector of Eigen::SparseMatrix<double>
                 std::vector<Eigen::SparseMatrix<double>> thetas;
@@ -91,7 +96,7 @@ PYBIND11_MODULE(amswarm, m)
                 array = xi_npy.cast<py::array_t<double>>();
                 buffer = array.request();
                 Eigen::VectorXd xi = Eigen::Map<Eigen::VectorXd>(static_cast<double *>(buffer.ptr), buffer.shape[0]);
-                return instance.solve(current_time, x_0, j, thetas, xi, hard_waypoint_constraints, acceleration_constraints);
+                return instance.solve(current_time, x_0, initial_guess_control_input_trajectory_vector, j, thetas, xi, waypoint_position_constraints, waypoint_velocity_constraints, waypoint_acceleration_constraints);
             });
     
     py::class_<Swarm>(m, "Swarm")
@@ -104,7 +109,20 @@ PYBIND11_MODULE(amswarm, m)
 
             return new Swarm(drones);
         }))
-        .def("solve", [](Swarm &instance, double current_time, py::list x_0_vector_py, py::list prev_trajectories_py, py::list waypoint_constraints_py, py::list acceleration_constraints_py) {
+        .def("solve", [](Swarm &instance, double current_time, py::list x_0_vector_py, py::list prev_inputs_py, py::list prev_trajectories_py, py::list waypoint_position_constraints_py, py::list waypoint_velocity_constraints_py, py::list waypoint_acceleration_constraints_py) {
+            std::vector<Eigen::VectorXd> prev_inputs;
+            for (auto item : prev_inputs_py) {
+                py::array_t<double> array = item.cast<py::array_t<double>>();
+                auto buffer = array.request();
+                Eigen::VectorXd prev_input(buffer.shape[0]);
+
+                for (ssize_t i = 0; i < array.size(); ++i) {
+                    prev_input(i) = array.at(i);
+                }
+
+                // Eigen::VectorXd prev_trajectory = Eigen::Map<Eigen::VectorXd>(static_cast<double *>(buffer.ptr), buffer.shape[0]);
+                prev_inputs.push_back(prev_input);
+            }
             std::vector<Eigen::VectorXd> prev_trajectories;
             for (auto item : prev_trajectories_py) {
                 py::array_t<double> array = item.cast<py::array_t<double>>();
@@ -131,15 +149,19 @@ PYBIND11_MODULE(amswarm, m)
                 }
                 x_0_vector.push_back(x_0);
             }
-            std::vector<bool> waypoint_constraints;
-            for (auto item : waypoint_constraints_py) {
-                waypoint_constraints.push_back(item.cast<bool>());
+            std::vector<bool> waypoint_position_constraints;
+            for (auto item : waypoint_position_constraints_py) {
+                waypoint_position_constraints.push_back(item.cast<bool>());
             }
-            std::vector<bool> acceleration_constraints;
-            for (auto item : acceleration_constraints_py) {
-                acceleration_constraints.push_back(item.cast<bool>());
+            std::vector<bool> waypoint_velocity_constraints;
+            for (auto item : waypoint_velocity_constraints_py) {
+                waypoint_velocity_constraints.push_back(item.cast<bool>());
             }
-            return instance.solve(current_time, x_0_vector, prev_trajectories, waypoint_constraints, acceleration_constraints);
+            std::vector<bool> waypoint_acceleration_constraints;
+            for (auto item : waypoint_acceleration_constraints_py) {
+                waypoint_acceleration_constraints.push_back(item.cast<bool>());
+            }
+            return instance.solve(current_time, x_0_vector, prev_inputs, prev_trajectories, waypoint_position_constraints, waypoint_velocity_constraints, waypoint_acceleration_constraints);
         })
         .def("run_simulation", [](Swarm &instance) {
             Swarm::SwarmResult swarm_result = instance.runSimulation();

@@ -47,11 +47,13 @@ class Drone {
         // Public methods
         DroneResult solve(const double current_time,
                                 const Eigen::VectorXd x_0,
+                                Eigen::VectorXd& initial_guess_control_input_trajectory_vector,
                                 const int j,
                                 std::vector<Eigen::SparseMatrix<double>> thetas,
                                 const Eigen::VectorXd xi,
-                                bool hard_waypoint_constraints,
-                                bool acceleration_constraints);
+                                bool waypoint_position_constraints,
+                                bool waypoint_velocity_constraints,
+                                bool waypoint_acceleration_constraints);
         
         // Getters
         Eigen::VectorXd getInitialPosition();
@@ -71,40 +73,52 @@ class Drone {
         };
 
         struct VariableSelectionMatrices {
-            Eigen::SparseMatrix<double> M_x, M_y, M_z, M_waypoints_penalized; // maybe rename to x,y,z,timestep?
+            Eigen::SparseMatrix<double> M_x, M_y, M_z, M_waypoints_position, M_waypoints_velocity; // maybe rename to x,y,z,timestep?
         };
 
         struct Constraints {
-            Eigen::SparseMatrix<double> G_eq, G_pos, G_waypoints, G_accel;
-            Eigen::VectorXd h_eq, h_pos, h_waypoints, h_accel;
-            Eigen::VectorXd c_eq, c_waypoints, c_accel;
+            Eigen::SparseMatrix<double> G_eq, G_pos, G_waypoints_pos,G_waypoints_vel, G_waypoints_accel;
+            Eigen::VectorXd h_eq, h_pos, h_waypoints_pos, h_waypoints_vel, h_waypoints_accel;
+            Eigen::VectorXd c_eq, c_waypoints_pos, c_waypoints_vel, c_waypoints_accel;
         };
 
         struct Residuals {
             Eigen::VectorXd eq; // equality constraint residuals
             Eigen::VectorXd pos; // position constraint residuals
-            Eigen::VectorXd waypoints; // waypoint constraint residuals
-            Eigen::VectorXd accel; // acceleration constraint residuals --> to do change this
+            Eigen::VectorXd waypoints_pos; // waypoint constraint residuals
+            Eigen::VectorXd waypoints_vel; // waypoint constraint residuals
+            Eigen::VectorXd waypoints_accel; // acceleration constraint residuals --> to do change this
+            Eigen::VectorXd u_0;
 
             Residuals(int j, int K, int num_penalized_steps) {
                 eq = Eigen::VectorXd::Ones((2 + j) * 3 * K); // TODO something more intelligent then setting these to 1 -> they should be bigger than threshold
                 pos = Eigen::VectorXd::Ones(6 * K);
-                waypoints = Eigen::VectorXd::Ones(6 * num_penalized_steps);
-                accel = Eigen::VectorXd::Ones(6 * num_penalized_steps);
+                waypoints_pos = Eigen::VectorXd::Ones(3 * num_penalized_steps);
+                waypoints_vel = Eigen::VectorXd::Ones(3 * num_penalized_steps);
+                waypoints_accel = Eigen::VectorXd::Ones(3 * num_penalized_steps);
+                u_0 = Eigen::VectorXd::Ones(3);
             }
         };
 
         struct LagrangeMultipliers {
             Eigen::VectorXd eq; // equality constraint residuals
             Eigen::VectorXd pos; // position constraint residuals
-            Eigen::VectorXd waypoints; // waypoint constraint residuals
-            Eigen::VectorXd accel; // acceleration constraint residuals --> to do change this
+            Eigen::VectorXd waypoints_pos; // waypoint constraint residuals
+            Eigen::VectorXd waypoints_vel; // waypoint constraint residuals
+            Eigen::VectorXd waypoints_accel; // acceleration constraint residuals --> to do change this
+            Eigen::VectorXd u_0;
+            Eigen::VectorXd u_dot_0;
+            Eigen::VectorXd u_ddot_0;
 
             LagrangeMultipliers(int j, int K, int num_penalized_steps) {
                 eq = Eigen::VectorXd::Zero((2 + j) * 3 * K);
                 pos = Eigen::VectorXd::Zero(6 * K);
-                waypoints = Eigen::VectorXd::Zero(6 * num_penalized_steps);
-                accel = Eigen::VectorXd::Zero(6 * num_penalized_steps);
+                waypoints_pos = Eigen::VectorXd::Zero(3 * num_penalized_steps);
+                waypoints_vel = Eigen::VectorXd::Zero(3 * num_penalized_steps);
+                waypoints_accel = Eigen::VectorXd::Zero(3 * num_penalized_steps);
+                u_0 = Eigen::VectorXd::Zero(3);
+                u_dot_0 = Eigen::VectorXd::Zero(3);
+                u_ddot_0 = Eigen::VectorXd::Zero(3);
             }
         };
 
@@ -117,7 +131,7 @@ class Drone {
 
         
         // Private variables
-        Eigen::SparseMatrix<double> W, W_dot;
+        Eigen::SparseMatrix<double> W, W_dot, W_ddot;
         Eigen::SparseMatrix<double> S_x, S_u, S_x_prime, S_u_prime;
         int K;
         int n;
@@ -139,7 +153,8 @@ class Drone {
         void initConstSelectionMatrices(); // to do remove this for a default constructor
 
 
-        Eigen::MatrixXd extractWaypointsInCurrentHorizon(const double, const Eigen::MatrixXd&);
+        Eigen::MatrixXd extractWaypointsInCurrentHorizon(const double t,
+                                                        const Eigen::MatrixXd& waypoints);
         void generateBernsteinMatrices();
         std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> loadDynamicsMatricesFromFile(const std::string&);
         std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> loadSparseDynamicsMatricesFromFile(const std::string&);
@@ -160,27 +175,38 @@ class Drone {
                                     VariableSelectionMatrices& variableSelectionMatrices,
                                     Constraints& constraints,
                                     CostMatrices& costMatrices,
-                                    bool hard_waypoint_constraints,
-                                    bool acceleration_constraints);
+                                    bool waypoint_position_constraints,
+                                    bool waypoint_velocity_constraints,
+                                    bool waypoint_acceleration_constraints,
+                                    Eigen::VectorXd u_0_prev,
+                                    Eigen::VectorXd u_dot_0_prev,
+                                    Eigen::VectorXd u_ddot_0_prev);
 
         void initVariableSelectionMatrices(int j, Eigen::VectorXd& penalized_steps,
                             VariableSelectionMatrices& variableSelectionMatrices);
                             
-        void initOptimizationVariables(int, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&);
+        void initOptimizationVariables(int j, Eigen::VectorXd& alpha,
+                                    Eigen::VectorXd& beta, Eigen::VectorXd& d,
+                                    Eigen::VectorXd& zeta_1);
 
         void initConstConstraintMatrices(int j, Eigen::VectorXd x_0,
                                 Eigen::VectorXd xi,
                                 Eigen::SparseMatrix<double>& S_theta,
                                 Eigen::MatrixXd& extracted_waypoints,
-                                Eigen::SparseMatrix<double>& M_waypoints_penalized,
+                                VariableSelectionMatrices& variableSelectionMatrices,
                                 Constraints& constraints);
 
         void initCostMatrices(Eigen::VectorXd& penalized_steps,
                             Eigen::VectorXd x_0,
                             Eigen::SparseMatrix<double>& X_g,
-                            CostMatrices& costMatrices);
+                            CostMatrices& costMatrices,
+                            Eigen::VectorXd u_0_prev,
+                            Eigen::VectorXd u_dot_0_prev,
+                            Eigen::VectorXd u_ddot_0_prev);
 
-        void computeX_g(Eigen::MatrixXd& extracted_waypoints, Eigen::VectorXd& penalized_steps, Eigen::SparseMatrix<double>& X_g);
+        void computeX_g(Eigen::MatrixXd& extracted_waypoints,
+                        Eigen::VectorXd& penalized_steps,
+                        Eigen::SparseMatrix<double>& X_g);
 
         void computeZeta1(int iters, double rho,
                         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>>& solver,
@@ -189,15 +215,19 @@ class Drone {
                         Eigen::VectorXd& s,
                         LagrangeMultipliers& lambda,
                         Eigen::VectorXd& zeta_1,
-                        bool hard_waypoint_constraints,
-                        bool acceleration_constraints);
+                        bool waypoint_position_constraints,
+                        bool waypoint_velocity_constraints,
+                        bool waypoint_acceleration_constraints,
+                        Eigen::VectorXd& u_0_prev);
 
         void compute_h_eq(int, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&,Eigen::VectorXd&);
+
         void compute_d(int K, int j, double rho,
                     Constraints& constraints, Eigen::VectorXd& zeta_1,
                     LagrangeMultipliers& lambda,
                     Eigen::VectorXd& alpha, Eigen::VectorXd& beta,
                     Eigen::VectorXd& d);
+
         void computeAlphaBeta(double rho, Constraints& constraints,
                             Eigen::VectorXd& zeta_1,
                             LagrangeMultipliers& lambda, 
@@ -206,7 +236,8 @@ class Drone {
                             
         void computeResiduals(Constraints& constraints,
                             Eigen::VectorXd& zeta_1, Eigen::VectorXd& s,
-                            Residuals& residuals);
+                            Residuals& residuals,
+                            Eigen::VectorXd& u_0_prev);
 
         void updateLagrangeMultipliers(double rho, Residuals& residuals, LagrangeMultipliers& lambda);
 
@@ -214,8 +245,11 @@ class Drone {
 
         void printUnsatisfiedResiduals(const Residuals& residuals,
                                         double threshold,
-                                        bool hard_waypoint_constraints,
-                                        bool acceleration_constraints);
+                                        bool waypoint_position_constraints,
+                                        bool waypoint_velocity_constraints,
+                                        bool waypoint_acceleration_constraints);
+
+        Eigen::VectorXd U_to_zeta_1(Eigen::VectorXd& U);
 };
 
 #endif

@@ -1,5 +1,6 @@
 #include <swarm.h>
 #include <utils.h>
+#include <iostream>
 
 Swarm::Swarm(std::vector<Drone> drones)
     : drones(drones)
@@ -21,9 +22,11 @@ Swarm::Swarm(std::vector<Drone> drones)
 
 Swarm::SwarmResult Swarm::solve(const double current_time,
                                 std::vector<Eigen::VectorXd> x_0_vector,
+                                std::vector<Eigen::VectorXd> prev_inputs,
                                 std::vector<Eigen::VectorXd> prev_trajectories,
-                                std::vector<bool> waypoint_constraints, 
-                                std::vector<bool> acceleration_constraints) {
+                                std::vector<bool> waypoint_position_constraints,
+                                std::vector<bool> waypoint_velocity_constraints,
+                                std::vector<bool> waypoint_acceleration_constraints) {
     int K = drones[0].getK();
     int j = num_drones - 1; // for now, consider all drones as obstacles - later only consider some within radius
 
@@ -44,9 +47,11 @@ Swarm::SwarmResult Swarm::solve(const double current_time,
                 ++index;
             }
         }
-
-        Drone::DroneResult result = drones[i].solve(current_time, x_0_vector[i], j, thetas, xi, waypoint_constraints[i], acceleration_constraints[i]);
         
+        Eigen::VectorXd initial_guess_control_input_trajectory_vector = prev_inputs[i];
+        Drone::DroneResult result = drones[i].solve(current_time, x_0_vector[i], initial_guess_control_input_trajectory_vector, j, thetas, xi, waypoint_position_constraints[i], waypoint_velocity_constraints[i], waypoint_acceleration_constraints[i]);
+        
+
         // use a critical section to update shared vectors
         # pragma omp critical
         {
@@ -88,9 +93,11 @@ Swarm::SwarmResult Swarm::runSimulation() {
     final_waypoint_time = std::round(final_waypoint_time / delta_t) * delta_t;
     
     // initialize trajectory vectors to be the initial positions
+    std::vector<Eigen::VectorXd> prev_inputs;
     std::vector<Eigen::VectorXd> prev_trajectories;
     std::vector<Eigen::VectorXd> x_0_vector;
     for (int i = 0; i < num_drones; ++i) {
+        prev_inputs.push_back(drones[i].getInitialPosition().replicate(K,1));
         prev_trajectories.push_back(drones[i].getInitialPosition().replicate(K,1));
         Eigen::VectorXd initial_state(6); initial_state << drones[i].getInitialPosition(), Eigen::VectorXd::Zero(3);
         x_0_vector.push_back(initial_state);
@@ -98,28 +105,32 @@ Swarm::SwarmResult Swarm::runSimulation() {
 
     // solve for initial trajectories THIS CAN BE IMPROVED
     // create a vector of bools of all false for the drones
-    std::vector<bool> waypoint_constraints(num_drones, false);
-    std::vector<bool> acceleration_constraints(num_drones, false);
-    SwarmResult solve_result = solve(0.0, x_0_vector, prev_trajectories, waypoint_constraints, acceleration_constraints);
+    std::vector<bool> waypoint_position_constraints(num_drones, false);
+    std::vector<bool> waypoint_velocity_constraints(num_drones, false);
+    std::vector<bool> waypoint_acceleration_constraints(num_drones, false);
+    SwarmResult solve_result = solve(0.0, x_0_vector, prev_inputs, prev_trajectories, waypoint_position_constraints, waypoint_velocity_constraints, waypoint_acceleration_constraints);
+    prev_inputs.clear();
     prev_trajectories.clear();
     for (int i = 0; i < num_drones; ++i) {
+        prev_inputs.push_back(solve_result.drone_results[i].control_input_trajectory_vector);
         prev_trajectories.push_back(solve_result.drone_results[i].position_trajectory_vector);
     }
 
     // iterate over time
     for (float t = 0.0; t < final_waypoint_time - delta_t; t+=delta_t) {
         // Solve for next trajectories
-        solve_result = solve(t, x_0_vector, prev_trajectories, waypoint_constraints, acceleration_constraints);
+        solve_result = solve(t, x_0_vector, prev_inputs, prev_trajectories, waypoint_position_constraints, waypoint_velocity_constraints, waypoint_acceleration_constraints);
 
         // Build necessary matrices
         // previous trajectories need to be moved one time step forward and the last time step needs to be extrapolated
+        prev_inputs.clear();
         prev_trajectories.clear();
         x_0_vector.clear();
         // Get simulation output - positions and control inputs
         for (int j = 0; j < num_drones; ++j) {
+            prev_inputs.push_back(solve_result.drone_results[j].control_input_trajectory_vector);
             prev_trajectories.push_back(solve_result.drone_results[j].position_trajectory_vector);
             x_0_vector.push_back(solve_result.drone_results[j].state_trajectory_vector.head(6)); // THIS NEEDS TO BE FIXED, FIRST ITERATION SHOULD NOT HAVE VELOCITY
-        
 
             // time
             swarm_result.drone_results[j].control_input_time_stamps.conservativeResize(swarm_result.drone_results[j].control_input_time_stamps.size() + 1);

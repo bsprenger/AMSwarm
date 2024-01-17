@@ -104,7 +104,24 @@ waypoints = {72: np.array([[0.00, 0.00, 0.00, 1.00, 0.00, 0.00, 0.00],
                     [26.89, -1, 1, 1.5, 0, 0, 0],
                     [28.79, 1, 1, 1.5, 0, 0, 0],
                     [30.67, 1, -1, 1.5, 0, 0, 0]])}
-
+# initial_positions = {72: np.array([0,0,1])}
+# waypoints = {72: np.array([[0.00, 0.00, 0.00, 1.00, 0.00, 0.00, 0.00],
+#                             [2.25, 0.50, 0.00, 1.50, 0.00, 0.00, 0.00],
+#                             [4.13, 1.00, 0.50, 1.50, 0.00, 0.00, 0.00],
+#                             [6.04, 0.50, 1.00, 1.50, 0.00, 0.00, 0.00],
+#                             [7.92, 0.00, 0.50, 1.50, 0.00, 0.00, 0.00],
+#                             [9.82, 0.50, 0.00, 1.50, 0.00, 0.00, 0.00],
+#                             [11.70, 1.00, 0.50, 1.50, 0.00, 0.00, 0.00],
+#                             [13.61, 0.50, 1.00, 1.50, 0.00, 0.00, 0.00],
+#                             [15.51, 0.00, 0.50, 1.50, 0.00, 0.00, 0.00],
+#                             [17.41, 0.50, 0.00, 1.50, 0.00, 0.00, 0.00],
+#                             [19.30, 1.00, 0.50, 1.50, 0.00, 0.00, 0.00],
+#                             [21.20, 0.50, 1.00, 1.50, 0.00, 0.00, 0.00],
+#                             [23.08, 0.00, 0.50, 1.50, 0.00, 0.00, 0.00],
+#                             [24.98, 0.50, 0.00, 1.50, 0.00, 0.00, 0.00],
+#                             [26.89, 1.00, 0.50, 1.50, 0.00, 0.00, 0.00],
+#                             [28.79, 0.50, 1.00, 1.50, 0.00, 0.00, 0.00],
+#                             [30.67, 0.00, 0.50, 1.50, 0.00, 0.00, 0.00]])}
 
 # Define params that are constant for all drones
 amswarm_kwargs = {}
@@ -114,7 +131,7 @@ amswarm_kwargs["n"] = 10
 amswarm_kwargs["p_min"] = np.array([[-10,-10,0]])
 amswarm_kwargs["p_max"] = np.array([[10, 10, 10]])
 amswarm_kwargs["w_g_p"] = 7000
-amswarm_kwargs["w_g_v"] = 1000
+amswarm_kwargs["w_g_v"] = 10000
 amswarm_kwargs["w_s"] = 100
 amswarm_kwargs["v_bar"] = 1.73
 amswarm_kwargs["f_bar"] = 0.75 * 9.81
@@ -131,7 +148,7 @@ drones = []
 for key in waypoints:
     amswarm_kwargs["waypoints"] = waypoints[key]
     amswarm_kwargs["initial_pos"] = initial_positions[key]
-    print(amswarm_kwargs)
+    # print(amswarm_kwargs)
     drones.append(amswarm.Drone(**amswarm_kwargs))
 
 # Then, we create a swarm controller by passing our list of drones to it,
@@ -204,28 +221,34 @@ position_results = []
 control_input_results = []
 
 initial_states = []
+prev_inputs = []
 prev_trajectories = []
 
 for key in waypoints:
     position_results.append(initial_positions[key]) # add initial position to results
     control_input_results.append(np.empty((0,3)))
     initial_states.append(np.concatenate((initial_positions[key], np.zeros(3))))
+    prev_inputs.append(np.tile(np.zeros(3), amswarm_kwargs["K"]))
     prev_trajectories.append(np.tile(initial_positions[key], amswarm_kwargs["K"]))
 
 # Get our initial guesses for the drone trajectories
-waypoint_constraints = [False] * len(drones)
-acceleration_constraints = [False] * len(drones)
-step_result = swarm.solve(0.0, initial_states, prev_trajectories, waypoint_constraints, acceleration_constraints)
+waypoint_position_constraints = [True] * len(drones)
+waypoint_velocity_constraints = [True] * len(drones)
+waypoint_acceleration_constraints = [False] * len(drones)
+step_result = swarm.solve(0.0, initial_states, prev_inputs, prev_trajectories, waypoint_position_constraints, waypoint_velocity_constraints, waypoint_acceleration_constraints)
 failed_drones = [index for index, drone_result in enumerate(step_result.drone_results) if not drone_result.is_successful]    
 if failed_drones:
     for index in failed_drones:
-        waypoint_constraints[index] = False
-        acceleration_constraints[index] = False
+        waypoint_position_constraints[index] = False
+        waypoint_velocity_constraints[index] = False
+        waypoint_acceleration_constraints[index] = False
     # Re-solve for failed drones with updated constraints
-    step_result = swarm.solve(0.0, initial_states, prev_trajectories, waypoint_constraints, acceleration_constraints)
+    step_result = swarm.solve(0.0, initial_states, prev_inputs, prev_trajectories, waypoint_position_constraints, waypoint_velocity_constraints, waypoint_acceleration_constraints)
 
+prev_inputs.clear()
 prev_trajectories.clear()
 for i in range(len(drones)):
+    prev_inputs.append(step_result.drone_results[i].control_input_trajectory_vector)
     prev_trajectories.append(step_result.drone_results[i].position_trajectory_vector)
 
 # Now we have good initial trajectory guesses, we can solve the optimization
@@ -253,10 +276,11 @@ for i in range(num_steps):
     # print("Previous trajectories: ", prev_trajectories)
     
     # reset constraints to True and attempt to solve first with constraints on
-    waypoint_constraints = [False] * len(drones)
-    acceleration_constraints = [False] * len(drones)
+    waypoint_position_constraints = [True] * len(drones)
+    waypoint_velocity_constraints = [True] * len(drones)
+    waypoint_acceleration_constraints = [False] * len(drones)
     
-    step_result = swarm.solve(current_time, initial_states, prev_trajectories, waypoint_constraints, acceleration_constraints)
+    step_result = swarm.solve(current_time, initial_states, prev_inputs, prev_trajectories, waypoint_position_constraints, waypoint_velocity_constraints, waypoint_acceleration_constraints)
     
     # Check for drones that failed and prepare to re-solve for them
     failed_drones = [index for index, drone_result in enumerate(step_result.drone_results) if not drone_result.is_successful]
@@ -264,15 +288,17 @@ for i in range(num_steps):
     if failed_drones:
         print("Failed, resolving...")
         for index in failed_drones:
-            waypoint_constraints[index] = False
-            acceleration_constraints[index] = False
+            waypoint_position_constraints[index] = False
+            waypoint_velocity_constraints[index] = False
+            waypoint_acceleration_constraints[index] = False
         # Re-solve for failed drones with updated constraints
-        step_result = swarm.solve(current_time, initial_states, prev_trajectories, waypoint_constraints, acceleration_constraints)
+        step_result = swarm.solve(current_time, initial_states, prev_inputs, prev_trajectories, waypoint_position_constraints, waypoint_velocity_constraints, waypoint_acceleration_constraints)
     
     # Here, we would apply the control inputs to the drones in real life or in
     # a simulator. For now, we will just print the control inputs that would be
     # applied to the drones.
     # print("Control Inputs at Time " + str(current_time) + ":")
+    # print(step_result.drone_results[0].control_input_trajectory_vector)
     # for j in range(len(drones)):
     #     print("Drone " + str(j) + ": " + str(step_result.drone_results[j].control_input_trajectory[0,:]))
 
@@ -282,9 +308,18 @@ for i in range(num_steps):
     # be replaced with a measurement of the initial state in real life or in a
     # simulator (if measuring, would need to wait until the next time step).
     initial_states.clear()
+    prev_inputs.clear()
     prev_trajectories.clear()
     for i in range(len(drones)):
         initial_states.append(step_result.drone_results[i].state_trajectory[0,:])
+        
+        # Get the last two control inputs
+        last_input = step_result.drone_results[i].control_input_trajectory[-1,:]
+        second_last_input = step_result.drone_results[i].control_input_trajectory[-2,:]
+        extrapolated_input = 2 * last_input - second_last_input
+        
+        new_inputs = np.hstack((step_result.drone_results[i].control_input_trajectory_vector[3:], extrapolated_input))
+        prev_inputs.append(new_inputs)
         
         # Get the last two points of the trajectory
         last_point = step_result.drone_results[i].position_trajectory[-1][:3]  # Only take x, y, z coordinates
@@ -303,5 +338,10 @@ for i in range(num_steps):
         
 # We now have simulated our drones' trajectories from time 0 until the final
 # waypoint time. We can inspect the results for the 1st drone:
-print(position_results[0])
-print(control_input_results[0])
+formatted_string = '[' + '; '.join([str(row)[1:-1] for row in position_results[0]]) + ']'
+print(formatted_string)
+# np.set_printoptions(precision=3, suppress=True, linewidth=100, threshold=np.inf)
+formatted_string = '[' + '; '.join([str(row)[1:-1] for row in control_input_results[0]]) + ']'
+
+print(formatted_string)
+# print(control_input_results[0])
