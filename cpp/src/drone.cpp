@@ -1,5 +1,5 @@
 #include <drone.h>
-#include <utils.h>
+
 #include <iostream>
 #include <cmath>
 #include <yaml-cpp/yaml.h>
@@ -40,7 +40,8 @@ Drone::Drone(std::string& params_filepath,
     S_u(),
     S_x_prime(),
     S_u_prime(),
-    collision_envelope(3,3)
+    collision_envelope(3,3),
+    constSelectionMatrices(K)
 {   
 
     // initialize input parameterization (Bernstein matrices) and full horizon dynamics matrices - these will not change ever during the simulation
@@ -50,7 +51,6 @@ Drone::Drone(std::string& params_filepath,
     // initialize collision envelope - later move this to a yaml or something
     collision_envelope.insert(0,0) = 5.8824; collision_envelope.insert(1,1) = 5.8824; collision_envelope.insert(2,2) = 2.2222;
 
-    initConstSelectionMatrices();
 };
 
 
@@ -76,14 +76,18 @@ Drone::DroneResult Drone::solve(const double current_time,
     penalized_steps = extracted_waypoints.block(0,0,extracted_waypoints.rows(),1);
 
     // initialize optimization parameters
-    VariableSelectionMatrices variableSelectionMatrices;
+    VariableSelectionMatrices variableSelectionMatrices(K, j, penalized_steps);
     Residuals residuals(j, K, penalized_steps.size());
     LagrangeMultipliers lambda(j, K ,penalized_steps.size());
-    Constraints constraints;
-    CostMatrices costMatrices;
+    Eigen::SparseMatrix<double> S_theta = utils::blkDiag(thetas);
+    Constraints constraints(this, j, x_0, xi, S_theta, extracted_waypoints, variableSelectionMatrices);;
 
     // initialize optimization variables
     Eigen::VectorXd alpha, beta, d, zeta_1, s;
+    alpha = Eigen::VectorXd::Zero((2+j) * K);
+    beta = Eigen::VectorXd::Zero((2+j) * K);
+    d = Eigen::VectorXd::Zero((2+j) * K);
+    zeta_1 = Eigen::VectorXd::Zero(3*(n+1));
     zeta_1 = U_to_zeta_1(initial_guess_control_input_trajectory_vector);
 
     // get the first three rows of W from Eigen and multiply by zeta_1
@@ -114,11 +118,14 @@ Drone::DroneResult Drone::solve(const double current_time,
 
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
     
-    initOptimizationParams(extracted_waypoints, penalized_steps, j, x_0, xi, current_time,
-                            thetas, alpha, beta, d, zeta_1, s, variableSelectionMatrices,
-                            constraints, costMatrices, waypoint_position_constraints,
-                            waypoint_velocity_constraints, waypoint_acceleration_constraints,
-                            u_0_prev, u_dot_0_prev, u_ddot_0_prev);
+    Eigen::SparseMatrix<double> X_g;
+    computeX_g(extracted_waypoints, penalized_steps, X_g);
+    
+    compute_h_eq(j, alpha, beta, d, constraints.h_eq);
+    s = Eigen::VectorXd::Zero(6 * K);
+
+    CostMatrices costMatrices(this, penalized_steps, x_0, X_g, u_0_prev, u_dot_0_prev, u_ddot_0_prev, constraints, waypoint_position_constraints, waypoint_velocity_constraints, waypoint_acceleration_constraints);
+    
     
     // initialize solver hyperparameters
     int max_iters = 3000;
@@ -425,86 +432,6 @@ void Drone::generateFullHorizonDynamicsMatrices(std::string& params_filepath) {
 };
 
 
-void Drone::initConstSelectionMatrices() {
-    // intermediate matrices used in building selection matrices
-    Eigen::SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
-    Eigen::SparseMatrix<double> eyeK = utils::getSparseIdentity(K);
-    Eigen::SparseMatrix<double> zeroMat(3, 3);
-    zeroMat.setZero();
-
-    constSelectionMatrices.M_p = utils::kroneckerProduct(eyeK, utils::horzcat(eye3, zeroMat));
-    constSelectionMatrices.M_v = utils::kroneckerProduct(eyeK, utils::horzcat(zeroMat, eye3));
-    constSelectionMatrices.M_a = utils::kroneckerProduct(eyeK, utils::horzcat(zeroMat, eye3));
-}
-
-// REMOVE THIS FUNCTION FOR A CONSTRUCTOR FOR THE STRUCT
-void Drone::initVariableSelectionMatrices(int j, Eigen::VectorXd& penalized_steps,
-                            VariableSelectionMatrices& variableSelectionMatrices) {
-    // intermediate matrices used in building selection matrices
-    Eigen::SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
-    Eigen::SparseMatrix<double> eye6 = utils::getSparseIdentity(6);
-    Eigen::SparseMatrix<double> eyeK = utils::getSparseIdentity(K);
-    Eigen::SparseMatrix<double> eyeK2j = utils::getSparseIdentity((2 + j) * K);
-    Eigen::SparseMatrix<double> zeroMat(3, 3);
-    zeroMat.setZero();
-    Eigen::SparseMatrix<double> x_step(1,3);
-    x_step.coeffRef(0,0) = 1.0; // creating a [1,0,0] row vector
-    Eigen::SparseMatrix<double> y_step(1,3);
-    y_step.coeffRef(0,1) = 1.0; // creating a [0,1,0] row vector
-    Eigen::SparseMatrix<double> z_step(1,3);
-    z_step.coeffRef(0,2) = 1.0; // creating a [0,0,1] row vector
-
-    // create selection matrices for convenience
-    variableSelectionMatrices.M_x = utils::kroneckerProduct(eyeK2j, x_step); // todo: split these out and rename them
-    variableSelectionMatrices.M_y = utils::kroneckerProduct(eyeK2j, y_step);
-    variableSelectionMatrices.M_z = utils::kroneckerProduct(eyeK2j, z_step);
-    variableSelectionMatrices.M_waypoints_position.resize(3 * penalized_steps.size(), 6 * K);
-    for (int i = 0; i < penalized_steps.size(); ++i) {
-        utils::replaceSparseBlock(variableSelectionMatrices.M_waypoints_position, eye3, 3 * i, 6 * (penalized_steps(i) - 1));
-    }
-    variableSelectionMatrices.M_waypoints_velocity.resize(3 * penalized_steps.size(), 6 * K);
-    for (int i = 0; i < penalized_steps.size(); ++i) {
-        utils::replaceSparseBlock(variableSelectionMatrices.M_waypoints_velocity, eye3, 3 * i, 6 * (penalized_steps(i) - 1) + 3);
-    }
-}
-
-
-void Drone::initCostMatrices(Eigen::VectorXd& penalized_steps,
-                            Eigen::VectorXd x_0,
-                            Eigen::SparseMatrix<double>& X_g,
-                            CostMatrices& costMatrices,
-                            Eigen::VectorXd u_0_prev,
-                            Eigen::VectorXd u_dot_0_prev,
-                            Eigen::VectorXd u_ddot_0_prev) {
-    Eigen::SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
-    Eigen::SparseMatrix<double> eyeK = utils::getSparseIdentity(K);
-
-    std::vector<Eigen::SparseMatrix<double>> tmp_cost_vec = {eye3 * w_g_p, eye3 * w_g_v}; // clarify this
-    Eigen::SparseMatrix<double> R_g = utils::blkDiag(tmp_cost_vec); // clarify this
-
-    Eigen::SparseMatrix<double> tmp_R_g_tilde(K,K); // for selecting which steps to penalize
-    for (int idx : penalized_steps) {
-        tmp_R_g_tilde.insert(idx - 1, idx - 1) = 1.0; // this needs to be clarified -> since the first block in R_g_tilde corresponds to x(1), we need to subtract 1 from the index. penalized_steps gives the TIME STEP number, not matrix index
-    }
-    Eigen::SparseMatrix<double> R_g_tilde = utils::kroneckerProduct(tmp_R_g_tilde, R_g);
-    
-    // initialize R_s_tilde
-    Eigen::SparseMatrix<double> R_s = eye3 * w_s;
-    Eigen::SparseMatrix<double> R_s_tilde = utils::kroneckerProduct(eyeK, R_s);
-
-    // initialize cost matrices
-    costMatrices.Q = 2.0 * W.transpose() * S_u.transpose() * R_g_tilde * S_u * W
-                    + 2.0 * W.transpose() * S_u_prime.transpose() * constSelectionMatrices.M_a.transpose() * R_s_tilde * constSelectionMatrices.M_a * S_u_prime * W
-                    + 1000 * W_ddot.transpose() * W_ddot
-                    + 2.0 * 100.0 * W.block(0,0,3,3*(n+1)).transpose() * W.block(0,0,3,3*(n+1))
-                    + 2.0 * 100.0 * W_dot.block(0,0,3,3*(n+1)).transpose() * W_dot.block(0,0,3,3*(n+1))
-                    + 2.0 * 100.0 * W_ddot.block(0,0,3,3*(n+1)).transpose() * W_ddot.block(0,0,3,3*(n+1));
-    costMatrices.q = 2.0 * W.transpose() * S_u.transpose() * R_g_tilde.transpose() * (S_x * x_0 - X_g)
-                    + 2.0 * W.transpose() * S_u_prime.transpose() * constSelectionMatrices.M_a.transpose() * R_s_tilde * constSelectionMatrices.M_a * S_x_prime * x_0
-                    - 2.0 * 100.0 * W.block(0,0,3,3*(n+1)).transpose() * u_0_prev
-                    - 2.0 * 100.0 * W_dot.block(0,0,3,3*(n+1)).transpose() * u_dot_0_prev
-                    - 2.0 * 100.0 * W_ddot.block(0,0,3,3*(n+1)).transpose() * u_ddot_0_prev;
-}
 
 
 void Drone::computeZeta1(int iters, double rho,
@@ -613,109 +540,6 @@ void Drone::computeResiduals(Constraints& constraints,
 
 }
 
-
-void Drone::initOptimizationParams(Eigen::MatrixXd& extracted_waypoints,
-                                    Eigen::VectorXd& penalized_steps,
-                                    int j,
-                                    Eigen::VectorXd x_0,
-                                    Eigen::VectorXd xi,
-                                    double current_time,
-                                    std::vector<Eigen::SparseMatrix<double>>& thetas,
-                                    Eigen::VectorXd& alpha,
-                                    Eigen::VectorXd& beta,
-                                    Eigen::VectorXd& d,
-                                    Eigen::VectorXd& zeta_1,
-                                    Eigen::VectorXd& s,
-                                    VariableSelectionMatrices& variableSelectionMatrices,
-                                    Constraints& constraints,
-                                    CostMatrices& costMatrices,
-                                    bool waypoint_position_constraints,
-                                    bool waypoint_velocity_constraints,
-                                    bool waypoint_acceleration_constraints,
-                                    Eigen::VectorXd u_0_prev,
-                                    Eigen::VectorXd u_dot_0_prev,
-                                    Eigen::VectorXd u_ddot_0_prev) {
-                                        
-    Eigen::SparseMatrix<double> X_g;
-    computeX_g(extracted_waypoints, penalized_steps, X_g);
-
-    initVariableSelectionMatrices(j, penalized_steps, variableSelectionMatrices);
-
-    Eigen::SparseMatrix<double> S_theta = utils::blkDiag(thetas);
-    initOptimizationVariables(j, alpha, beta, d, zeta_1);
-    initConstConstraintMatrices(j, x_0, xi, S_theta, extracted_waypoints, variableSelectionMatrices, constraints);
-    compute_h_eq(j, alpha, beta, d, constraints.h_eq);
-    s = Eigen::VectorXd::Zero(6 * K);
-    initCostMatrices(penalized_steps, x_0, X_g, costMatrices, u_0_prev, u_dot_0_prev, u_ddot_0_prev);
-    costMatrices.A_check_const_terms = constraints.G_eq.transpose() * constraints.G_eq + constraints.G_pos.transpose() * constraints.G_pos;
-    if (waypoint_position_constraints) {
-        costMatrices.A_check_const_terms += constraints.G_waypoints_pos.transpose() * constraints.G_waypoints_pos;
-    }
-    if (waypoint_velocity_constraints) {
-        costMatrices.A_check_const_terms += constraints.G_waypoints_vel.transpose() * constraints.G_waypoints_vel;
-    }
-    if (waypoint_acceleration_constraints) {
-        costMatrices.A_check_const_terms += constraints.G_waypoints_accel.transpose() * constraints.G_waypoints_accel;
-    }
-
-    // input continuity constraint
-    costMatrices.A_check_const_terms += W.block(0,0,3,3*(n+1)).transpose() * W.block(0,0,3,3*(n+1));
-}
-
-
-void Drone::initOptimizationVariables(int j, Eigen::VectorXd& alpha,
-                                    Eigen::VectorXd& beta, Eigen::VectorXd& d,
-                                    Eigen::VectorXd& zeta_1) {
-    alpha = Eigen::VectorXd::Zero((2+j) * K);
-    beta = Eigen::VectorXd::Zero((2+j) * K);
-    d = Eigen::VectorXd::Zero((2+j) * K);
-    zeta_1 = Eigen::VectorXd::Zero(3*(n+1)); // TODO automatically resize based on num inputs
-}
-
-
-void Drone::initConstConstraintMatrices(int j, Eigen::VectorXd x_0,
-                                Eigen::VectorXd xi,
-                                Eigen::SparseMatrix<double>& S_theta,
-                                Eigen::MatrixXd& extracted_waypoints,
-                                VariableSelectionMatrices& variableSelectionMatrices,
-                                Constraints& constraints) {
-    // everything except h_eq is constant
-    // calculate waypoint constraint matrices
-    constraints.G_waypoints_pos = variableSelectionMatrices.M_waypoints_position * S_u * W;
-    constraints.c_waypoints_pos = variableSelectionMatrices.M_waypoints_position * S_x * x_0;
-    constraints.h_waypoints_pos = extracted_waypoints.block(0,1,extracted_waypoints.rows(),extracted_waypoints.cols()-4).reshaped<Eigen::RowMajor>();
-    constraints.G_waypoints_vel = variableSelectionMatrices.M_waypoints_velocity * S_u * W;
-    constraints.c_waypoints_vel = variableSelectionMatrices.M_waypoints_velocity * S_x * x_0;
-    constraints.h_waypoints_vel = extracted_waypoints.block(0,4,extracted_waypoints.rows(),extracted_waypoints.cols()-4).reshaped<Eigen::RowMajor>();
-    
-    // Add waypoint acceleration constraints --> this needs to be improved
-    constraints.G_waypoints_accel = variableSelectionMatrices.M_waypoints_position * S_u_prime * W; // TODO it is confusing that we use position selection matrix, but it is correct -- explain or fix
-    constraints.c_waypoints_accel = variableSelectionMatrices.M_waypoints_position * S_x_prime * x_0;
-    constraints.h_waypoints_accel = Eigen::VectorXd::Zero(constraints.G_waypoints_accel.rows());
-
-    // Calculate G_eq
-    Eigen::SparseMatrix<double> G_eq_blk1 = constSelectionMatrices.M_v * S_u * W;
-    Eigen::SparseMatrix<double> G_eq_blk2 = constSelectionMatrices.M_a * S_u_prime * W;
-    Eigen::SparseMatrix<double> G_eq_blk3 = S_theta * utils::replicateSparseMatrix(constSelectionMatrices.M_p * S_u * W, j, 1);
-    constraints.G_eq = utils::vertcat(utils::vertcat(G_eq_blk1, G_eq_blk2), G_eq_blk3);
-    
-    // Calculate G_pos
-    Eigen::SparseMatrix<double> G_pos_blk1 = constSelectionMatrices.M_p * S_u * W;
-    Eigen::SparseMatrix<double> G_pos_blk2 = -constSelectionMatrices.M_p * S_u * W;
-    constraints.G_pos = utils::vertcat(G_pos_blk1, G_pos_blk2);
-    
-    // Calculate h_pos
-    Eigen::VectorXd h_pos_blk1 = p_max.replicate(K, 1) - constSelectionMatrices.M_p * S_x * x_0;
-    Eigen::VectorXd h_pos_blk2 = -p_min.replicate(K, 1) + constSelectionMatrices.M_p * S_x * x_0;
-    constraints.h_pos.resize(h_pos_blk1.rows() + h_pos_blk2.rows());
-    constraints.h_pos << h_pos_blk1, h_pos_blk2;
-    
-    Eigen::VectorXd c_eq_blk1 = constSelectionMatrices.M_v * S_x * x_0;
-    Eigen::VectorXd c_eq_blk2 = constSelectionMatrices.M_a * S_x_prime * x_0;
-    Eigen::VectorXd c_eq_blk3 = S_theta * ( (constSelectionMatrices.M_p * S_x * x_0).replicate(j,1) - xi );
-    constraints.c_eq.resize(c_eq_blk1.rows() + c_eq_blk2.rows() + c_eq_blk3.rows());
-    constraints.c_eq << c_eq_blk1, c_eq_blk2, c_eq_blk3;
-}
 
 
 
