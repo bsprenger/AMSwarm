@@ -15,9 +15,13 @@ Drone::Drone(std::string& params_filepath,
             float delta_t,
             Eigen::VectorXd p_min,
             Eigen::VectorXd p_max,
-            float w_g_p,
-            float w_g_v,
-            float w_s,
+            float w_goal_pos,
+            float w_goal_vel,
+            float w_smoothness,
+            float w_input_smoothness,
+            float w_input_continuity,
+            float w_input_dot_continuity,
+            float w_input_ddot_continuity,
             float v_bar,
             float f_bar)
     : waypoints(waypoints),
@@ -27,9 +31,13 @@ Drone::Drone(std::string& params_filepath,
     delta_t(delta_t),
     p_min(p_min), 
     p_max(p_max),
-    w_g_p(w_g_p),
-    w_g_v(w_g_v),
-    w_s(w_s),
+    w_goal_pos(w_goal_pos),
+    w_goal_vel(w_goal_vel),
+    w_smoothness(w_smoothness),
+    w_input_smoothness(w_input_smoothness),
+    w_input_continuity(w_input_continuity),
+    w_input_dot_continuity(w_input_dot_continuity),
+    w_input_ddot_continuity(w_input_ddot_continuity),
     v_bar(v_bar),
     f_bar(f_bar),
     t_f(delta_t*(K-1)),
@@ -62,7 +70,11 @@ Drone::DroneResult Drone::solve(const double current_time,
                                 const Eigen::VectorXd xi,
                                 bool waypoint_position_constraints,
                                 bool waypoint_velocity_constraints,
-                                bool waypoint_acceleration_constraints) {
+                                bool waypoint_acceleration_constraints,
+                                bool input_continuity_constraints,
+                                bool input_dot_continuity_constraints,
+                                bool input_ddot_continuity_constraints) {
+
     // extract waypoints in current horizon
     Eigen::MatrixXd extracted_waypoints = extractWaypointsInCurrentHorizon(current_time, waypoints);
     if (extracted_waypoints.size() == 0) {
@@ -79,8 +91,7 @@ Drone::DroneResult Drone::solve(const double current_time,
     VariableSelectionMatrices variableSelectionMatrices(K, j, penalized_steps);
     Residuals residuals(j, K, penalized_steps.size());
     LagrangeMultipliers lambda(j, K ,penalized_steps.size());
-    Eigen::SparseMatrix<double> S_theta = utils::blkDiag(thetas);
-    Constraints constraints(this, j, x_0, xi, S_theta, extracted_waypoints, variableSelectionMatrices);;
+    Constraints constraints(this, j, x_0, xi, thetas, extracted_waypoints, variableSelectionMatrices);;
 
     // initialize optimization variables
     Eigen::VectorXd alpha, beta, d, zeta_1, s;
@@ -95,27 +106,6 @@ Drone::DroneResult Drone::solve(const double current_time,
     Eigen::VectorXd u_dot_0_prev = W_dot.block(0,0,3,3*(n+1)) * zeta_1;
     Eigen::VectorXd u_ddot_0_prev = W_ddot.block(0,0,3,3*(n+1)) * zeta_1;
 
-    // set zeta_1 back to zero
-    // zeta_1.setZero();
-
-    // calculate initial input position and derivatives
-    // Eigen::VectorXd init_input_tmp = W * zeta_1;
-    // Eigen::VectorXd init_input_1st_deriv_tmp = W_dot * zeta_1;
-    // Eigen::VectorXd init_input_2nd_deriv_tmp = W_ddot * zeta_1;
-    // std::cout << "2nd deriv size" << init_input_2nd_deriv_tmp.size() << std::endl;
-    // std::cout << "init_input_tmp: " << init_input_tmp << std::endl;
-    // std::cout << "init_input_1st_deriv_tmp: " << init_input_1st_deriv_tmp << std::endl;
-    // std::cout << "init_input_2nd_deriv_tmp: " << init_input_2nd_deriv_tmp << std::endl;
-    // std::cout << "init input 1st element (x): " << init_input_tmp(0) << std::endl;
-    // std::cout << "init input 2nd element (y): " << init_input_tmp(1) << std::endl;
-    // std::cout << "init input 3rd element (z): " << init_input_tmp(2) << std::endl;
-    // std::cout << "init input deriv 1st element (x): " << init_input_1st_deriv_tmp(0) << std::endl;
-    // std::cout << "init input deriv 2nd element (y): " << init_input_1st_deriv_tmp(1) << std::endl;
-    // std::cout << "init input deriv 3rd element (z): " << init_input_1st_deriv_tmp(2) << std::endl;
-    // std::cout << "init input 2nd deriv 1st element (x): " << init_input_2nd_deriv_tmp(0) << std::endl;
-    // std::cout << "init input 2nd deriv 2nd element (y): " << init_input_2nd_deriv_tmp(1) << std::endl;
-    // std::cout << "init input 2nd deriv 3rd element (z): " << init_input_2nd_deriv_tmp(2) << std::endl;
-
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
     
     Eigen::SparseMatrix<double> X_g;
@@ -124,10 +114,17 @@ Drone::DroneResult Drone::solve(const double current_time,
     compute_h_eq(j, alpha, beta, d, constraints.h_eq);
     s = Eigen::VectorXd::Zero(6 * K);
 
-    CostMatrices costMatrices(this, penalized_steps, x_0, X_g, u_0_prev, u_dot_0_prev, u_ddot_0_prev, constraints, waypoint_position_constraints, waypoint_velocity_constraints, waypoint_acceleration_constraints);
+    CostMatrices costMatrices(this, penalized_steps, x_0, X_g, u_0_prev,
+                                u_dot_0_prev, u_ddot_0_prev, constraints,
+                                waypoint_position_constraints,
+                                waypoint_velocity_constraints,
+                                waypoint_acceleration_constraints,
+                                input_continuity_constraints,
+                                input_dot_continuity_constraints,
+                                input_ddot_continuity_constraints);
     
     
-    // initialize solver hyperparameters
+    // initialize solver hyperparameters TODO more thresholds and split out of here
     int max_iters = 3000;
     double rho_init = 1.3;
     double threshold = 0.01;
@@ -136,11 +133,13 @@ Drone::DroneResult Drone::solve(const double current_time,
     int iters = 0;
     while (iters < max_iters && 
             (residuals.eq.cwiseAbs().maxCoeff() > threshold ||
-            residuals.u_0.cwiseAbs().maxCoeff() > threshold ||
             residuals.pos.maxCoeff() > threshold ||
             (waypoint_position_constraints && residuals.waypoints_pos.cwiseAbs().maxCoeff() > threshold) ||
             (waypoint_velocity_constraints && residuals.waypoints_vel.cwiseAbs().maxCoeff() > threshold) ||
-            (waypoint_acceleration_constraints && residuals.waypoints_accel.cwiseAbs().maxCoeff() > threshold))) {
+            (waypoint_acceleration_constraints && residuals.waypoints_accel.cwiseAbs().maxCoeff() > threshold) ||
+            (input_continuity_constraints && residuals.input_continuity.cwiseAbs().maxCoeff() > threshold) ||
+            (input_dot_continuity_constraints && residuals.input_dot_continuity.cwiseAbs().maxCoeff() > threshold) ||
+            (input_ddot_continuity_constraints && residuals.input_ddot_continuity.cwiseAbs().maxCoeff() > threshold))) {
         
         ++iters;
         double rho = std::min(std::pow(rho_init, iters), 5.0e5);
@@ -150,7 +149,11 @@ Drone::DroneResult Drone::solve(const double current_time,
             computeZeta1(iters, rho, solver, costMatrices, constraints, s, lambda,
                         zeta_1, waypoint_position_constraints,
                         waypoint_velocity_constraints,
-                        waypoint_acceleration_constraints, u_0_prev);
+                        waypoint_acceleration_constraints, 
+                        input_continuity_constraints,
+                        input_dot_continuity_constraints,
+                        input_ddot_continuity_constraints,
+                        u_0_prev, u_dot_0_prev, u_ddot_0_prev);
         }
 
         // STEP 2: solve for alpha and beta (zeta_2)
@@ -164,7 +167,7 @@ Drone::DroneResult Drone::solve(const double current_time,
         s = (-constraints.G_pos * zeta_1 + constraints.h_pos - lambda.pos/rho).cwiseMax(0.0);
 
         // STEP 5: calculate residuals and update lagrange multipliers
-        computeResiduals(constraints, zeta_1, s, residuals, u_0_prev);
+        computeResiduals(constraints, zeta_1, s, residuals, u_0_prev, u_dot_0_prev, u_ddot_0_prev);
         updateLagrangeMultipliers(rho, residuals, lambda);
     } // end iterative loop
     
@@ -178,9 +181,6 @@ Drone::DroneResult Drone::solve(const double current_time,
                                 waypoint_velocity_constraints,
                                 waypoint_acceleration_constraints);
     }
-
-    // U_to_zeta_1(initial_guess_control_input_trajectory_vector);
-    // std::cout << "zeta_1: " << zeta_1 << std::endl;
     
     return drone_result;    
 };
@@ -432,8 +432,6 @@ void Drone::generateFullHorizonDynamicsMatrices(std::string& params_filepath) {
 };
 
 
-
-
 void Drone::computeZeta1(int iters, double rho,
                         Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>>& solver,
                         CostMatrices& costMatrices,
@@ -444,7 +442,12 @@ void Drone::computeZeta1(int iters, double rho,
                         bool waypoint_position_constraints,
                         bool waypoint_velocity_constraints,
                         bool waypoint_acceleration_constraints,
-                        Eigen::VectorXd& u_0_prev) {
+                        bool input_continuity_constraints,
+                        bool input_dot_continuity_constraints,
+                        bool input_ddot_continuity_constraints,
+                        Eigen::VectorXd& u_0_prev,
+                        Eigen::VectorXd& u_dot_0_prev,
+                        Eigen::VectorXd& u_ddot_0_prev) {
 
     costMatrices.A_check = costMatrices.Q + rho * costMatrices.A_check_const_terms;
     costMatrices.b_check = -costMatrices.q - constraints.G_eq.transpose() * lambda.eq - constraints.G_pos.transpose() * lambda.pos + rho * constraints.G_eq.transpose() * (constraints.h_eq - constraints.c_eq) + rho * constraints.G_pos.transpose() * (constraints.h_pos - s);
@@ -457,8 +460,15 @@ void Drone::computeZeta1(int iters, double rho,
     if (waypoint_acceleration_constraints) {
         costMatrices.b_check = costMatrices.b_check - constraints.G_waypoints_accel.transpose() * lambda.waypoints_accel + rho * constraints.G_waypoints_accel.transpose() * (constraints.h_waypoints_accel - constraints.c_waypoints_accel);
     }
-
-    costMatrices.b_check = costMatrices.b_check - W.block(0,0,3,3*(n+1)).transpose() * lambda.u_0 + rho * W.block(0,0,3,3*(n+1)).transpose() * u_0_prev;
+    if (input_continuity_constraints) {
+        costMatrices.b_check = costMatrices.b_check - W.block(0,0,3,3*(n+1)).transpose() * lambda.input_continuity + rho * W.block(0,0,3,3*(n+1)).transpose() * u_0_prev;
+    }
+    if (input_dot_continuity_constraints) {
+        costMatrices.b_check = costMatrices.b_check - W_dot.block(0,0,3,3*(n+1)).transpose() * lambda.input_dot_continuity + rho * W_dot.block(0,0,3,3*(n+1)).transpose() * u_dot_0_prev;
+    }
+    if (input_ddot_continuity_constraints) {
+        costMatrices.b_check = costMatrices.b_check - W_ddot.block(0,0,3,3*(n+1)).transpose() * lambda.input_ddot_continuity + rho * W_ddot.block(0,0,3,3*(n+1)).transpose() * u_ddot_0_prev;
+    }
     
     // Solve the sparse linear system A_check * zeta_1 = b_check
     if (iters == 2) {
@@ -529,19 +539,19 @@ void Drone::compute_d(int K, int j, double rho,
 void Drone::computeResiduals(Constraints& constraints,
                             Eigen::VectorXd& zeta_1, Eigen::VectorXd& s,
                             Residuals& residuals,
-                            Eigen::VectorXd& u_0_prev) {
+                            Eigen::VectorXd& u_0_prev,
+                            Eigen::VectorXd& u_dot_0_prev,
+                            Eigen::VectorXd& u_ddot_0_prev) {
 
     residuals.eq = constraints.G_eq * zeta_1 + constraints.c_eq - constraints.h_eq;
     residuals.pos = constraints.G_pos * zeta_1 + s - constraints.h_pos;
     residuals.waypoints_pos = constraints.G_waypoints_pos * zeta_1 + constraints.c_waypoints_pos - constraints.h_waypoints_pos;
     residuals.waypoints_vel = constraints.G_waypoints_vel * zeta_1 + constraints.c_waypoints_vel - constraints.h_waypoints_vel;
     residuals.waypoints_accel = constraints.G_waypoints_accel * zeta_1 + constraints.c_waypoints_accel - constraints.h_waypoints_accel;
-    residuals.u_0 = W.block(0,0,3,3*(n+1)) * zeta_1 - u_0_prev;
-
+    residuals.input_continuity = W.block(0,0,3,3*(n+1)) * zeta_1 - u_0_prev;
+    residuals.input_dot_continuity = W_dot.block(0,0,3,3*(n+1)) * zeta_1 - u_dot_0_prev;
+    residuals.input_ddot_continuity = W_ddot.block(0,0,3,3*(n+1)) * zeta_1 - u_ddot_0_prev;
 }
-
-
-
 
 
 void Drone::computeX_g(Eigen::MatrixXd& extracted_waypoints, Eigen::VectorXd& penalized_steps, Eigen::SparseMatrix<double>& X_g) {
@@ -560,7 +570,9 @@ void Drone::updateLagrangeMultipliers(double rho, Residuals& residuals,
     lambda.waypoints_pos += rho * residuals.waypoints_pos;
     lambda.waypoints_vel += rho * residuals.waypoints_vel;
     lambda.waypoints_accel += rho * residuals.waypoints_accel;
-    lambda.u_0 += rho * residuals.u_0;
+    lambda.input_continuity += rho * residuals.input_continuity;
+    lambda.input_dot_continuity += rho * residuals.input_dot_continuity;
+    lambda.input_ddot_continuity += rho * residuals.input_ddot_continuity;
 }
 
 
@@ -646,6 +658,7 @@ void Drone::printUnsatisfiedResiduals(const Residuals& residuals,
     }
 }
 
+
 Eigen::VectorXd Drone::U_to_zeta_1(Eigen::VectorXd& U) {
     Eigen::SparseQR<Eigen::SparseMatrix<double>,Eigen::COLAMDOrdering<int>> solver;
     solver.analyzePattern(W);
@@ -654,21 +667,26 @@ Eigen::VectorXd Drone::U_to_zeta_1(Eigen::VectorXd& U) {
     return zeta_1;
 }
 
+
 Eigen::VectorXd Drone::getInitialPosition() {
     return initial_pos;
 }
+
 
 Eigen::SparseMatrix<double> Drone::getCollisionEnvelope() {
     return collision_envelope;
 }
 
+
 Eigen::MatrixXd Drone::getWaypoints() {
     return waypoints;
 }
 
+
 float Drone::getDeltaT() {
     return delta_t;
 }
+
 
 int Drone::getK() {
     return K;

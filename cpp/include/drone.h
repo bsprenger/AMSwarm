@@ -40,9 +40,13 @@ class Drone {
                 float delta_t = 1.0/6.0, // FIX THIS cast to float always
                 Eigen::VectorXd p_min = Eigen::VectorXd::Constant(3,-10),
                 Eigen::VectorXd p_max = Eigen::VectorXd::Constant(3,10),
-                float w_g_p = 7000,
-                float w_g_v = 1000,
-                float w_s = 100,
+                float w_goal_pos = 7000,
+                float w_goal_vel = 1000,
+                float w_smoothness = 100,
+                float w_input_smoothness = 1000,
+                float w_input_continuity = 100,
+                float w_input_dot_continuity = 100,
+                float w_input_ddot_continuity = 100,
                 float v_bar = 1.73,
                 float f_bar = 1.5*9.8);
 
@@ -55,7 +59,10 @@ class Drone {
                                 const Eigen::VectorXd xi,
                                 bool waypoint_position_constraints,
                                 bool waypoint_velocity_constraints,
-                                bool waypoint_acceleration_constraints);
+                                bool waypoint_acceleration_constraints,
+                                bool input_continuity_constraints,
+                                bool input_dot_continuity_constraints,
+                                bool input_ddot_continuity_constraints);
         
         // Getters
         Eigen::VectorXd getInitialPosition();
@@ -126,7 +133,7 @@ class Drone {
 
             // Constructor
             Constraints(const Drone* parentDrone, int j, const Eigen::VectorXd& x_0,
-                        const Eigen::VectorXd& xi, const Eigen::SparseMatrix<double>& S_theta,
+                        const Eigen::VectorXd& xi, std::vector<Eigen::SparseMatrix<double>> thetas,
                         const Eigen::MatrixXd& extracted_waypoints,
                         const VariableSelectionMatrices& variableSelectionMatrices) {
                             G_waypoints_pos = variableSelectionMatrices.M_waypoints_position * parentDrone->S_u * parentDrone->W;
@@ -141,6 +148,7 @@ class Drone {
                             c_waypoints_accel = variableSelectionMatrices.M_waypoints_position * parentDrone->S_x_prime * x_0;
                             h_waypoints_accel = Eigen::VectorXd::Zero(G_waypoints_accel.rows());
 
+                            Eigen::SparseMatrix<double> S_theta = utils::blkDiag(thetas);
                             Eigen::SparseMatrix<double> G_eq_blk1 = parentDrone->constSelectionMatrices.M_v * parentDrone->S_u * parentDrone->W;
                             Eigen::SparseMatrix<double> G_eq_blk2 = parentDrone->constSelectionMatrices.M_a * parentDrone->S_u_prime * parentDrone->W;
                             Eigen::SparseMatrix<double> G_eq_blk3 = S_theta * utils::replicateSparseMatrix(parentDrone->constSelectionMatrices.M_p * parentDrone->S_u * parentDrone->W, j, 1);
@@ -169,7 +177,9 @@ class Drone {
             Eigen::VectorXd waypoints_pos; // waypoint constraint residuals
             Eigen::VectorXd waypoints_vel; // waypoint constraint residuals
             Eigen::VectorXd waypoints_accel; // acceleration constraint residuals --> to do change this
-            Eigen::VectorXd u_0;
+            Eigen::VectorXd input_continuity; // input continuity constraint residuals
+            Eigen::VectorXd input_dot_continuity; // input continuity constraint residuals
+            Eigen::VectorXd input_ddot_continuity; // input continuity constraint residuals
 
             Residuals(int j, int K, int num_penalized_steps) {
                 eq = Eigen::VectorXd::Ones((2 + j) * 3 * K); // TODO something more intelligent then setting these to 1 -> they should be bigger than threshold
@@ -177,7 +187,9 @@ class Drone {
                 waypoints_pos = Eigen::VectorXd::Ones(3 * num_penalized_steps);
                 waypoints_vel = Eigen::VectorXd::Ones(3 * num_penalized_steps);
                 waypoints_accel = Eigen::VectorXd::Ones(3 * num_penalized_steps);
-                u_0 = Eigen::VectorXd::Ones(3);
+                input_continuity = Eigen::VectorXd::Ones(3);
+                input_dot_continuity = Eigen::VectorXd::Ones(3);
+                input_ddot_continuity = Eigen::VectorXd::Ones(3);
             }
         };
 
@@ -187,9 +199,9 @@ class Drone {
             Eigen::VectorXd waypoints_pos; // waypoint constraint residuals
             Eigen::VectorXd waypoints_vel; // waypoint constraint residuals
             Eigen::VectorXd waypoints_accel; // acceleration constraint residuals --> to do change this
-            Eigen::VectorXd u_0;
-            Eigen::VectorXd u_dot_0;
-            Eigen::VectorXd u_ddot_0;
+            Eigen::VectorXd input_continuity; // input continuity constraint residuals
+            Eigen::VectorXd input_dot_continuity;
+            Eigen::VectorXd input_ddot_continuity;
 
             LagrangeMultipliers(int j, int K, int num_penalized_steps) {
                 eq = Eigen::VectorXd::Zero((2 + j) * 3 * K);
@@ -197,9 +209,9 @@ class Drone {
                 waypoints_pos = Eigen::VectorXd::Zero(3 * num_penalized_steps);
                 waypoints_vel = Eigen::VectorXd::Zero(3 * num_penalized_steps);
                 waypoints_accel = Eigen::VectorXd::Zero(3 * num_penalized_steps);
-                u_0 = Eigen::VectorXd::Zero(3);
-                u_dot_0 = Eigen::VectorXd::Zero(3);
-                u_ddot_0 = Eigen::VectorXd::Zero(3);
+                input_continuity = Eigen::VectorXd::Zero(3);
+                input_dot_continuity = Eigen::VectorXd::Zero(3);
+                input_ddot_continuity = Eigen::VectorXd::Zero(3);
             }
         };
 
@@ -219,11 +231,14 @@ class Drone {
                         Constraints& constraints,
                         bool waypoint_position_constraints,
                         bool waypoint_velocity_constraints,
-                        bool waypoint_acceleration_constraints) {
+                        bool waypoint_acceleration_constraints,
+                        bool input_continuity_constraints,
+                        bool input_dot_continuity_constraints,
+                        bool input_ddot_continuity_constraints) {
                 Eigen::SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
                 Eigen::SparseMatrix<double> eyeK = utils::getSparseIdentity(parentDrone->K);
 
-                std::vector<Eigen::SparseMatrix<double>> tmp_cost_vec = {eye3 * parentDrone->w_g_p, eye3 * parentDrone->w_g_v}; // clarify this
+                std::vector<Eigen::SparseMatrix<double>> tmp_cost_vec = {eye3 * parentDrone->w_goal_pos, eye3 * parentDrone->w_goal_vel}; // clarify this
                 Eigen::SparseMatrix<double> R_g = utils::blkDiag(tmp_cost_vec); // clarify this
 
                 Eigen::SparseMatrix<double> tmp_R_g_tilde(parentDrone->K,parentDrone->K); // for selecting which steps to penalize
@@ -233,23 +248,25 @@ class Drone {
                 Eigen::SparseMatrix<double> R_g_tilde = utils::kroneckerProduct(tmp_R_g_tilde, R_g);
                 
                 // initialize R_s_tilde
-                Eigen::SparseMatrix<double> R_s = eye3 * parentDrone->w_s;
+                Eigen::SparseMatrix<double> R_s = eye3 * parentDrone->w_smoothness;
                 Eigen::SparseMatrix<double> R_s_tilde = utils::kroneckerProduct(eyeK, R_s);
 
                 // initialize cost matrices
                 Q = 2.0 * parentDrone->W.transpose() * parentDrone->S_u.transpose() * R_g_tilde * parentDrone->S_u * parentDrone->W
                                 + 2.0 * parentDrone->W.transpose() * parentDrone->S_u_prime.transpose() * parentDrone->constSelectionMatrices.M_a.transpose() * R_s_tilde * parentDrone->constSelectionMatrices.M_a * parentDrone->S_u_prime * parentDrone->W
-                                + 1000 * parentDrone->W_ddot.transpose() * parentDrone->W_ddot
-                                + 2.0 * 100.0 * parentDrone->W.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W.block(0,0,3,3*(parentDrone->n+1))
-                                + 2.0 * 100.0 * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1))
-                                + 2.0 * 100.0 * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1));
+                                + 2.0 * parentDrone->w_input_smoothness * parentDrone->W_ddot.transpose() * parentDrone->W_ddot
+                                + 2.0 * parentDrone->w_input_continuity * parentDrone->W.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W.block(0,0,3,3*(parentDrone->n+1))
+                                + 2.0 * parentDrone->w_input_dot_continuity * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1))
+                                + 2.0 * parentDrone->w_input_ddot_continuity * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1));
                 q = 2.0 * parentDrone->W.transpose() * parentDrone->S_u.transpose() * R_g_tilde.transpose() * (parentDrone->S_x * x_0 - X_g)
                                 + 2.0 * parentDrone->W.transpose() * parentDrone->S_u_prime.transpose() * parentDrone->constSelectionMatrices.M_a.transpose() * R_s_tilde * parentDrone->constSelectionMatrices.M_a * parentDrone->S_x_prime * x_0
-                                - 2.0 * 100.0 * parentDrone->W.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_0_prev
-                                - 2.0 * 100.0 * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_dot_0_prev
-                                - 2.0 * 100.0 * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_ddot_0_prev;
+                                - 2.0 * parentDrone->w_input_continuity * parentDrone->W.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_0_prev
+                                - 2.0 * parentDrone->w_input_dot_continuity * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_dot_0_prev
+                                - 2.0 * parentDrone->w_input_ddot_continuity * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_ddot_0_prev;
 
                 A_check_const_terms = constraints.G_eq.transpose() * constraints.G_eq + constraints.G_pos.transpose() * constraints.G_pos;
+
+                // TODO look at what needs to be moved to constraints struct
                 if (waypoint_position_constraints) {
                     A_check_const_terms += constraints.G_waypoints_pos.transpose() * constraints.G_waypoints_pos;
                 }
@@ -259,9 +276,15 @@ class Drone {
                 if (waypoint_acceleration_constraints) {
                     A_check_const_terms += constraints.G_waypoints_accel.transpose() * constraints.G_waypoints_accel;
                 }
-
-                // input continuity constraint
-                A_check_const_terms += parentDrone->W.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W.block(0,0,3,3*(parentDrone->n+1));
+                if (input_continuity_constraints) {
+                    A_check_const_terms += parentDrone->W.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W.block(0,0,3,3*(parentDrone->n+1));
+                }
+                if (input_dot_continuity_constraints) {
+                    A_check_const_terms += parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1));
+                }
+                if (input_ddot_continuity_constraints) {
+                    A_check_const_terms += parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1));
+                }
             }
         };
 
@@ -273,13 +296,22 @@ class Drone {
         int n;
         float delta_t;
         float t_f;
+        
+        // cost weights
+        float w_goal_pos;
+        float w_goal_vel;
+        float w_smoothness;
+        float w_input_smoothness;
+        float w_input_continuity;
+        float w_input_dot_continuity;
+        float w_input_ddot_continuity;
+
+        // physical limits
         Eigen::VectorXd p_min;
         Eigen::VectorXd p_max;
-        float w_g_p;
-        float w_g_v;
-        float w_s;
         double v_bar;
         double f_bar;
+
         Eigen::MatrixXd waypoints;
         Eigen::VectorXd initial_pos;
         Eigen::SparseMatrix<double> collision_envelope; // this drone's collision envelope - NOT the other obstacles' collision envelopes
@@ -295,11 +327,6 @@ class Drone {
         std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> loadSparseDynamicsMatricesFromFile(const std::string&);
         void generateFullHorizonDynamicsMatrices(std::string&);
 
-        
-
-
-        
-
         void computeX_g(Eigen::MatrixXd& extracted_waypoints,
                         Eigen::VectorXd& penalized_steps,
                         Eigen::SparseMatrix<double>& X_g);
@@ -314,7 +341,12 @@ class Drone {
                         bool waypoint_position_constraints,
                         bool waypoint_velocity_constraints,
                         bool waypoint_acceleration_constraints,
-                        Eigen::VectorXd& u_0_prev);
+                        bool input_continuity_constraints,
+                        bool input_dot_continuity_constraints,
+                        bool input_ddot_continuity_constraints,
+                        Eigen::VectorXd& u_0_prev,
+                        Eigen::VectorXd& u_dot_0_prev,
+                        Eigen::VectorXd& u_ddot_0_prev);
 
         void compute_h_eq(int, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&,Eigen::VectorXd&);
 
@@ -333,7 +365,9 @@ class Drone {
         void computeResiduals(Constraints& constraints,
                             Eigen::VectorXd& zeta_1, Eigen::VectorXd& s,
                             Residuals& residuals,
-                            Eigen::VectorXd& u_0_prev);
+                            Eigen::VectorXd& u_0_prev,
+                            Eigen::VectorXd& u_dot_0_prev,
+                            Eigen::VectorXd& u_ddot_0_prev);
 
         void updateLagrangeMultipliers(double rho, Residuals& residuals, LagrangeMultipliers& lambda);
 
