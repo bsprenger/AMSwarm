@@ -24,12 +24,7 @@ Swarm::SwarmResult Swarm::solve(const double current_time,
                                 std::vector<Eigen::VectorXd> x_0_vector,
                                 std::vector<Eigen::VectorXd> prev_inputs,
                                 std::vector<Eigen::VectorXd> prev_trajectories,
-                                std::vector<bool> waypoint_position_constraints,
-                                std::vector<bool> waypoint_velocity_constraints,
-                                std::vector<bool> waypoint_acceleration_constraints,
-                                std::vector<bool> input_continuity_constraints,
-                                std::vector<bool> input_dot_continuity_constraints,
-                                std::vector<bool> input_ddot_continuity_constraints) {
+                                std::vector<Drone::SolveOptions> opt) {
     int K = drones[0].getK();
     int j = num_drones - 1; // for now, consider all drones as obstacles - later only consider some within radius
 
@@ -54,12 +49,7 @@ Swarm::SwarmResult Swarm::solve(const double current_time,
         Eigen::VectorXd initial_guess_control_input_trajectory_vector = prev_inputs[i];
         Drone::DroneResult result = drones[i].solve(current_time, x_0_vector[i],
                                                     initial_guess_control_input_trajectory_vector,
-                                                    j, thetas, xi, waypoint_position_constraints[i],
-                                                    waypoint_velocity_constraints[i],
-                                                    waypoint_acceleration_constraints[i],
-                                                    input_continuity_constraints[i],
-                                                    input_dot_continuity_constraints[i],
-                                                    input_ddot_continuity_constraints[i]);
+                                                    j, thetas, xi, opt[i]);
         
 
         // use a critical section to update shared vectors
@@ -115,19 +105,9 @@ Swarm::SwarmResult Swarm::runSimulation() {
 
     // solve for initial trajectories THIS CAN BE IMPROVED
     // create a vector of bools of all false for the drones
-    std::vector<bool> waypoint_position_constraints(num_drones, false);
-    std::vector<bool> waypoint_velocity_constraints(num_drones, false);
-    std::vector<bool> waypoint_acceleration_constraints(num_drones, false);
-    std::vector<bool> input_continuity_constraints(num_drones, false);
-    std::vector<bool> input_dot_continuity_constraints(num_drones, false);
-    std::vector<bool> input_ddot_continuity_constraints(num_drones, false);
+    std::vector<Drone::SolveOptions> opt;
     SwarmResult solve_result = solve(0.0, x_0_vector, prev_inputs, prev_trajectories,
-                                    waypoint_position_constraints,
-                                    waypoint_velocity_constraints,
-                                    waypoint_acceleration_constraints,
-                                    input_continuity_constraints,
-                                    input_dot_continuity_constraints,
-                                    input_ddot_continuity_constraints);
+                                    opt);
     prev_inputs.clear();
     prev_trajectories.clear();
     for (int i = 0; i < num_drones; ++i) {
@@ -139,11 +119,7 @@ Swarm::SwarmResult Swarm::runSimulation() {
     for (float t = 0.0; t < final_waypoint_time - delta_t; t+=delta_t) {
         // Solve for next trajectories
         solve_result = solve(t, x_0_vector, prev_inputs, prev_trajectories,
-                            waypoint_position_constraints, waypoint_velocity_constraints,
-                            waypoint_acceleration_constraints,
-                            input_continuity_constraints,
-                            input_dot_continuity_constraints,
-                            input_ddot_continuity_constraints);
+                            opt);
 
         // Build necessary matrices
         // previous trajectories need to be moved one time step forward and the last time step needs to be extrapolated

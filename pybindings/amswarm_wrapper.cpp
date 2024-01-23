@@ -20,17 +20,20 @@ PYBIND11_MODULE(amswarm, m)
         .def_readwrite("position_trajectory", &Drone::DroneResult::position_trajectory)
         .def_readwrite("is_successful", &Drone::DroneResult::is_successful);
 
+    py::class_<Drone::SolveOptions>(m, "SolveOptions") // TODO set defaults?
+        .def(py::init<>())
+        .def_readwrite("waypoint_position_constraints", &Drone::SolveOptions::waypoint_position_constraints)
+        .def_readwrite("waypoint_velocity_constraints", &Drone::SolveOptions::waypoint_velocity_constraints)
+        .def_readwrite("waypoint_acceleration_constraints", &Drone::SolveOptions::waypoint_acceleration_constraints)
+        .def_readwrite("input_continuity_constraints", &Drone::SolveOptions::input_continuity_constraints)
+        .def_readwrite("input_dot_continuity_constraints", &Drone::SolveOptions::input_dot_continuity_constraints)
+        .def_readwrite("input_ddot_continuity_constraints", &Drone::SolveOptions::input_ddot_continuity_constraints);
+
     // Binding for SwarmResult
     py::class_<Swarm::SwarmResult>(m, "SwarmResult")
         .def(py::init<>())
         .def_readwrite("drone_results", &Swarm::SwarmResult::drone_results)
-        .def("getDroneData", &Swarm::SwarmResult::getDroneResult);
-
-    // Binding for DroneData
-    // py::class_<Swarm::SwarmResult::DroneResult>(m, "DroneResult")
-    //     .def(py::init<>())
-    //     .def_readwrite("position_trajectory", &Swarm::SwarmResult::DroneResult::position_trajectory)
-    //     .def_readwrite("control_input_trajectory", &Swarm::SwarmResult::DroneResult::control_input_trajectory);   
+        .def("getDroneData", &Swarm::SwarmResult::getDroneResult);  
 
     py::class_<Drone>(m, "Drone")
         .def(py::init<std::string&, Eigen::MatrixXd, Eigen::VectorXd, int, int, float, Eigen::VectorXd, Eigen::VectorXd, float, float, float, float, float, float, float, float, float>())
@@ -77,12 +80,7 @@ PYBIND11_MODULE(amswarm, m)
         .def("solve", [](Drone &instance, double current_time,
                         py::array_t<double> x_0_npy, py::array_t<double> initial_guess_control_input_trajectory_vector_py,
                         int j, py::list thetas_py, py::array_t<double> xi_npy,
-                        bool waypoint_position_constraints,
-                        bool waypoint_velocity_constraints,
-                        bool waypoint_acceleration_constraints,
-                        bool input_continuity_constraints,
-                        bool input_dot_continuity_constraints,
-                        bool input_ddot_continuity_constraints)
+                        Drone::SolveOptions opt)
             {
                 // convert current state from numpy to eigen
                 py::array_t<double> array = x_0_npy.cast<py::array_t<double>>();
@@ -109,12 +107,7 @@ PYBIND11_MODULE(amswarm, m)
                 buffer = array.request();
                 Eigen::VectorXd xi = Eigen::Map<Eigen::VectorXd>(static_cast<double *>(buffer.ptr), buffer.shape[0]);
                 return instance.solve(current_time, x_0, initial_guess_control_input_trajectory_vector,
-                                    j, thetas, xi, waypoint_position_constraints,
-                                    waypoint_velocity_constraints,
-                                    waypoint_acceleration_constraints,
-                                    input_continuity_constraints,
-                                    input_dot_continuity_constraints,
-                                    input_ddot_continuity_constraints);
+                                    j, thetas, xi, opt);
             });
     
     py::class_<Swarm>(m, "Swarm")
@@ -129,12 +122,7 @@ PYBIND11_MODULE(amswarm, m)
         }))
         .def("solve", [](Swarm &instance, double current_time, py::list x_0_vector_py,
                         py::list prev_inputs_py, py::list prev_trajectories_py,
-                        py::list waypoint_position_constraints_py,
-                        py::list waypoint_velocity_constraints_py,
-                        py::list waypoint_acceleration_constraints_py,
-                        py::list input_continuity_constraints_py,
-                        py::list input_dot_continuity_constraints_py,
-                        py::list input_ddot_continuity_constraints_py) {
+                        py::list opt_py) {
             std::vector<Eigen::VectorXd> prev_inputs;
             for (auto item : prev_inputs_py) {
                 py::array_t<double> array = item.cast<py::array_t<double>>();
@@ -174,37 +162,14 @@ PYBIND11_MODULE(amswarm, m)
                 }
                 x_0_vector.push_back(x_0);
             }
-            std::vector<bool> waypoint_position_constraints;
-            for (auto item : waypoint_position_constraints_py) {
-                waypoint_position_constraints.push_back(item.cast<bool>());
+
+            std::vector<Drone::SolveOptions> opt;
+            for (auto item : opt_py) {
+                opt.push_back(item.cast<Drone::SolveOptions>());
             }
-            std::vector<bool> waypoint_velocity_constraints;
-            for (auto item : waypoint_velocity_constraints_py) {
-                waypoint_velocity_constraints.push_back(item.cast<bool>());
-            }
-            std::vector<bool> waypoint_acceleration_constraints;
-            for (auto item : waypoint_acceleration_constraints_py) {
-                waypoint_acceleration_constraints.push_back(item.cast<bool>());
-            }
-            std::vector<bool> input_continuity_constraints;
-            for (auto item : input_continuity_constraints_py) {
-                input_continuity_constraints.push_back(item.cast<bool>());
-            }
-            std::vector<bool> input_dot_continuity_constraints;
-            for (auto item : input_dot_continuity_constraints_py) {
-                input_dot_continuity_constraints.push_back(item.cast<bool>());
-            }
-            std::vector<bool> input_ddot_continuity_constraints;
-            for (auto item : input_ddot_continuity_constraints_py) {
-                input_ddot_continuity_constraints.push_back(item.cast<bool>());
-            }
+
             return instance.solve(current_time, x_0_vector, prev_inputs, prev_trajectories,
-                                waypoint_position_constraints,
-                                waypoint_velocity_constraints,
-                                waypoint_acceleration_constraints,
-                                input_continuity_constraints,
-                                input_dot_continuity_constraints,
-                                input_ddot_continuity_constraints);
+                                opt);
         })
         .def("run_simulation", [](Swarm &instance) {
             Swarm::SwarmResult swarm_result = instance.runSimulation();

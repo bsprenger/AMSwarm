@@ -31,6 +31,15 @@ class Drone {
                 bool is_successful;
         };
 
+        struct SolveOptions {
+            bool waypoint_position_constraints = true;
+            bool waypoint_velocity_constraints = true;
+            bool waypoint_acceleration_constraints = false;
+            bool input_continuity_constraints = true;
+            bool input_dot_continuity_constraints = true;
+            bool input_ddot_continuity_constraints = true;
+        };
+
         // Constructors
         Drone(std::string& params_filepath, // necessary input
                 Eigen::MatrixXd waypoints, // necessary input
@@ -57,12 +66,7 @@ class Drone {
                                 const int j,
                                 std::vector<Eigen::SparseMatrix<double>> thetas,
                                 const Eigen::VectorXd xi,
-                                bool waypoint_position_constraints,
-                                bool waypoint_velocity_constraints,
-                                bool waypoint_acceleration_constraints,
-                                bool input_continuity_constraints,
-                                bool input_dot_continuity_constraints,
-                                bool input_ddot_continuity_constraints);
+                                SolveOptions& opt);
         
         // Getters
         Eigen::VectorXd getInitialPosition();
@@ -229,12 +233,7 @@ class Drone {
                         Eigen::VectorXd u_dot_0_prev,
                         Eigen::VectorXd u_ddot_0_prev,
                         Constraints& constraints,
-                        bool waypoint_position_constraints,
-                        bool waypoint_velocity_constraints,
-                        bool waypoint_acceleration_constraints,
-                        bool input_continuity_constraints,
-                        bool input_dot_continuity_constraints,
-                        bool input_ddot_continuity_constraints) {
+                        SolveOptions& opt) {
                 Eigen::SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
                 Eigen::SparseMatrix<double> eyeK = utils::getSparseIdentity(parentDrone->K);
 
@@ -267,22 +266,22 @@ class Drone {
                 A_check_const_terms = constraints.G_eq.transpose() * constraints.G_eq + constraints.G_pos.transpose() * constraints.G_pos;
 
                 // TODO look at what needs to be moved to constraints struct
-                if (waypoint_position_constraints) {
+                if (opt.waypoint_position_constraints) {
                     A_check_const_terms += constraints.G_waypoints_pos.transpose() * constraints.G_waypoints_pos;
                 }
-                if (waypoint_velocity_constraints) {
+                if (opt.waypoint_velocity_constraints) {
                     A_check_const_terms += constraints.G_waypoints_vel.transpose() * constraints.G_waypoints_vel;
                 }
-                if (waypoint_acceleration_constraints) {
+                if (opt.waypoint_acceleration_constraints) {
                     A_check_const_terms += constraints.G_waypoints_accel.transpose() * constraints.G_waypoints_accel;
                 }
-                if (input_continuity_constraints) {
+                if (opt.input_continuity_constraints) {
                     A_check_const_terms += parentDrone->W.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W.block(0,0,3,3*(parentDrone->n+1));
                 }
-                if (input_dot_continuity_constraints) {
+                if (opt.input_dot_continuity_constraints) {
                     A_check_const_terms += parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1));
                 }
-                if (input_ddot_continuity_constraints) {
+                if (opt.input_ddot_continuity_constraints) {
                     A_check_const_terms += parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1));
                 }
             }
@@ -338,12 +337,7 @@ class Drone {
                         Eigen::VectorXd& s,
                         LagrangeMultipliers& lambda,
                         Eigen::VectorXd& zeta_1,
-                        bool waypoint_position_constraints,
-                        bool waypoint_velocity_constraints,
-                        bool waypoint_acceleration_constraints,
-                        bool input_continuity_constraints,
-                        bool input_dot_continuity_constraints,
-                        bool input_ddot_continuity_constraints,
+                        SolveOptions& opt,
                         Eigen::VectorXd& u_0_prev,
                         Eigen::VectorXd& u_dot_0_prev,
                         Eigen::VectorXd& u_ddot_0_prev);
@@ -375,9 +369,7 @@ class Drone {
 
         void printUnsatisfiedResiduals(const Residuals& residuals,
                                         double threshold,
-                                        bool waypoint_position_constraints,
-                                        bool waypoint_velocity_constraints,
-                                        bool waypoint_acceleration_constraints);
+                                        SolveOptions& opt);
 
         Eigen::VectorXd U_to_zeta_1(Eigen::VectorXd& U);
 };

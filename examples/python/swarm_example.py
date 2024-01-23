@@ -236,35 +236,21 @@ for key in waypoints:
     prev_trajectories.append(np.tile(initial_positions[key], amswarm_kwargs["K"]))
 
 # Get our initial guesses for the drone trajectories
-input_continuity_constraints = [True] * len(drones)
-input_dot_continuity_constraints = [True] * len(drones)
-input_ddot_continuity_constraints = [True] * len(drones)
+# create vector of SolveOptions of length num_drones
+opt = [amswarm.SolveOptions()] * len(drones)
 
-waypoint_position_constraints = [True] * len(drones)
-waypoint_velocity_constraints = [True] * len(drones)
-waypoint_acceleration_constraints = [False] * len(drones)
 
 step_result = swarm.solve(0.0, initial_states, prev_inputs, prev_trajectories,
-                        waypoint_position_constraints,
-                        waypoint_velocity_constraints,
-                        waypoint_acceleration_constraints,
-                        input_continuity_constraints,
-                        input_dot_continuity_constraints,
-                        input_ddot_continuity_constraints)
+                        opt)
 failed_drones = [index for index, drone_result in enumerate(step_result.drone_results) if not drone_result.is_successful]    
 if failed_drones:
-    for index in failed_drones:
-        waypoint_position_constraints[index] = False
-        waypoint_velocity_constraints[index] = False
-        waypoint_acceleration_constraints[index] = False
+    # for index in failed_drones:
+        # waypoint_position_constraints[index] = False
+        # waypoint_velocity_constraints[index] = False
+        # waypoint_acceleration_constraints[index] = False
     # Re-solve for failed drones with updated constraints
     step_result = swarm.solve(0.0, initial_states, prev_inputs, prev_trajectories,
-                            waypoint_position_constraints,
-                            waypoint_velocity_constraints,
-                            waypoint_acceleration_constraints,
-                            input_continuity_constraints,
-                            input_dot_continuity_constraints,
-                            input_ddot_continuity_constraints)
+                            opt)
 
 prev_inputs.clear()
 prev_trajectories.clear()
@@ -297,34 +283,25 @@ for i in range(num_steps):
     # print("Previous trajectories: ", prev_trajectories)
     
     # reset constraints to True and attempt to solve first with constraints on
-    waypoint_position_constraints = [True] * len(drones)
-    waypoint_velocity_constraints = [True] * len(drones)
-    waypoint_acceleration_constraints = [False] * len(drones)
+    # waypoint_position_constraints = [True] * len(drones)
+    # waypoint_velocity_constraints = [True] * len(drones)
+    # waypoint_acceleration_constraints = [False] * len(drones)
     
     step_result = swarm.solve(current_time, initial_states, prev_inputs, prev_trajectories,
-                              waypoint_position_constraints, waypoint_velocity_constraints,
-                              waypoint_acceleration_constraints,
-                              input_continuity_constraints,
-                              input_dot_continuity_constraints,
-                              input_ddot_continuity_constraints)
+                              opt)
     
     # Check for drones that failed and prepare to re-solve for them
     failed_drones = [index for index, drone_result in enumerate(step_result.drone_results) if not drone_result.is_successful]
     
     if failed_drones:
         print("Failed, resolving...")
-        for index in failed_drones:
-            waypoint_position_constraints[index] = False
-            waypoint_velocity_constraints[index] = False
-            waypoint_acceleration_constraints[index] = False
+        # for index in failed_drones:
+            # waypoint_position_constraints[index] = False
+            # waypoint_velocity_constraints[index] = False
+            # waypoint_acceleration_constraints[index] = False
         # Re-solve for failed drones with updated constraints
         step_result = swarm.solve(current_time, initial_states, prev_inputs, prev_trajectories,
-                                  waypoint_position_constraints,
-                                  waypoint_velocity_constraints,
-                                  waypoint_acceleration_constraints,
-                                  input_continuity_constraints,
-                                  input_dot_continuity_constraints,
-                                  input_ddot_continuity_constraints)
+                                  opt)
     
     # Here, we would apply the control inputs to the drones in real life or in
     # a simulator. For now, we will just print the control inputs that would be
@@ -374,6 +351,6 @@ formatted_string = '[' + '; '.join([str(row)[1:-1] for row in position_results[0
 print(formatted_string)
 # np.set_printoptions(precision=3, suppress=True, linewidth=100, threshold=np.inf)
 formatted_string = '[' + '; '.join([str(row)[1:-1] for row in control_input_results[0]]) + ']'
-
+print("\n")
 print(formatted_string)
 # print(control_input_results[0])

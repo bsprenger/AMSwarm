@@ -68,12 +68,7 @@ Drone::DroneResult Drone::solve(const double current_time,
                                 const int j,
                                 std::vector<Eigen::SparseMatrix<double>> thetas,
                                 const Eigen::VectorXd xi,
-                                bool waypoint_position_constraints,
-                                bool waypoint_velocity_constraints,
-                                bool waypoint_acceleration_constraints,
-                                bool input_continuity_constraints,
-                                bool input_dot_continuity_constraints,
-                                bool input_ddot_continuity_constraints) {
+                                SolveOptions& opt) {
 
     // extract waypoints in current horizon
     Eigen::MatrixXd extracted_waypoints = extractWaypointsInCurrentHorizon(current_time, waypoints);
@@ -116,16 +111,11 @@ Drone::DroneResult Drone::solve(const double current_time,
 
     CostMatrices costMatrices(this, penalized_steps, x_0, X_g, u_0_prev,
                                 u_dot_0_prev, u_ddot_0_prev, constraints,
-                                waypoint_position_constraints,
-                                waypoint_velocity_constraints,
-                                waypoint_acceleration_constraints,
-                                input_continuity_constraints,
-                                input_dot_continuity_constraints,
-                                input_ddot_continuity_constraints);
+                                opt);
     
     
     // initialize solver hyperparameters TODO more thresholds and split out of here
-    int max_iters = 3000;
+    int max_iters = 1000;
     double rho_init = 1.3;
     double threshold = 0.01;
     
@@ -134,12 +124,12 @@ Drone::DroneResult Drone::solve(const double current_time,
     while (iters < max_iters && 
             (residuals.eq.cwiseAbs().maxCoeff() > threshold ||
             residuals.pos.maxCoeff() > threshold ||
-            (waypoint_position_constraints && residuals.waypoints_pos.cwiseAbs().maxCoeff() > threshold) ||
-            (waypoint_velocity_constraints && residuals.waypoints_vel.cwiseAbs().maxCoeff() > threshold) ||
-            (waypoint_acceleration_constraints && residuals.waypoints_accel.cwiseAbs().maxCoeff() > threshold) ||
-            (input_continuity_constraints && residuals.input_continuity.cwiseAbs().maxCoeff() > threshold) ||
-            (input_dot_continuity_constraints && residuals.input_dot_continuity.cwiseAbs().maxCoeff() > threshold) ||
-            (input_ddot_continuity_constraints && residuals.input_ddot_continuity.cwiseAbs().maxCoeff() > threshold))) {
+            (opt.waypoint_position_constraints && residuals.waypoints_pos.cwiseAbs().maxCoeff() > threshold) ||
+            (opt.waypoint_velocity_constraints && residuals.waypoints_vel.cwiseAbs().maxCoeff() > threshold) ||
+            (opt.waypoint_acceleration_constraints && residuals.waypoints_accel.cwiseAbs().maxCoeff() > threshold) ||
+            (opt.input_continuity_constraints && residuals.input_continuity.cwiseAbs().maxCoeff() > threshold) ||
+            (opt.input_dot_continuity_constraints && residuals.input_dot_continuity.cwiseAbs().maxCoeff() > threshold) ||
+            (opt.input_ddot_continuity_constraints && residuals.input_ddot_continuity.cwiseAbs().maxCoeff() > threshold))) {
         
         ++iters;
         double rho = std::min(std::pow(rho_init, iters), 5.0e5);
@@ -147,12 +137,7 @@ Drone::DroneResult Drone::solve(const double current_time,
         // STEP 1: solve for zeta_1
         if (iters > 1) {
             computeZeta1(iters, rho, solver, costMatrices, constraints, s, lambda,
-                        zeta_1, waypoint_position_constraints,
-                        waypoint_velocity_constraints,
-                        waypoint_acceleration_constraints, 
-                        input_continuity_constraints,
-                        input_dot_continuity_constraints,
-                        input_ddot_continuity_constraints,
+                        zeta_1, opt,
                         u_0_prev, u_dot_0_prev, u_ddot_0_prev);
         }
 
@@ -177,9 +162,7 @@ Drone::DroneResult Drone::solve(const double current_time,
         drone_result.is_successful = true; // Solution found within max iterations
     } else {
         drone_result.is_successful = false; // Max iterations reached, constraints not satisfied
-        printUnsatisfiedResiduals(residuals, threshold, waypoint_position_constraints,
-                                waypoint_velocity_constraints,
-                                waypoint_acceleration_constraints);
+        printUnsatisfiedResiduals(residuals, threshold, opt);
     }
     
     return drone_result;    
@@ -439,39 +422,34 @@ void Drone::computeZeta1(int iters, double rho,
                         Eigen::VectorXd& s,
                         LagrangeMultipliers& lambda,
                         Eigen::VectorXd& zeta_1,
-                        bool waypoint_position_constraints,
-                        bool waypoint_velocity_constraints,
-                        bool waypoint_acceleration_constraints,
-                        bool input_continuity_constraints,
-                        bool input_dot_continuity_constraints,
-                        bool input_ddot_continuity_constraints,
+                        SolveOptions& opt,
                         Eigen::VectorXd& u_0_prev,
                         Eigen::VectorXd& u_dot_0_prev,
                         Eigen::VectorXd& u_ddot_0_prev) {
 
     costMatrices.A_check = costMatrices.Q + rho * costMatrices.A_check_const_terms;
     costMatrices.b_check = -costMatrices.q - constraints.G_eq.transpose() * lambda.eq - constraints.G_pos.transpose() * lambda.pos + rho * constraints.G_eq.transpose() * (constraints.h_eq - constraints.c_eq) + rho * constraints.G_pos.transpose() * (constraints.h_pos - s);
-    if (waypoint_position_constraints) {
+    if (opt.waypoint_position_constraints) {
         costMatrices.b_check = costMatrices.b_check - constraints.G_waypoints_pos.transpose() * lambda.waypoints_pos + rho * constraints.G_waypoints_pos.transpose() * (constraints.h_waypoints_pos - constraints.c_waypoints_pos);
     }
-    if (waypoint_velocity_constraints) {
+    if (opt.waypoint_velocity_constraints) {
         costMatrices.b_check = costMatrices.b_check - constraints.G_waypoints_vel.transpose() * lambda.waypoints_vel + rho * constraints.G_waypoints_vel.transpose() * (constraints.h_waypoints_vel - constraints.c_waypoints_vel);
     }
-    if (waypoint_acceleration_constraints) {
+    if (opt.waypoint_acceleration_constraints) {
         costMatrices.b_check = costMatrices.b_check - constraints.G_waypoints_accel.transpose() * lambda.waypoints_accel + rho * constraints.G_waypoints_accel.transpose() * (constraints.h_waypoints_accel - constraints.c_waypoints_accel);
     }
-    if (input_continuity_constraints) {
+    if (opt.input_continuity_constraints) {
         costMatrices.b_check = costMatrices.b_check - W.block(0,0,3,3*(n+1)).transpose() * lambda.input_continuity + rho * W.block(0,0,3,3*(n+1)).transpose() * u_0_prev;
     }
-    if (input_dot_continuity_constraints) {
+    if (opt.input_dot_continuity_constraints) {
         costMatrices.b_check = costMatrices.b_check - W_dot.block(0,0,3,3*(n+1)).transpose() * lambda.input_dot_continuity + rho * W_dot.block(0,0,3,3*(n+1)).transpose() * u_dot_0_prev;
     }
-    if (input_ddot_continuity_constraints) {
+    if (opt.input_ddot_continuity_constraints) {
         costMatrices.b_check = costMatrices.b_check - W_ddot.block(0,0,3,3*(n+1)).transpose() * lambda.input_ddot_continuity + rho * W_ddot.block(0,0,3,3*(n+1)).transpose() * u_ddot_0_prev;
     }
     
     // Solve the sparse linear system A_check * zeta_1 = b_check
-    if (iters == 2) {
+    if (iters == 2) { // TODO improve this
         solver.analyzePattern(costMatrices.A_check);
     }
     solver.factorize(costMatrices.A_check);
@@ -608,9 +586,7 @@ Drone::DroneResult Drone::computeDroneResult(double current_time, Eigen::VectorX
 
 void Drone::printUnsatisfiedResiduals(const Residuals& residuals,
                                     double threshold,
-                                    bool waypoint_position_constraints,
-                                    bool waypoint_velocity_constraints,
-                                    bool waypoint_acceleration_constraints) {
+                                    SolveOptions& opt) {
     // Helper function to print steps where residuals exceed threshold
     auto printExceedingSteps = [this, threshold](const Eigen::VectorXd& residual, int start, int end, const std::string& message, bool wrap = false) {
         std::vector<int> exceedingSteps;
@@ -645,15 +621,15 @@ void Drone::printUnsatisfiedResiduals(const Residuals& residuals,
         printExceedingSteps(residuals.pos, 0, residuals.pos.size(), "Position constraints residual exceeds threshold");
     }
 
-    if (waypoint_position_constraints && residuals.waypoints_pos.cwiseAbs().maxCoeff() > threshold) {
+    if (opt.waypoint_position_constraints && residuals.waypoints_pos.cwiseAbs().maxCoeff() > threshold) {
         printExceedingSteps(residuals.waypoints_pos, 0, residuals.waypoints_pos.size(), "Waypoint position constraints residual exceeds threshold");
     }
 
-    if (waypoint_velocity_constraints && residuals.waypoints_vel.cwiseAbs().maxCoeff() > threshold) {
+    if (opt.waypoint_velocity_constraints && residuals.waypoints_vel.cwiseAbs().maxCoeff() > threshold) {
         printExceedingSteps(residuals.waypoints_vel, 0, residuals.waypoints_vel.size(), "Waypoint velocity constraints residual exceeds threshold");
     }
 
-    if (waypoint_acceleration_constraints && residuals.waypoints_accel.cwiseAbs().maxCoeff() > threshold) {
+    if (opt.waypoint_acceleration_constraints && residuals.waypoints_accel.cwiseAbs().maxCoeff() > threshold) {
         printExceedingSteps(residuals.waypoints_accel, 0, residuals.waypoints_accel.size(), "Waypoint acceleration constraints residual exceeds threshold");
     }
 }
