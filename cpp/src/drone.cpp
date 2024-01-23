@@ -64,11 +64,11 @@ Drone::Drone(std::string& params_filepath,
 
 Drone::DroneResult Drone::solve(const double current_time,
                                 const Eigen::VectorXd x_0,
-                                Eigen::VectorXd& initial_guess_control_input_trajectory_vector,
                                 const int j,
                                 std::vector<Eigen::SparseMatrix<double>> thetas,
                                 const Eigen::VectorXd xi,
-                                SolveOptions& opt) {
+                                SolveOptions& opt,
+                                const Eigen::VectorXd& initial_guess) {
 
     // extract waypoints in current horizon
     Eigen::MatrixXd extracted_waypoints = extractWaypointsInCurrentHorizon(current_time, waypoints);
@@ -93,9 +93,12 @@ Drone::DroneResult Drone::solve(const double current_time,
     alpha = Eigen::VectorXd::Zero((2+j) * K);
     beta = Eigen::VectorXd::Zero((2+j) * K);
     d = Eigen::VectorXd::Zero((2+j) * K);
-    zeta_1 = Eigen::VectorXd::Zero(3*(n+1));
-    zeta_1 = U_to_zeta_1(initial_guess_control_input_trajectory_vector);
 
+    if (initial_guess.size() > 0) {
+        zeta_1 = U_to_zeta_1(initial_guess);
+    } else {
+        zeta_1 = Eigen::VectorXd::Zero(3*(n+1));
+    }
     // get the first three rows of W from Eigen and multiply by zeta_1
     Eigen::VectorXd u_0_prev = W.block(0,0,3,3*(n+1)) * zeta_1;
     Eigen::VectorXd u_dot_0_prev = W_dot.block(0,0,3,3*(n+1)) * zeta_1;
@@ -628,7 +631,7 @@ void Drone::printUnsatisfiedResiduals(const Residuals& residuals,
 }
 
 
-Eigen::VectorXd Drone::U_to_zeta_1(Eigen::VectorXd& U) {
+Eigen::VectorXd Drone::U_to_zeta_1(const Eigen::VectorXd& U) {
     Eigen::SparseQR<Eigen::SparseMatrix<double>,Eigen::COLAMDOrdering<int>> solver;
     solver.analyzePattern(W);
     solver.factorize(W);

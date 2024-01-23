@@ -106,8 +106,8 @@ PYBIND11_MODULE(amswarm, m)
                 array = xi_npy.cast<py::array_t<double>>();
                 buffer = array.request();
                 Eigen::VectorXd xi = Eigen::Map<Eigen::VectorXd>(static_cast<double *>(buffer.ptr), buffer.shape[0]);
-                return instance.solve(current_time, x_0, initial_guess_control_input_trajectory_vector,
-                                    j, thetas, xi, opt);
+                return instance.solve(current_time, x_0,
+                                    j, thetas, xi, opt, initial_guess_control_input_trajectory_vector);
             });
     
     py::class_<Swarm>(m, "Swarm")

@@ -73,11 +73,11 @@ class Drone {
         // Public methods
         DroneResult solve(const double current_time,
                                 const Eigen::VectorXd x_0,
-                                Eigen::VectorXd& initial_guess_control_input_trajectory_vector,
                                 const int j,
                                 std::vector<Eigen::SparseMatrix<double>> thetas,
                                 const Eigen::VectorXd xi,
-                                SolveOptions& opt);
+                                SolveOptions& opt,
+                                const Eigen::VectorXd& initial_guess = Eigen::VectorXd());
         
         // Getters
         Eigen::VectorXd getInitialPosition();
@@ -381,7 +381,7 @@ class Drone {
         void printUnsatisfiedResiduals(const Residuals& residuals,
                                         SolveOptions& opt);
 
-        Eigen::VectorXd U_to_zeta_1(Eigen::VectorXd& U);
+        Eigen::VectorXd U_to_zeta_1(const Eigen::VectorXd& U);
 };
 
 #endif

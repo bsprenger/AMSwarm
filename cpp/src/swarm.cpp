@@ -48,8 +48,8 @@ Swarm::SwarmResult Swarm::solve(const double current_time,
         
         Eigen::VectorXd initial_guess_control_input_trajectory_vector = prev_inputs[i];
         Drone::DroneResult result = drones[i].solve(current_time, x_0_vector[i],
-                                                    initial_guess_control_input_trajectory_vector,
-                                                    j, thetas, xi, opt[i]);
+                                                    j, thetas, xi, opt[i],
+                                                    initial_guess_control_input_trajectory_vector);
         
 
         // use a critical section to update shared vectors
