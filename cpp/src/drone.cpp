@@ -117,6 +117,7 @@ Drone::DroneResult Drone::solve(const double current_time,
                                 opt);
     
     // solve loop
+    bool solver_initialized = false;
     int iters = 0;
     while (iters < opt.max_iters && 
             (residuals.eq.cwiseAbs().maxCoeff() > opt.eq_threshold ||
@@ -132,10 +133,17 @@ Drone::DroneResult Drone::solve(const double current_time,
         double rho = std::min(std::pow(opt.rho_init, iters), 5.0e5);
 
         // STEP 1: solve for zeta_1
-        if (iters > 1) {
-            computeZeta1(iters, rho, solver, costMatrices, constraints, s, lambda,
-                        zeta_1, opt,
-                        u_0_prev, u_dot_0_prev, u_ddot_0_prev);
+        // if no initial guess is provided, then solve for zeta_1 immediately
+        // if an initial guess is provided, then wait for 2nd iteration to solve for zeta_1
+        if ((initial_guess.size() > 0 && iters > 1) || (initial_guess.size() == 0)) {
+            updateCostMatrices(rho, costMatrices, constraints, s, lambda, opt,
+                                u_0_prev, u_dot_0_prev, u_ddot_0_prev);
+            if (!solver_initialized) {
+                solver.analyzePattern(costMatrices.A_check);
+                solver_initialized = true;
+            }
+            solver.factorize(costMatrices.A_check);
+            zeta_1 = solver.solve(costMatrices.b_check);
         }
 
         // STEP 2: solve for alpha and beta (zeta_2)
@@ -412,17 +420,15 @@ void Drone::generateFullHorizonDynamicsMatrices(std::string& params_filepath) {
 };
 
 
-void Drone::computeZeta1(int iters, double rho,
-                        Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>>& solver,
-                        CostMatrices& costMatrices,
-                        Constraints& constraints,
-                        Eigen::VectorXd& s,
-                        LagrangeMultipliers& lambda,
-                        Eigen::VectorXd& zeta_1,
-                        SolveOptions& opt,
-                        Eigen::VectorXd& u_0_prev,
-                        Eigen::VectorXd& u_dot_0_prev,
-                        Eigen::VectorXd& u_ddot_0_prev) {
+
+void Drone::updateCostMatrices(double rho, CostMatrices& costMatrices,
+                            Constraints& constraints,
+                            Eigen::VectorXd& s,
+                            LagrangeMultipliers& lambda,
+                            SolveOptions& opt,
+                            Eigen::VectorXd& u_0_prev,
+                            Eigen::VectorXd& u_dot_0_prev,
+                            Eigen::VectorXd& u_ddot_0_prev) {
 
     costMatrices.A_check = costMatrices.Q + rho * costMatrices.A_check_const_terms;
     costMatrices.b_check = -costMatrices.q - constraints.G_eq.transpose() * lambda.eq - constraints.G_pos.transpose() * lambda.pos + rho * constraints.G_eq.transpose() * (constraints.h_eq - constraints.c_eq) + rho * constraints.G_pos.transpose() * (constraints.h_pos - s);
@@ -444,13 +450,7 @@ void Drone::computeZeta1(int iters, double rho,
     if (opt.input_ddot_continuity_constraints) {
         costMatrices.b_check = costMatrices.b_check - W_ddot.block(0,0,3,3*(n+1)).transpose() * lambda.input_ddot_continuity + rho * W_ddot.block(0,0,3,3*(n+1)).transpose() * u_ddot_0_prev;
     }
-    
-    // Solve the sparse linear system A_check * zeta_1 = b_check
-    if (iters == 2) { // TODO improve this
-        solver.analyzePattern(costMatrices.A_check);
-    }
-    solver.factorize(costMatrices.A_check);
-    zeta_1 = solver.solve(costMatrices.b_check);
+
 }
 
 

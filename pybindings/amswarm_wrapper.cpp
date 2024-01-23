@@ -121,20 +121,23 @@ PYBIND11_MODULE(amswarm, m)
             return new Swarm(drones);
         }))
         .def("solve", [](Swarm &instance, double current_time, py::list x_0_vector_py,
-                        py::list prev_inputs_py, py::list prev_trajectories_py,
-                        py::list opt_py) {
+                        py::list prev_trajectories_py,
+                        py::list opt_py, py::list prev_inputs_py) {
+            
             std::vector<Eigen::VectorXd> prev_inputs;
-            for (auto item : prev_inputs_py) {
-                py::array_t<double> array = item.cast<py::array_t<double>>();
-                auto buffer = array.request();
-                Eigen::VectorXd prev_input(buffer.shape[0]);
+            if (!prev_inputs_py.empty()) {
+                for (auto item : prev_inputs_py) {
+                    py::array_t<double> array = item.cast<py::array_t<double>>();
+                    auto buffer = array.request();
+                    Eigen::VectorXd prev_input(buffer.shape[0]);
 
-                for (ssize_t i = 0; i < array.size(); ++i) {
-                    prev_input(i) = array.at(i);
+                    for (ssize_t i = 0; i < array.size(); ++i) {
+                        prev_input(i) = array.at(i);
+                    }
+
+                    // Eigen::VectorXd prev_trajectory = Eigen::Map<Eigen::VectorXd>(static_cast<double *>(buffer.ptr), buffer.shape[0]);
+                    prev_inputs.push_back(prev_input);
                 }
-
-                // Eigen::VectorXd prev_trajectory = Eigen::Map<Eigen::VectorXd>(static_cast<double *>(buffer.ptr), buffer.shape[0]);
-                prev_inputs.push_back(prev_input);
             }
             std::vector<Eigen::VectorXd> prev_trajectories;
             for (auto item : prev_trajectories_py) {
@@ -168,9 +171,13 @@ PYBIND11_MODULE(amswarm, m)
                 opt.push_back(item.cast<Drone::SolveOptions>());
             }
 
-            return instance.solve(current_time, x_0_vector, prev_inputs, prev_trajectories,
-                                opt);
-        })
+            // Call the solve method with or without prev_inputs
+            if (prev_inputs.empty()) {
+                return instance.solve(current_time, x_0_vector, prev_trajectories, opt);
+            } else {
+                return instance.solve(current_time, x_0_vector, prev_trajectories, opt, prev_inputs);
+            }
+        }, py::arg("current_time"), py::arg("x_0_vector"), py::arg("prev_trajectories"), py::arg("opt"), py::arg("prev_inputs") = py::list())
         .def("run_simulation", [](Swarm &instance) {
             Swarm::SwarmResult swarm_result = instance.runSimulation();
             return swarm_result;

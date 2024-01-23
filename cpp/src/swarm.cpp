@@ -22,9 +22,9 @@ Swarm::Swarm(std::vector<Drone> drones)
 
 Swarm::SwarmResult Swarm::solve(const double current_time,
                                 std::vector<Eigen::VectorXd> x_0_vector,
-                                std::vector<Eigen::VectorXd> prev_inputs,
                                 std::vector<Eigen::VectorXd> prev_trajectories,
-                                std::vector<Drone::SolveOptions> opt) {
+                                std::vector<Drone::SolveOptions> opt,
+                                std::vector<Eigen::VectorXd> prev_inputs) {
     int K = drones[0].getK();
     int j = num_drones - 1; // for now, consider all drones as obstacles - later only consider some within radius
 
@@ -46,10 +46,17 @@ Swarm::SwarmResult Swarm::solve(const double current_time,
             }
         }
         
-        Eigen::VectorXd initial_guess_control_input_trajectory_vector = prev_inputs[i];
-        Drone::DroneResult result = drones[i].solve(current_time, x_0_vector[i],
-                                                    j, thetas, xi, opt[i],
-                                                    initial_guess_control_input_trajectory_vector);
+        Drone::DroneResult result;
+        if (!prev_inputs.empty()) {
+            result = drones[i].solve(current_time, x_0_vector[i], j, thetas, xi, opt[i],
+                                    prev_inputs[i]);
+        } else {
+            result = drones[i].solve(current_time, x_0_vector[i], j, thetas, xi, opt[i]);
+        }
+        // Eigen::VectorXd initial_guess_control_input_trajectory_vector = prev_inputs[i];
+        // Drone::DroneResult result = drones[i].solve(current_time, x_0_vector[i],
+        //                                             j, thetas, xi, opt[i],
+        //                                             initial_guess_control_input_trajectory_vector);
         
 
         // use a critical section to update shared vectors
@@ -106,8 +113,8 @@ Swarm::SwarmResult Swarm::runSimulation() {
     // solve for initial trajectories THIS CAN BE IMPROVED
     // create a vector of bools of all false for the drones
     std::vector<Drone::SolveOptions> opt;
-    SwarmResult solve_result = solve(0.0, x_0_vector, prev_inputs, prev_trajectories,
-                                    opt);
+    SwarmResult solve_result = solve(0.0, x_0_vector, prev_trajectories,
+                                    opt, prev_inputs);
     prev_inputs.clear();
     prev_trajectories.clear();
     for (int i = 0; i < num_drones; ++i) {
@@ -118,8 +125,8 @@ Swarm::SwarmResult Swarm::runSimulation() {
     // iterate over time
     for (float t = 0.0; t < final_waypoint_time - delta_t; t+=delta_t) {
         // Solve for next trajectories
-        solve_result = solve(t, x_0_vector, prev_inputs, prev_trajectories,
-                            opt);
+        solve_result = solve(t, x_0_vector, prev_trajectories,
+                            opt, prev_inputs);
 
         // Build necessary matrices
         // previous trajectories need to be moved one time step forward and the last time step needs to be extrapolated

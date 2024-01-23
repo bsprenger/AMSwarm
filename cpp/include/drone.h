@@ -341,18 +341,6 @@ class Drone {
                         Eigen::VectorXd& penalized_steps,
                         Eigen::SparseMatrix<double>& X_g);
 
-        void computeZeta1(int iters, double rho,
-                        Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>>& solver,
-                        CostMatrices& costMatrices,
-                        Constraints& constraints,
-                        Eigen::VectorXd& s,
-                        LagrangeMultipliers& lambda,
-                        Eigen::VectorXd& zeta_1,
-                        SolveOptions& opt,
-                        Eigen::VectorXd& u_0_prev,
-                        Eigen::VectorXd& u_dot_0_prev,
-                        Eigen::VectorXd& u_ddot_0_prev);
-
         void compute_h_eq(int, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&,Eigen::VectorXd&);
 
         void compute_d(int K, int j, double rho,
@@ -375,6 +363,15 @@ class Drone {
                             Eigen::VectorXd& u_ddot_0_prev);
 
         void updateLagrangeMultipliers(double rho, Residuals& residuals, LagrangeMultipliers& lambda);
+
+        void updateCostMatrices(double rho, CostMatrices& costMatrices,
+                            Constraints& constraints,
+                            Eigen::VectorXd& s,
+                            LagrangeMultipliers& lambda,
+                            SolveOptions& opt,
+                            Eigen::VectorXd& u_0_prev,
+                            Eigen::VectorXd& u_dot_0_prev,
+                            Eigen::VectorXd& u_ddot_0_prev);
 
         DroneResult computeDroneResult(double current_time, Eigen::VectorXd& zeta_1,Eigen::VectorXd x_0);
 

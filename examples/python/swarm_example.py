@@ -240,8 +240,9 @@ for key in waypoints:
 opt = [amswarm.SolveOptions()] * len(drones)
 
 
-step_result = swarm.solve(0.0, initial_states, prev_inputs, prev_trajectories,
-                        opt)
+step_result = swarm.solve(0.0, initial_states, prev_trajectories,
+                        opt, prev_inputs)
+# step_result = swarm.solve(0.0, initial_states, prev_trajectories, opt)
 failed_drones = [index for index, drone_result in enumerate(step_result.drone_results) if not drone_result.is_successful]    
 if failed_drones:
     # for index in failed_drones:
@@ -249,8 +250,10 @@ if failed_drones:
         # waypoint_velocity_constraints[index] = False
         # waypoint_acceleration_constraints[index] = False
     # Re-solve for failed drones with updated constraints
-    step_result = swarm.solve(0.0, initial_states, prev_inputs, prev_trajectories,
-                            opt)
+    step_result = swarm.solve(0.0, initial_states, prev_trajectories,
+                            opt, prev_inputs)
+    # step_result = swarm.solve(0.0, initial_states, prev_trajectories,
+    #                         opt)
 
 prev_inputs.clear()
 prev_trajectories.clear()
@@ -287,8 +290,10 @@ for i in range(num_steps):
     # waypoint_velocity_constraints = [True] * len(drones)
     # waypoint_acceleration_constraints = [False] * len(drones)
     
-    step_result = swarm.solve(current_time, initial_states, prev_inputs, prev_trajectories,
-                              opt)
+    step_result = swarm.solve(current_time, initial_states, prev_trajectories,
+                              opt, prev_inputs)
+    # step_result = swarm.solve(current_time, initial_states, prev_trajectories,
+    #                           opt)
     
     # Check for drones that failed and prepare to re-solve for them
     failed_drones = [index for index, drone_result in enumerate(step_result.drone_results) if not drone_result.is_successful]
@@ -300,8 +305,10 @@ for i in range(num_steps):
             # waypoint_velocity_constraints[index] = False
             # waypoint_acceleration_constraints[index] = False
         # Re-solve for failed drones with updated constraints
-        step_result = swarm.solve(current_time, initial_states, prev_inputs, prev_trajectories,
-                                  opt)
+        step_result = swarm.solve(current_time, initial_states, prev_trajectories,
+                                  opt, prev_inputs)
+        # step_result = swarm.solve(current_time, initial_states, prev_trajectories,
+        #                       opt)
     
     # Here, we would apply the control inputs to the drones in real life or in
     # a simulator. For now, we will just print the control inputs that would be

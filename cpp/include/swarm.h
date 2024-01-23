@@ -19,9 +19,9 @@ class Swarm {
 
         SwarmResult solve(const double current_time,
                             std::vector<Eigen::VectorXd> x_0_vector, // rename these
-                            std::vector<Eigen::VectorXd> prev_inputs,
                             std::vector<Eigen::VectorXd> prev_trajectories,
-                            std::vector<Drone::SolveOptions> opt);
+                            std::vector<Drone::SolveOptions> opt,
+                            std::vector<Eigen::VectorXd> prev_inputs = std::vector<Eigen::VectorXd>(0));
 
         SwarmResult runSimulation();
 
