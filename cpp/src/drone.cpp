@@ -113,26 +113,20 @@ Drone::DroneResult Drone::solve(const double current_time,
                                 u_dot_0_prev, u_ddot_0_prev, constraints,
                                 opt);
     
-    
-    // initialize solver hyperparameters TODO more thresholds and split out of here
-    int max_iters = 1000;
-    double rho_init = 1.3;
-    double threshold = 0.01;
-    
     // solve loop
     int iters = 0;
-    while (iters < max_iters && 
-            (residuals.eq.cwiseAbs().maxCoeff() > threshold ||
-            residuals.pos.maxCoeff() > threshold ||
-            (opt.waypoint_position_constraints && residuals.waypoints_pos.cwiseAbs().maxCoeff() > threshold) ||
-            (opt.waypoint_velocity_constraints && residuals.waypoints_vel.cwiseAbs().maxCoeff() > threshold) ||
-            (opt.waypoint_acceleration_constraints && residuals.waypoints_accel.cwiseAbs().maxCoeff() > threshold) ||
-            (opt.input_continuity_constraints && residuals.input_continuity.cwiseAbs().maxCoeff() > threshold) ||
-            (opt.input_dot_continuity_constraints && residuals.input_dot_continuity.cwiseAbs().maxCoeff() > threshold) ||
-            (opt.input_ddot_continuity_constraints && residuals.input_ddot_continuity.cwiseAbs().maxCoeff() > threshold))) {
+    while (iters < opt.max_iters && 
+            (residuals.eq.cwiseAbs().maxCoeff() > opt.eq_threshold ||
+            residuals.pos.maxCoeff() > opt.pos_threshold ||
+            (opt.waypoint_position_constraints && residuals.waypoints_pos.cwiseAbs().maxCoeff() > opt.waypoint_position_threshold) ||
+            (opt.waypoint_velocity_constraints && residuals.waypoints_vel.cwiseAbs().maxCoeff() > opt.waypoint_velocity_threshold) ||
+            (opt.waypoint_acceleration_constraints && residuals.waypoints_accel.cwiseAbs().maxCoeff() > opt.waypoint_acceleration_threshold) ||
+            (opt.input_continuity_constraints && residuals.input_continuity.cwiseAbs().maxCoeff() > opt.input_continuity_threshold) ||
+            (opt.input_dot_continuity_constraints && residuals.input_dot_continuity.cwiseAbs().maxCoeff() > opt.input_dot_continuity_threshold) ||
+            (opt.input_ddot_continuity_constraints && residuals.input_ddot_continuity.cwiseAbs().maxCoeff() > opt.input_ddot_continuity_threshold))) {
         
         ++iters;
-        double rho = std::min(std::pow(rho_init, iters), 5.0e5);
+        double rho = std::min(std::pow(opt.rho_init, iters), 5.0e5);
 
         // STEP 1: solve for zeta_1
         if (iters > 1) {
@@ -158,11 +152,11 @@ Drone::DroneResult Drone::solve(const double current_time,
     
     // calculate and return inputs and predicted trajectory
     DroneResult drone_result = computeDroneResult(current_time, zeta_1, x_0);
-    if (iters < max_iters) {
+    if (iters < opt.max_iters) {
         drone_result.is_successful = true; // Solution found within max iterations
     } else {
         drone_result.is_successful = false; // Max iterations reached, constraints not satisfied
-        printUnsatisfiedResiduals(residuals, threshold, opt);
+        printUnsatisfiedResiduals(residuals, opt);
     }
     
     return drone_result;    
@@ -585,10 +579,9 @@ Drone::DroneResult Drone::computeDroneResult(double current_time, Eigen::VectorX
 }
 
 void Drone::printUnsatisfiedResiduals(const Residuals& residuals,
-                                    double threshold,
                                     SolveOptions& opt) {
     // Helper function to print steps where residuals exceed threshold
-    auto printExceedingSteps = [this, threshold](const Eigen::VectorXd& residual, int start, int end, const std::string& message, bool wrap = false) {
+    auto printExceedingSteps = [this](const Eigen::VectorXd& residual, int start, int end, const std::string& message, double threshold, bool wrap = false) {
         std::vector<int> exceedingSteps;
         for (int i = start; i < end; i += 3) { // Iterate in steps of 3
             if (std::abs(residual[i]) > threshold || (i + 1 < end && std::abs(residual[i+1]) > threshold) || (i + 2 < end && std::abs(residual[i+2]) > threshold)) {
@@ -610,27 +603,27 @@ void Drone::printUnsatisfiedResiduals(const Residuals& residuals,
     };
 
     // Check and print for each type of constraint
-    if (residuals.eq.cwiseAbs().maxCoeff() > threshold) {
-        printExceedingSteps(residuals.eq, 0, 3*K, "Velocity constraints residual exceeds threshold");
-        printExceedingSteps(residuals.eq, 3*K, 6*K, "Acceleration constraints residual exceeds threshold");
+    if (residuals.eq.cwiseAbs().maxCoeff() > opt.eq_threshold) {
+        printExceedingSteps(residuals.eq, 0, 3*K, "Velocity constraints residual exceeds threshold", opt.eq_threshold);
+        printExceedingSteps(residuals.eq, 3*K, 6*K, "Acceleration constraints residual exceeds threshold", opt.eq_threshold);
         // For collision constraints, wrap the step number if it exceeds K
-        printExceedingSteps(residuals.eq, 6*K, residuals.eq.size(), "Collision constraints residual exceeds threshold", true);
+        printExceedingSteps(residuals.eq, 6*K, residuals.eq.size(), "Collision constraints residual exceeds threshold", opt.eq_threshold, true);
     }
 
-    if (residuals.pos.maxCoeff() > threshold) {
-        printExceedingSteps(residuals.pos, 0, residuals.pos.size(), "Position constraints residual exceeds threshold");
+    if (residuals.pos.maxCoeff() > opt.pos_threshold) {
+        printExceedingSteps(residuals.pos, 0, residuals.pos.size(), "Position constraints residual exceeds threshold", opt.pos_threshold);
     }
 
-    if (opt.waypoint_position_constraints && residuals.waypoints_pos.cwiseAbs().maxCoeff() > threshold) {
-        printExceedingSteps(residuals.waypoints_pos, 0, residuals.waypoints_pos.size(), "Waypoint position constraints residual exceeds threshold");
+    if (opt.waypoint_position_constraints && residuals.waypoints_pos.cwiseAbs().maxCoeff() > opt.waypoint_position_threshold) {
+        printExceedingSteps(residuals.waypoints_pos, 0, residuals.waypoints_pos.size(), "Waypoint position constraints residual exceeds threshold", opt.waypoint_position_threshold);
     }
 
-    if (opt.waypoint_velocity_constraints && residuals.waypoints_vel.cwiseAbs().maxCoeff() > threshold) {
-        printExceedingSteps(residuals.waypoints_vel, 0, residuals.waypoints_vel.size(), "Waypoint velocity constraints residual exceeds threshold");
+    if (opt.waypoint_velocity_constraints && residuals.waypoints_vel.cwiseAbs().maxCoeff() > opt.waypoint_velocity_threshold) {
+        printExceedingSteps(residuals.waypoints_vel, 0, residuals.waypoints_vel.size(), "Waypoint velocity constraints residual exceeds threshold", opt.waypoint_velocity_threshold);
     }
 
-    if (opt.waypoint_acceleration_constraints && residuals.waypoints_accel.cwiseAbs().maxCoeff() > threshold) {
-        printExceedingSteps(residuals.waypoints_accel, 0, residuals.waypoints_accel.size(), "Waypoint acceleration constraints residual exceeds threshold");
+    if (opt.waypoint_acceleration_constraints && residuals.waypoints_accel.cwiseAbs().maxCoeff() > opt.waypoint_acceleration_threshold) {
+        printExceedingSteps(residuals.waypoints_accel, 0, residuals.waypoints_accel.size(), "Waypoint acceleration constraints residual exceeds threshold", opt.waypoint_acceleration_threshold);
     }
 }
 

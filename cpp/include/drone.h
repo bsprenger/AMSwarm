@@ -38,6 +38,17 @@ class Drone {
             bool input_continuity_constraints = true;
             bool input_dot_continuity_constraints = true;
             bool input_ddot_continuity_constraints = true;
+
+            int max_iters = 1000;
+            double rho_init = 1.3;
+            double eq_threshold = 0.01;
+            double pos_threshold = 0.01;
+            double waypoint_position_threshold = 0.01;
+            double waypoint_velocity_threshold = 0.01;
+            double waypoint_acceleration_threshold = 0.01;
+            double input_continuity_threshold = 0.01;
+            double input_dot_continuity_threshold = 0.01;
+            double input_ddot_continuity_threshold = 0.01;
         };
 
         // Constructors
@@ -368,7 +379,6 @@ class Drone {
         DroneResult computeDroneResult(double current_time, Eigen::VectorXd& zeta_1,Eigen::VectorXd x_0);
 
         void printUnsatisfiedResiduals(const Residuals& residuals,
-                                        double threshold,
                                         SolveOptions& opt);
 
         Eigen::VectorXd U_to_zeta_1(Eigen::VectorXd& U);
