@@ -67,16 +67,20 @@ class Drone {
             double delta_t = 1.0/6.0;
         };
 
+        struct PhysicalLimits {
+            Eigen::VectorXd p_min = Eigen::VectorXd::Constant(3,-10);
+            Eigen::VectorXd p_max = Eigen::VectorXd::Constant(3,10);
+            double v_bar = 1.73;
+            double f_bar = 0.75 * 9.81;
+        };
+
         // Constructors
         Drone(std::string& params_filepath, // necessary input
                 Eigen::MatrixXd waypoints, // necessary input
                 MPCConfig config,
                 MPCWeights weights,
-                Eigen::VectorXd initial_pos = Eigen::VectorXd::Zero(3), // optional inputs - default values are set
-                Eigen::VectorXd p_min = Eigen::VectorXd::Constant(3,-10),
-                Eigen::VectorXd p_max = Eigen::VectorXd::Constant(3,10),
-                float v_bar = 1.73,
-                float f_bar = 1.5*9.8);
+                PhysicalLimits limits,
+                Eigen::VectorXd initial_pos = Eigen::VectorXd::Zero(3));
 
         // Public methods
         DroneResult solve(const double current_time,
@@ -181,8 +185,8 @@ class Drone {
                             Eigen::SparseMatrix<double> G_pos_blk2 = -parentDrone->constSelectionMatrices.M_p * parentDrone->S_u * parentDrone->W;
                             G_pos = utils::vertcat(G_pos_blk1, G_pos_blk2);
 
-                            Eigen::VectorXd h_pos_blk1 = parentDrone->p_max.replicate(parentDrone->config.K, 1) - parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
-                            Eigen::VectorXd h_pos_blk2 = -parentDrone->p_min.replicate(parentDrone->config.K, 1) + parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
+                            Eigen::VectorXd h_pos_blk1 = parentDrone->limits.p_max.replicate(parentDrone->config.K, 1) - parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
+                            Eigen::VectorXd h_pos_blk2 = -parentDrone->limits.p_min.replicate(parentDrone->config.K, 1) + parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
                             h_pos.resize(h_pos_blk1.rows() + h_pos_blk2.rows());
                             h_pos << h_pos_blk1, h_pos_blk2;
 
@@ -311,14 +315,8 @@ class Drone {
         Eigen::SparseMatrix<double> W, W_dot, W_ddot;
         Eigen::SparseMatrix<double> S_x, S_u, S_x_prime, S_u_prime;
         MPCConfig config;
-        
         MPCWeights weights;
-
-        // physical limits
-        Eigen::VectorXd p_min;
-        Eigen::VectorXd p_max;
-        double v_bar;
-        double f_bar;
+        PhysicalLimits limits;
 
         Eigen::MatrixXd waypoints;
         Eigen::VectorXd initial_pos;

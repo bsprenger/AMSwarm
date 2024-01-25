@@ -45,6 +45,13 @@ PYBIND11_MODULE(amswarm, m)
         .def_readwrite("n", &Drone::MPCConfig::n)
         .def_readwrite("delta_t", &Drone::MPCConfig::delta_t);
 
+    py::class_<Drone::PhysicalLimits>(m, "PhysicalLimits")
+        .def(py::init<>())
+        .def_readwrite("p_min", &Drone::PhysicalLimits::p_min)
+        .def_readwrite("p_max", &Drone::PhysicalLimits::p_max)
+        .def_readwrite("v_bar", &Drone::PhysicalLimits::v_bar)
+        .def_readwrite("f_bar", &Drone::PhysicalLimits::f_bar);
+
     // Binding for SwarmResult
     py::class_<Swarm::SwarmResult>(m, "SwarmResult")
         .def(py::init<>())
@@ -52,16 +59,13 @@ PYBIND11_MODULE(amswarm, m)
         .def("getDroneData", &Swarm::SwarmResult::getDroneResult);  
 
     py::class_<Drone>(m, "Drone")
-        .def(py::init<std::string&, Eigen::MatrixXd, Drone::MPCConfig, Drone::MPCWeights, Eigen::VectorXd, Eigen::VectorXd, Eigen::VectorXd, float, float>())
+        .def(py::init<std::string&, Eigen::MatrixXd, Drone::MPCConfig, Drone::MPCWeights, Drone::PhysicalLimits, Eigen::VectorXd>())
         .def(py::init([](std::string& params_filepath,
                         py::array_t<double> waypoints_npy,
                         Drone::MPCConfig config,
                         Drone::MPCWeights weights,
-                        py::array_t<double> initial_pos_npy,
-                        py::array_t<double> p_min_npy,
-                        py::array_t<double> p_max_npy,
-                        float v_bar,
-                        float f_bar) {
+                        Drone::PhysicalLimits limits,
+                        py::array_t<double> initial_pos_npy) {
 
                             // convert waypoints from numpy to eigen
                             py::array_t<double> array = waypoints_npy.cast<py::array_t<double>>();
@@ -72,18 +76,9 @@ PYBIND11_MODULE(amswarm, m)
                             array = initial_pos_npy.cast<py::array_t<double>>();
                             buffer = array.request();
                             Eigen::VectorXd initial_pos = Eigen::Map<Eigen::VectorXd>(static_cast<double *>(buffer.ptr), buffer.shape[0]);
-
-                            // convert p_min, p_max from numpy to eigen
-                            array = p_min_npy.cast<py::array_t<double>>();
-                            buffer = array.request();
-                            Eigen::VectorXd p_min = Eigen::Map<Eigen::VectorXd>(static_cast<double *>(buffer.ptr), buffer.shape[1]);
-                            array = p_max_npy.cast<py::array_t<double>>();
-                            buffer = array.request();
-                            Eigen::VectorXd p_max = Eigen::Map<Eigen::VectorXd>(static_cast<double *>(buffer.ptr), buffer.shape[1]);
                             
-                            return new Drone(params_filepath, waypoints, config, weights, initial_pos, p_min, p_max, v_bar, f_bar);}),
-            py::arg("params_filepath"), py::arg("waypoints"), py::arg("config"), py::arg("weights"), py::arg("initial_pos"), py::arg("p_min"),
-            py::arg("p_max"), py::arg("v_bar"), py::arg("f_bar"))
+                            return new Drone(params_filepath, waypoints, config, weights, limits, initial_pos);}),
+            py::arg("params_filepath"), py::arg("waypoints"), py::arg("config"), py::arg("weights"), py::arg("limits"), py::arg("initial_pos"))
         .def("solve", [](Drone &instance, double current_time,
                         py::array_t<double> x_0_npy, py::array_t<double> initial_guess_control_input_trajectory_vector_py,
                         int j, py::list thetas_py, py::array_t<double> xi_npy,

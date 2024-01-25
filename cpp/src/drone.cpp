@@ -11,19 +11,13 @@ Drone::Drone(std::string& params_filepath,
             Eigen::MatrixXd waypoints,
             MPCConfig config,
             MPCWeights weights,
-            Eigen::VectorXd initial_pos,
-            Eigen::VectorXd p_min,
-            Eigen::VectorXd p_max,
-            float v_bar,
-            float f_bar)
+            PhysicalLimits limits,
+            Eigen::VectorXd initial_pos)
     : waypoints(waypoints),
     initial_pos(initial_pos),
     config(config),
     weights(weights),
-    p_min(p_min), 
-    p_max(p_max),
-    v_bar(v_bar),
-    f_bar(f_bar),
+    limits(limits),
     W(3*config.K,3*(config.n+1)), // TODO modify to change automatically depending on num inputs
     W_dot(3*config.K,3*(config.n+1)),
     W_ddot(3*config.K,3*(config.n+1)),
@@ -485,9 +479,9 @@ void Drone::compute_d(int j, double rho,
 
         // clip d -- improve this later
         if (i < config.K) {
-            d(i) = std::min(d(i), v_bar);
+            d(i) = std::min(d(i), limits.v_bar);
         } else if (i >= config.K && i < 2 * config.K) {
-            d(i) = std::min(d(i), f_bar);
+            d(i) = std::min(d(i), limits.f_bar);
         } else {
             d(i) = std::max(d(i), 1.0);
         }

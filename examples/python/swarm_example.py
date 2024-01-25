@@ -125,12 +125,9 @@ waypoints = {72: np.array([[0.00, 0.00, 0.00, 1.00, 0.00, 0.00, 0.00],
 
 # Define params that are constant for all drones
 amswarm_kwargs = {}
-amswarm_kwargs["p_min"] = np.array([[-10,-10,0]])
-amswarm_kwargs["p_max"] = np.array([[10, 10, 10]])
 amswarm_kwargs["config"] = amswarm.MPCConfig()
 amswarm_kwargs["weights"] = amswarm.MPCWeights()
-amswarm_kwargs["v_bar"] = 1.73
-amswarm_kwargs["f_bar"] = 0.75 * 9.81
+amswarm_kwargs["limits"] = amswarm.PhysicalLimits()
 amswarm_kwargs["params_filepath"] = "/home/ben/AMSwarm/cpp/params"
 
 
