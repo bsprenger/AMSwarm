@@ -51,22 +51,26 @@ class Drone {
             double input_ddot_continuity_threshold = 0.01;
         };
 
+        struct MPCWeights {
+            float w_goal_pos = 7000;
+            float w_goal_vel = 1000;
+            float w_smoothness = 100;
+            float w_input_smoothness = 1000;
+            float w_input_continuity = 100;
+            float w_input_dot_continuity = 100;
+            float w_input_ddot_continuity = 100;
+        };
+
         // Constructors
         Drone(std::string& params_filepath, // necessary input
                 Eigen::MatrixXd waypoints, // necessary input
+                const MPCWeights& weights,
                 Eigen::VectorXd initial_pos = Eigen::VectorXd::Zero(3), // optional inputs - default values are set
                 int K = 25,
                 int n = 10,
                 float delta_t = 1.0/6.0, // FIX THIS cast to float always
                 Eigen::VectorXd p_min = Eigen::VectorXd::Constant(3,-10),
                 Eigen::VectorXd p_max = Eigen::VectorXd::Constant(3,10),
-                float w_goal_pos = 7000,
-                float w_goal_vel = 1000,
-                float w_smoothness = 100,
-                float w_input_smoothness = 1000,
-                float w_input_continuity = 100,
-                float w_input_dot_continuity = 100,
-                float w_input_ddot_continuity = 100,
                 float v_bar = 1.73,
                 float f_bar = 1.5*9.8);
 
@@ -248,7 +252,7 @@ class Drone {
                 Eigen::SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
                 Eigen::SparseMatrix<double> eyeK = utils::getSparseIdentity(parentDrone->K);
 
-                std::vector<Eigen::SparseMatrix<double>> tmp_cost_vec = {eye3 * parentDrone->w_goal_pos, eye3 * parentDrone->w_goal_vel}; // clarify this
+                std::vector<Eigen::SparseMatrix<double>> tmp_cost_vec = {eye3 * parentDrone->weights.w_goal_pos, eye3 * parentDrone->weights.w_goal_vel}; // clarify this
                 Eigen::SparseMatrix<double> R_g = utils::blkDiag(tmp_cost_vec); // clarify this
 
                 Eigen::SparseMatrix<double> tmp_R_g_tilde(parentDrone->K,parentDrone->K); // for selecting which steps to penalize
@@ -258,21 +262,21 @@ class Drone {
                 Eigen::SparseMatrix<double> R_g_tilde = utils::kroneckerProduct(tmp_R_g_tilde, R_g);
                 
                 // initialize R_s_tilde
-                Eigen::SparseMatrix<double> R_s = eye3 * parentDrone->w_smoothness;
+                Eigen::SparseMatrix<double> R_s = eye3 * parentDrone->weights.w_smoothness;
                 Eigen::SparseMatrix<double> R_s_tilde = utils::kroneckerProduct(eyeK, R_s);
 
                 // initialize cost matrices
                 Q = 2.0 * parentDrone->W.transpose() * parentDrone->S_u.transpose() * R_g_tilde * parentDrone->S_u * parentDrone->W
                                 + 2.0 * parentDrone->W.transpose() * parentDrone->S_u_prime.transpose() * parentDrone->constSelectionMatrices.M_a.transpose() * R_s_tilde * parentDrone->constSelectionMatrices.M_a * parentDrone->S_u_prime * parentDrone->W
-                                + 2.0 * parentDrone->w_input_smoothness * parentDrone->W_ddot.transpose() * parentDrone->W_ddot
-                                + 2.0 * parentDrone->w_input_continuity * parentDrone->W.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W.block(0,0,3,3*(parentDrone->n+1))
-                                + 2.0 * parentDrone->w_input_dot_continuity * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1))
-                                + 2.0 * parentDrone->w_input_ddot_continuity * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1));
+                                + 2.0 * parentDrone->weights.w_input_smoothness * parentDrone->W_ddot.transpose() * parentDrone->W_ddot
+                                + 2.0 * parentDrone->weights.w_input_continuity * parentDrone->W.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W.block(0,0,3,3*(parentDrone->n+1))
+                                + 2.0 * parentDrone->weights.w_input_dot_continuity * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1))
+                                + 2.0 * parentDrone->weights.w_input_ddot_continuity * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1));
                 q = 2.0 * parentDrone->W.transpose() * parentDrone->S_u.transpose() * R_g_tilde.transpose() * (parentDrone->S_x * x_0 - X_g)
                                 + 2.0 * parentDrone->W.transpose() * parentDrone->S_u_prime.transpose() * parentDrone->constSelectionMatrices.M_a.transpose() * R_s_tilde * parentDrone->constSelectionMatrices.M_a * parentDrone->S_x_prime * x_0
-                                - 2.0 * parentDrone->w_input_continuity * parentDrone->W.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_0_prev
-                                - 2.0 * parentDrone->w_input_dot_continuity * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_dot_0_prev
-                                - 2.0 * parentDrone->w_input_ddot_continuity * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_ddot_0_prev;
+                                - 2.0 * parentDrone->weights.w_input_continuity * parentDrone->W.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_0_prev
+                                - 2.0 * parentDrone->weights.w_input_dot_continuity * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_dot_0_prev
+                                - 2.0 * parentDrone->weights.w_input_ddot_continuity * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_ddot_0_prev;
 
                 A_check_const_terms = constraints.G_eq.transpose() * constraints.G_eq + constraints.G_pos.transpose() * constraints.G_pos;
 
@@ -307,14 +311,7 @@ class Drone {
         float delta_t;
         float t_f;
         
-        // cost weights
-        float w_goal_pos;
-        float w_goal_vel;
-        float w_smoothness;
-        float w_input_smoothness;
-        float w_input_continuity;
-        float w_input_dot_continuity;
-        float w_input_ddot_continuity;
+        MPCWeights weights;
 
         // physical limits
         Eigen::VectorXd p_min;

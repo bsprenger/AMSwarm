@@ -29,6 +29,16 @@ PYBIND11_MODULE(amswarm, m)
         .def_readwrite("input_dot_continuity_constraints", &Drone::SolveOptions::input_dot_continuity_constraints)
         .def_readwrite("input_ddot_continuity_constraints", &Drone::SolveOptions::input_ddot_continuity_constraints);
 
+    py::class_<Drone::MPCWeights>(m, "MPCWeights")
+        .def(py::init<>())
+        .def_readwrite("w_goal_pos", &Drone::MPCWeights::w_goal_pos)
+        .def_readwrite("w_goal_vel", &Drone::MPCWeights::w_goal_vel)
+        .def_readwrite("w_smoothness", &Drone::MPCWeights::w_smoothness)
+        .def_readwrite("w_input_smoothness", &Drone::MPCWeights::w_input_smoothness)
+        .def_readwrite("w_input_continuity", &Drone::MPCWeights::w_input_continuity)
+        .def_readwrite("w_input_dot_continuity", &Drone::MPCWeights::w_input_dot_continuity)
+        .def_readwrite("w_input_ddot_continuity", &Drone::MPCWeights::w_input_ddot_continuity);
+
     // Binding for SwarmResult
     py::class_<Swarm::SwarmResult>(m, "SwarmResult")
         .def(py::init<>())
@@ -36,22 +46,16 @@ PYBIND11_MODULE(amswarm, m)
         .def("getDroneData", &Swarm::SwarmResult::getDroneResult);  
 
     py::class_<Drone>(m, "Drone")
-        .def(py::init<std::string&, Eigen::MatrixXd, Eigen::VectorXd, int, int, float, Eigen::VectorXd, Eigen::VectorXd, float, float, float, float, float, float, float, float, float>())
+        .def(py::init<std::string&, Eigen::MatrixXd, const Drone::MPCWeights&, Eigen::VectorXd, int, int, float, Eigen::VectorXd, Eigen::VectorXd, float, float>())
         .def(py::init([](std::string& params_filepath,
                         py::array_t<double> waypoints_npy,
+                        const Drone::MPCWeights& weights,
                         py::array_t<double> initial_pos_npy,
                         int K,
                         int n,
                         float delta_t,
                         py::array_t<double> p_min_npy,
                         py::array_t<double> p_max_npy,
-                        float w_goal_pos,
-                        float w_goal_vel,
-                        float w_smoothness,
-                        float w_input_smoothness,
-                        float w_input_continuity,
-                        float w_input_dot_continuity,
-                        float w_input_ddot_continuity,
                         float v_bar,
                         float f_bar) {
 
@@ -73,10 +77,9 @@ PYBIND11_MODULE(amswarm, m)
                             buffer = array.request();
                             Eigen::VectorXd p_max = Eigen::Map<Eigen::VectorXd>(static_cast<double *>(buffer.ptr), buffer.shape[1]);
                             
-                            return new Drone(params_filepath, waypoints, initial_pos, K, n, delta_t, p_min, p_max, w_goal_pos, w_goal_vel,
-                                            w_smoothness, w_input_smoothness, w_input_continuity, w_input_dot_continuity, w_input_ddot_continuity, v_bar, f_bar);}),
-            py::arg("params_filepath"), py::arg("waypoints"), py::arg("initial_pos"), py::arg("K"), py::arg("n"), py::arg("delta_t"), py::arg("p_min"),
-            py::arg("p_max"), py::arg("w_goal_pos"), py::arg("w_goal_vel"), py::arg("w_smoothness"), py::arg("w_input_smoothness"), py::arg("w_input_continuity"), py::arg("w_input_dot_continuity"), py::arg("w_input_ddot_continuity"), py::arg("v_bar"), py::arg("f_bar"))
+                            return new Drone(params_filepath, waypoints, weights, initial_pos, K, n, delta_t, p_min, p_max, v_bar, f_bar);}),
+            py::arg("params_filepath"), py::arg("waypoints"), py::arg("weights"), py::arg("initial_pos"), py::arg("K"), py::arg("n"), py::arg("delta_t"), py::arg("p_min"),
+            py::arg("p_max"), py::arg("v_bar"), py::arg("f_bar"))
         .def("solve", [](Drone &instance, double current_time,
                         py::array_t<double> x_0_npy, py::array_t<double> initial_guess_control_input_trajectory_vector_py,
                         int j, py::list thetas_py, py::array_t<double> xi_npy,
