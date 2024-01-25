@@ -52,23 +52,27 @@ class Drone {
         };
 
         struct MPCWeights {
-            float w_goal_pos = 7000;
-            float w_goal_vel = 1000;
-            float w_smoothness = 100;
-            float w_input_smoothness = 1000;
-            float w_input_continuity = 100;
-            float w_input_dot_continuity = 100;
-            float w_input_ddot_continuity = 100;
+            double w_goal_pos = 7000;
+            double w_goal_vel = 1000;
+            double w_smoothness = 100;
+            double w_input_smoothness = 1000;
+            double w_input_continuity = 100;
+            double w_input_dot_continuity = 100;
+            double w_input_ddot_continuity = 100;
+        };
+
+        struct MPCConfig {
+            int K = 25;
+            int n = 10;
+            double delta_t = 1.0/6.0;
         };
 
         // Constructors
         Drone(std::string& params_filepath, // necessary input
                 Eigen::MatrixXd waypoints, // necessary input
-                const MPCWeights& weights,
+                MPCConfig config,
+                MPCWeights weights,
                 Eigen::VectorXd initial_pos = Eigen::VectorXd::Zero(3), // optional inputs - default values are set
-                int K = 25,
-                int n = 10,
-                float delta_t = 1.0/6.0, // FIX THIS cast to float always
                 Eigen::VectorXd p_min = Eigen::VectorXd::Constant(3,-10),
                 Eigen::VectorXd p_max = Eigen::VectorXd::Constant(3,10),
                 float v_bar = 1.73,
@@ -177,8 +181,8 @@ class Drone {
                             Eigen::SparseMatrix<double> G_pos_blk2 = -parentDrone->constSelectionMatrices.M_p * parentDrone->S_u * parentDrone->W;
                             G_pos = utils::vertcat(G_pos_blk1, G_pos_blk2);
 
-                            Eigen::VectorXd h_pos_blk1 = parentDrone->p_max.replicate(parentDrone->K, 1) - parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
-                            Eigen::VectorXd h_pos_blk2 = -parentDrone->p_min.replicate(parentDrone->K, 1) + parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
+                            Eigen::VectorXd h_pos_blk1 = parentDrone->p_max.replicate(parentDrone->config.K, 1) - parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
+                            Eigen::VectorXd h_pos_blk2 = -parentDrone->p_min.replicate(parentDrone->config.K, 1) + parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
                             h_pos.resize(h_pos_blk1.rows() + h_pos_blk2.rows());
                             h_pos << h_pos_blk1, h_pos_blk2;
 
@@ -250,12 +254,12 @@ class Drone {
                         Constraints& constraints,
                         SolveOptions& opt) {
                 Eigen::SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
-                Eigen::SparseMatrix<double> eyeK = utils::getSparseIdentity(parentDrone->K);
+                Eigen::SparseMatrix<double> eyeK = utils::getSparseIdentity(parentDrone->config.K);
 
                 std::vector<Eigen::SparseMatrix<double>> tmp_cost_vec = {eye3 * parentDrone->weights.w_goal_pos, eye3 * parentDrone->weights.w_goal_vel}; // clarify this
                 Eigen::SparseMatrix<double> R_g = utils::blkDiag(tmp_cost_vec); // clarify this
 
-                Eigen::SparseMatrix<double> tmp_R_g_tilde(parentDrone->K,parentDrone->K); // for selecting which steps to penalize
+                Eigen::SparseMatrix<double> tmp_R_g_tilde(parentDrone->config.K,parentDrone->config.K); // for selecting which steps to penalize
                 for (int idx : penalized_steps) {
                     tmp_R_g_tilde.insert(idx - 1, idx - 1) = 1.0; // this needs to be clarified -> since the first block in R_g_tilde corresponds to x(1), we need to subtract 1 from the index. penalized_steps gives the TIME STEP number, not matrix index
                 }
@@ -269,14 +273,14 @@ class Drone {
                 Q = 2.0 * parentDrone->W.transpose() * parentDrone->S_u.transpose() * R_g_tilde * parentDrone->S_u * parentDrone->W
                                 + 2.0 * parentDrone->W.transpose() * parentDrone->S_u_prime.transpose() * parentDrone->constSelectionMatrices.M_a.transpose() * R_s_tilde * parentDrone->constSelectionMatrices.M_a * parentDrone->S_u_prime * parentDrone->W
                                 + 2.0 * parentDrone->weights.w_input_smoothness * parentDrone->W_ddot.transpose() * parentDrone->W_ddot
-                                + 2.0 * parentDrone->weights.w_input_continuity * parentDrone->W.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W.block(0,0,3,3*(parentDrone->n+1))
-                                + 2.0 * parentDrone->weights.w_input_dot_continuity * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1))
-                                + 2.0 * parentDrone->weights.w_input_ddot_continuity * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1));
+                                + 2.0 * parentDrone->weights.w_input_continuity * parentDrone->W.block(0,0,3,3*(parentDrone->config.n+1)).transpose() * parentDrone->W.block(0,0,3,3*(parentDrone->config.n+1))
+                                + 2.0 * parentDrone->weights.w_input_dot_continuity * parentDrone->W_dot.block(0,0,3,3*(parentDrone->config.n+1)).transpose() * parentDrone->W_dot.block(0,0,3,3*(parentDrone->config.n+1))
+                                + 2.0 * parentDrone->weights.w_input_ddot_continuity * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->config.n+1)).transpose() * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->config.n+1));
                 q = 2.0 * parentDrone->W.transpose() * parentDrone->S_u.transpose() * R_g_tilde.transpose() * (parentDrone->S_x * x_0 - X_g)
                                 + 2.0 * parentDrone->W.transpose() * parentDrone->S_u_prime.transpose() * parentDrone->constSelectionMatrices.M_a.transpose() * R_s_tilde * parentDrone->constSelectionMatrices.M_a * parentDrone->S_x_prime * x_0
-                                - 2.0 * parentDrone->weights.w_input_continuity * parentDrone->W.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_0_prev
-                                - 2.0 * parentDrone->weights.w_input_dot_continuity * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_dot_0_prev
-                                - 2.0 * parentDrone->weights.w_input_ddot_continuity * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1)).transpose() * u_ddot_0_prev;
+                                - 2.0 * parentDrone->weights.w_input_continuity * parentDrone->W.block(0,0,3,3*(parentDrone->config.n+1)).transpose() * u_0_prev
+                                - 2.0 * parentDrone->weights.w_input_dot_continuity * parentDrone->W_dot.block(0,0,3,3*(parentDrone->config.n+1)).transpose() * u_dot_0_prev
+                                - 2.0 * parentDrone->weights.w_input_ddot_continuity * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->config.n+1)).transpose() * u_ddot_0_prev;
 
                 A_check_const_terms = constraints.G_eq.transpose() * constraints.G_eq + constraints.G_pos.transpose() * constraints.G_pos;
 
@@ -291,13 +295,13 @@ class Drone {
                     A_check_const_terms += constraints.G_waypoints_accel.transpose() * constraints.G_waypoints_accel;
                 }
                 if (opt.input_continuity_constraints) {
-                    A_check_const_terms += parentDrone->W.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W.block(0,0,3,3*(parentDrone->n+1));
+                    A_check_const_terms += parentDrone->W.block(0,0,3,3*(parentDrone->config.n+1)).transpose() * parentDrone->W.block(0,0,3,3*(parentDrone->config.n+1));
                 }
                 if (opt.input_dot_continuity_constraints) {
-                    A_check_const_terms += parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_dot.block(0,0,3,3*(parentDrone->n+1));
+                    A_check_const_terms += parentDrone->W_dot.block(0,0,3,3*(parentDrone->config.n+1)).transpose() * parentDrone->W_dot.block(0,0,3,3*(parentDrone->config.n+1));
                 }
                 if (opt.input_ddot_continuity_constraints) {
-                    A_check_const_terms += parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1)).transpose() * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->n+1));
+                    A_check_const_terms += parentDrone->W_ddot.block(0,0,3,3*(parentDrone->config.n+1)).transpose() * parentDrone->W_ddot.block(0,0,3,3*(parentDrone->config.n+1));
                 }
             }
         };
@@ -306,10 +310,7 @@ class Drone {
         // Private variables
         Eigen::SparseMatrix<double> W, W_dot, W_ddot;
         Eigen::SparseMatrix<double> S_x, S_u, S_x_prime, S_u_prime;
-        int K;
-        int n;
-        float delta_t;
-        float t_f;
+        MPCConfig config;
         
         MPCWeights weights;
 
@@ -340,7 +341,7 @@ class Drone {
 
         void compute_h_eq(int, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&,Eigen::VectorXd&);
 
-        void compute_d(int K, int j, double rho,
+        void compute_d(int j, double rho,
                     Constraints& constraints, Eigen::VectorXd& zeta_1,
                     LagrangeMultipliers& lambda,
                     Eigen::VectorXd& alpha, Eigen::VectorXd& beta,

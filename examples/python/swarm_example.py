@@ -125,11 +125,9 @@ waypoints = {72: np.array([[0.00, 0.00, 0.00, 1.00, 0.00, 0.00, 0.00],
 
 # Define params that are constant for all drones
 amswarm_kwargs = {}
-amswarm_kwargs["delta_t"] = 1/6
-amswarm_kwargs["K"] = 25
-amswarm_kwargs["n"] = 10
 amswarm_kwargs["p_min"] = np.array([[-10,-10,0]])
 amswarm_kwargs["p_max"] = np.array([[10, 10, 10]])
+amswarm_kwargs["config"] = amswarm.MPCConfig()
 amswarm_kwargs["weights"] = amswarm.MPCWeights()
 amswarm_kwargs["v_bar"] = 1.73
 amswarm_kwargs["f_bar"] = 0.75 * 9.81
@@ -226,8 +224,8 @@ for key in waypoints:
     position_results.append(initial_positions[key]) # add initial position to results
     control_input_results.append(np.empty((0,3)))
     initial_states.append(np.concatenate((initial_positions[key], np.zeros(3))))
-    prev_inputs.append(np.tile(np.zeros(3), amswarm_kwargs["K"]))
-    prev_trajectories.append(np.tile(initial_positions[key], amswarm_kwargs["K"]))
+    prev_inputs.append(np.tile(np.zeros(3), amswarm_kwargs["config"].K))
+    prev_trajectories.append(np.tile(initial_positions[key], amswarm_kwargs["config"].K))
 
 # Get our initial guesses for the drone trajectories
 # create vector of SolveOptions of length num_drones
@@ -266,15 +264,15 @@ for key in waypoints:
     if waypoints[key][-1,0] > final_waypoint_time:
         final_waypoint_time = waypoints[key][-1,0]
         
-final_waypoint_time = round(final_waypoint_time / amswarm_kwargs["delta_t"]) * amswarm_kwargs["delta_t"]
-num_steps = int(final_waypoint_time / amswarm_kwargs["delta_t"])-1 # stop one time step before end -> no control input at last time step
+final_waypoint_time = round(final_waypoint_time / amswarm_kwargs["config"].delta_t) * amswarm_kwargs["config"].delta_t
+num_steps = int(final_waypoint_time / amswarm_kwargs["config"].delta_t)-1 # stop one time step before end -> no control input at last time step
 
 # Now we can solve for the trajectory at each time step, apply it to the drones,
 # measure the new state, and repeat.
 for i in range(num_steps):
     # Solve for the control input given the current state and guesses for the 
     # other drones' trajectories from the previous optimization
-    current_time = i * amswarm_kwargs["delta_t"]
+    current_time = i * amswarm_kwargs["config"].delta_t
     # print("Current time: ", current_time)
     # print("Initial states: ", initial_states)
     # print("Previous trajectories: ", prev_trajectories)
