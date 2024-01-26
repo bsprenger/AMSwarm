@@ -37,20 +37,73 @@ PYBIND11_MODULE(amswarm, m)
         .def_readwrite("w_input_smoothness", &Drone::MPCWeights::w_input_smoothness)
         .def_readwrite("w_input_continuity", &Drone::MPCWeights::w_input_continuity)
         .def_readwrite("w_input_dot_continuity", &Drone::MPCWeights::w_input_dot_continuity)
-        .def_readwrite("w_input_ddot_continuity", &Drone::MPCWeights::w_input_ddot_continuity);
+        .def_readwrite("w_input_ddot_continuity", &Drone::MPCWeights::w_input_ddot_continuity)
+        .def(py::pickle(
+            [](const Drone::MPCWeights &w) { // __getstate__
+                /* Return a tuple that fully encodes the state of the object */
+                return py::make_tuple(w.w_goal_pos, w.w_goal_vel, w.w_smoothness, w.w_input_smoothness, w.w_input_continuity, w.w_input_dot_continuity, w.w_input_ddot_continuity);
+            },
+            [](py::tuple t) { // __setstate__
+                if (t.size() != 7)
+                    throw std::runtime_error("Invalid state!");
+
+                /* Create a new C++ instance */
+                Drone::MPCWeights w;
+                w.w_goal_pos = t[0].cast<double>();
+                w.w_goal_vel = t[1].cast<double>();
+                w.w_smoothness = t[2].cast<double>();
+                w.w_input_smoothness = t[3].cast<double>();
+                w.w_input_continuity = t[4].cast<double>();
+                w.w_input_dot_continuity = t[5].cast<double>();
+                w.w_input_ddot_continuity = t[6].cast<double>();
+                return w;
+            }));
 
     py::class_<Drone::MPCConfig>(m, "MPCConfig")
         .def(py::init<>())
         .def_readwrite("K", &Drone::MPCConfig::K)
         .def_readwrite("n", &Drone::MPCConfig::n)
-        .def_readwrite("delta_t", &Drone::MPCConfig::delta_t);
+        .def_readwrite("delta_t", &Drone::MPCConfig::delta_t)
+        .def(py::pickle(
+            [](const Drone::MPCConfig &c) { // __getstate__
+                /* Return a tuple that fully encodes the state of the object */
+                return py::make_tuple(c.K, c.n, c.delta_t);
+            },
+            [](py::tuple t) { // __setstate__
+                if (t.size() != 3)
+                    throw std::runtime_error("Invalid state!");
+
+                /* Create a new C++ instance */
+                Drone::MPCConfig c;
+                c.K = t[0].cast<int>();
+                c.n = t[1].cast<int>();
+                c.delta_t = t[2].cast<double>();
+                return c;
+            }));
 
     py::class_<Drone::PhysicalLimits>(m, "PhysicalLimits")
         .def(py::init<>())
         .def_readwrite("p_min", &Drone::PhysicalLimits::p_min)
         .def_readwrite("p_max", &Drone::PhysicalLimits::p_max)
         .def_readwrite("v_bar", &Drone::PhysicalLimits::v_bar)
-        .def_readwrite("f_bar", &Drone::PhysicalLimits::f_bar);
+        .def_readwrite("f_bar", &Drone::PhysicalLimits::f_bar)
+        .def(py::pickle(
+            [](const Drone::PhysicalLimits &l) { // __getstate__
+                /* Return a tuple that fully encodes the state of the object */
+                return py::make_tuple(l.p_min, l.p_max, l.v_bar, l.f_bar);
+            },
+            [](py::tuple t) { // __setstate__
+                if (t.size() != 4)
+                    throw std::runtime_error("Invalid state!");
+
+                /* Create a new C++ instance */
+                Drone::PhysicalLimits l;
+                l.p_min = t[0].cast<Eigen::VectorXd>();
+                l.p_max = t[1].cast<Eigen::VectorXd>();
+                l.v_bar = t[2].cast<double>();
+                l.f_bar = t[3].cast<double>();
+                return l;
+            }));
 
     // Binding for SwarmResult
     py::class_<Swarm::SwarmResult>(m, "SwarmResult")

@@ -144,7 +144,7 @@ Drone::DroneResult Drone::solve(const double current_time,
         drone_result.is_successful = true; // Solution found within max iterations
     } else {
         drone_result.is_successful = false; // Max iterations reached, constraints not satisfied
-        printUnsatisfiedResiduals(residuals, opt);
+        // printUnsatisfiedResiduals(residuals, opt);
     }
     
     return drone_result;    
