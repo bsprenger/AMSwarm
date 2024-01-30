@@ -26,6 +26,8 @@ namespace utils
     void replaceSparseBlock(Eigen::SparseMatrix<double>&, const Eigen::MatrixXd&, int, int);
     void replaceSparseBlock(Eigen::SparseMatrix<double>&, const Eigen::SparseMatrix<double>&, int, int);
     std::string getExecutablePath();
+    std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> loadDynamicsMatricesFromYAML(const std::string& yamlFilename);
+    std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> loadSparseDynamicsMatricesFromYAML(const std::string& yamlFilename);
 
 } // end namespace utils
 

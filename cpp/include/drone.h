@@ -336,10 +336,8 @@ class Drone {
 
         Eigen::MatrixXd extractWaypointsInCurrentHorizon(const double t,
                                                         const Eigen::MatrixXd& waypoints);
-        std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> initializeBernsteinMatrices(const MPCConfig& config);
-        std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> loadDynamicsMatricesFromYAML(const std::string&);
-        std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> loadSparseDynamicsMatricesFromYAML(const std::string&);
-        void generateFullHorizonDynamicsMatrices(const SparseDynamics& dynamics);
+        std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> initBernsteinMatrices(const MPCConfig& config);
+        std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> initFullHorizonDynamicsMatrices(const SparseDynamics& dynamics);
 
         void computeX_g(Eigen::MatrixXd& extracted_waypoints,
                         Eigen::VectorXd& penalized_steps,

@@ -18,18 +18,12 @@ Drone::Drone(Eigen::MatrixXd waypoints,
     config(config),
     weights(weights),
     limits(limits),
-    S_x(),
-    S_u(),
-    S_x_prime(),
-    S_u_prime(),
     collision_envelope(3,3),
     constSelectionMatrices(config.K)
 {   
-
-    // initialize input parameterization (Bernstein matrices) and full horizon dynamics matrices - these will not change ever during the simulation
-    // generateBernsteinMatrices(); // move to struct and constructor
-    std::tie(W, W_dot, W_ddot) = initializeBernsteinMatrices(config);
-    generateFullHorizonDynamicsMatrices(dynamics); // move to struct and constructor
+    // initialize bernstein matrices and full horizon dynamics matrices
+    std::tie(W, W_dot, W_ddot) = initBernsteinMatrices(config);
+    std::tie(S_x, S_u, S_x_prime, S_u_prime) = initFullHorizonDynamicsMatrices(dynamics); // move to struct and constructor
     
     // initialize collision envelope - later move this to a yaml or something
     collision_envelope.insert(0,0) = 5.8824; collision_envelope.insert(1,1) = 5.8824; collision_envelope.insert(2,2) = 2.2222;
@@ -171,7 +165,7 @@ Eigen::MatrixXd Drone::extractWaypointsInCurrentHorizon(const double t,
 };
 
 
-std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> Drone::initializeBernsteinMatrices(const MPCConfig& config) {
+std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> Drone::initBernsteinMatrices(const MPCConfig& config) {
     Eigen::SparseMatrix<double> W(3*config.K,3*(config.n+1));
     Eigen::SparseMatrix<double> W_dot(3*config.K,3*(config.n+1));
     Eigen::SparseMatrix<double> W_ddot(3*config.K,3*(config.n+1));
@@ -250,107 +244,14 @@ std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::Sparse
 };
 
 
-std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> Drone::loadDynamicsMatricesFromYAML(const std::string& yamlFilename) {
-    YAML::Node config = YAML::LoadFile(yamlFilename);
-
-    Eigen::MatrixXd A, A_prime, B, B_prime;
-    
-    // check if dynamics is defined in yaml file
-    if (config["dynamics"]) {
-        YAML::Node dynamics = config["dynamics"];
-
-        // check if A and B matrices are defined in yaml file
-        if (dynamics["A"] && dynamics["B"] && dynamics["A_prime"] && dynamics["B_prime"]) {
-            // get dimension of A matrix
-            int num_states = dynamics["A"].size();
-            
-            // check if A matrix is square and A_prime is same size
-            if (num_states == dynamics["A"][0].size() && num_states == dynamics["A_prime"].size() && num_states == dynamics["A_prime"][0].size()) {
-                A.resize(num_states, num_states);
-                A_prime.resize(num_states, num_states);
-                for (int i = 0; i < num_states; i++) {
-                    for (int j = 0; j < num_states; j++) {
-                        A(i, j) = dynamics["A"][i][j].as<double>();
-                        A_prime(i, j) = dynamics["A_prime"][i][j].as<double>();
-                    }
-                }
-            } else {
-                throw std::runtime_error("Error: dynamics matrix A is not square or A_prime is not same size as A in " + std::string(yamlFilename));
-            }
-
-            // check if B matrix has correct number of rows, and that B_prime is the same size
-            if (num_states == dynamics["B"].size() && num_states == dynamics["B_prime"].size() && dynamics["B"][0].size() == dynamics["B_prime"][0].size()) {
-                int num_inputs = dynamics["B"][0].size();
-                B.resize(num_states, num_inputs);
-                B_prime.resize(num_states, num_inputs);
-                for (int i = 0; i < num_states; i++) {
-                    for (int j = 0; j < num_inputs; j++) {
-                        B(i, j) = dynamics["B"][i][j].as<double>();
-                        B_prime(i, j) = dynamics["B_prime"][i][j].as<double>();
-                    }
-                }
-            } else {
-                throw std::runtime_error("Error: dynamics matrix B has incorrect number of rows (rows should match number of states) in " + std::string(yamlFilename));
-            }
-
-        } else {
-            throw std::runtime_error("Error: dynamics matrix A or B not found in " + std::string(yamlFilename));
-        }
-    } else {
-        throw std::runtime_error("Error: dynamics not found in " + std::string(yamlFilename));
-    }
-    
-    return std::make_tuple(A, B, A_prime, B_prime);
-};
-
-
-std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> Drone::loadSparseDynamicsMatricesFromYAML(const std::string& yamlFilename) {
-    YAML::Node config = YAML::LoadFile(yamlFilename);
-    YAML::Node dynamics = config["dynamics"];
-    int num_states = dynamics["A"].size();
-    int num_inputs = dynamics["B"][0].size();
-    
-    // check if A matrix is square and A_prime is the same size
-    Eigen::SparseMatrix<double> A(num_states, num_states), A_prime(num_states, num_states);
-    for (int i = 0; i < num_states; i++) {
-        for (int j = 0; j < num_states; j++) {
-            double value = dynamics["A"][i][j].as<double>();
-            if (value != 0) {
-                A.coeffRef(i, j) = value;
-            }
-            value = dynamics["A_prime"][i][j].as<double>();
-            if (value != 0) {
-                A_prime.coeffRef(i, j) = value;
-            }
-        }
-    }
-
-    Eigen::SparseMatrix<double> B(num_states, num_inputs), B_prime(num_states, num_inputs);
-    for (int i = 0; i < num_states; i++) {
-        for (int j = 0; j < num_inputs; j++) {
-            double value = dynamics["B"][i][j].as<double>();
-            if (value != 0) {
-                B.coeffRef(i, j) = value;
-            }
-            value = dynamics["B_prime"][i][j].as<double>();
-            if (value != 0) {
-                B_prime.coeffRef(i, j) = value;
-            }
-        }
-    }
-    
-    return std::make_tuple(A, B, A_prime, B_prime);
-}
-
-
-void Drone::generateFullHorizonDynamicsMatrices(const SparseDynamics& dynamics) {
+std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> Drone::initFullHorizonDynamicsMatrices(const SparseDynamics& dynamics) {
     int num_states = dynamics.A.rows();
     int num_inputs = dynamics.B.cols();
 
-    S_x.resize(num_states*config.K, num_states);
-    S_x_prime.resize(num_states*config.K, num_states);
-    S_u.resize(num_states*config.K, num_inputs*config.K);
-    S_u_prime.resize(num_states*config.K, num_inputs*config.K);
+    Eigen::SparseMatrix<double> S_x(num_states*config.K, num_states);
+    Eigen::SparseMatrix<double> S_x_prime(num_states*config.K, num_states);
+    Eigen::SparseMatrix<double> S_u(num_states*config.K, num_inputs*config.K);
+    Eigen::SparseMatrix<double> S_u_prime(num_states*config.K, num_inputs*config.K);
 
     // Build S_x and S_x_prime --> to do at some point, build A_prime and B_prime from A and B, accounting for identified model time
     Eigen::SparseMatrix<double> temp_S_x_block(num_states,num_states);
@@ -383,6 +284,7 @@ void Drone::generateFullHorizonDynamicsMatrices(const SparseDynamics& dynamics) 
         utils::replaceSparseBlock(S_u, static_cast<Eigen::SparseMatrix<double>>(S_u_col.block(0, 0, (config.K - k) * num_states, num_inputs)), k * num_states, k * num_inputs);
         utils::replaceSparseBlock(S_u_prime, static_cast<Eigen::SparseMatrix<double>>(S_u_prime_col.block(0, 0, (config.K - k) * num_states, num_inputs)), k * num_states, k * num_inputs);
     }
+    return std::make_tuple(S_x, S_u, S_x_prime, S_u_prime);
 };
 
 

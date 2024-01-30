@@ -281,5 +281,97 @@ namespace utils
             return "";
         }
     }
+
+    std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> loadDynamicsMatricesFromYAML(const std::string& yamlFilename) {
+        YAML::Node config = YAML::LoadFile(yamlFilename);
+
+        Eigen::MatrixXd A, A_prime, B, B_prime;
+        
+        // check if dynamics is defined in yaml file
+        if (config["dynamics"]) {
+            YAML::Node dynamics = config["dynamics"];
+
+            // check if A and B matrices are defined in yaml file
+            if (dynamics["A"] && dynamics["B"] && dynamics["A_prime"] && dynamics["B_prime"]) {
+                // get dimension of A matrix
+                int num_states = dynamics["A"].size();
+                
+                // check if A matrix is square and A_prime is same size
+                if (num_states == dynamics["A"][0].size() && num_states == dynamics["A_prime"].size() && num_states == dynamics["A_prime"][0].size()) {
+                    A.resize(num_states, num_states);
+                    A_prime.resize(num_states, num_states);
+                    for (int i = 0; i < num_states; i++) {
+                        for (int j = 0; j < num_states; j++) {
+                            A(i, j) = dynamics["A"][i][j].as<double>();
+                            A_prime(i, j) = dynamics["A_prime"][i][j].as<double>();
+                        }
+                    }
+                } else {
+                    throw std::runtime_error("Error: dynamics matrix A is not square or A_prime is not same size as A in " + std::string(yamlFilename));
+                }
+
+                // check if B matrix has correct number of rows, and that B_prime is the same size
+                if (num_states == dynamics["B"].size() && num_states == dynamics["B_prime"].size() && dynamics["B"][0].size() == dynamics["B_prime"][0].size()) {
+                    int num_inputs = dynamics["B"][0].size();
+                    B.resize(num_states, num_inputs);
+                    B_prime.resize(num_states, num_inputs);
+                    for (int i = 0; i < num_states; i++) {
+                        for (int j = 0; j < num_inputs; j++) {
+                            B(i, j) = dynamics["B"][i][j].as<double>();
+                            B_prime(i, j) = dynamics["B_prime"][i][j].as<double>();
+                        }
+                    }
+                } else {
+                    throw std::runtime_error("Error: dynamics matrix B has incorrect number of rows (rows should match number of states) in " + std::string(yamlFilename));
+                }
+
+            } else {
+                throw std::runtime_error("Error: dynamics matrix A or B not found in " + std::string(yamlFilename));
+            }
+        } else {
+            throw std::runtime_error("Error: dynamics not found in " + std::string(yamlFilename));
+        }
+        
+        return std::make_tuple(A, B, A_prime, B_prime);
+    };
+
+
+    std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> loadSparseDynamicsMatricesFromYAML(const std::string& yamlFilename) {
+        YAML::Node config = YAML::LoadFile(yamlFilename);
+        YAML::Node dynamics = config["dynamics"];
+        int num_states = dynamics["A"].size();
+        int num_inputs = dynamics["B"][0].size();
+        
+        // check if A matrix is square and A_prime is the same size
+        Eigen::SparseMatrix<double> A(num_states, num_states), A_prime(num_states, num_states);
+        for (int i = 0; i < num_states; i++) {
+            for (int j = 0; j < num_states; j++) {
+                double value = dynamics["A"][i][j].as<double>();
+                if (value != 0) {
+                    A.coeffRef(i, j) = value;
+                }
+                value = dynamics["A_prime"][i][j].as<double>();
+                if (value != 0) {
+                    A_prime.coeffRef(i, j) = value;
+                }
+            }
+        }
+
+        Eigen::SparseMatrix<double> B(num_states, num_inputs), B_prime(num_states, num_inputs);
+        for (int i = 0; i < num_states; i++) {
+            for (int j = 0; j < num_inputs; j++) {
+                double value = dynamics["B"][i][j].as<double>();
+                if (value != 0) {
+                    B.coeffRef(i, j) = value;
+                }
+                value = dynamics["B_prime"][i][j].as<double>();
+                if (value != 0) {
+                    B_prime.coeffRef(i, j) = value;
+                }
+            }
+        }
+        
+        return std::make_tuple(A, B, A_prime, B_prime);
+    }
         
 } // end namespace utils
