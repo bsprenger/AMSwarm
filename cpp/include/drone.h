@@ -74,12 +74,20 @@ class Drone {
             double f_bar = 0.75 * 9.81;
         };
 
+        struct Dynamics {
+            Eigen::MatrixXd A, B, A_prime, B_prime;
+        };
+
+        struct SparseDynamics {
+            Eigen::SparseMatrix<double> A, B, A_prime, B_prime;
+        };
+
         // Constructors
-        Drone(std::string& params_filepath, // necessary input
-                Eigen::MatrixXd waypoints, // necessary input
+        Drone(Eigen::MatrixXd waypoints, // necessary input
                 MPCConfig config,
                 MPCWeights weights,
                 PhysicalLimits limits,
+                SparseDynamics dynamics,
                 Eigen::VectorXd initial_pos = Eigen::VectorXd::Zero(3));
 
         // Public methods
@@ -328,10 +336,10 @@ class Drone {
 
         Eigen::MatrixXd extractWaypointsInCurrentHorizon(const double t,
                                                         const Eigen::MatrixXd& waypoints);
-        void generateBernsteinMatrices();
-        std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> loadDynamicsMatricesFromFile(const std::string&);
-        std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> loadSparseDynamicsMatricesFromFile(const std::string&);
-        void generateFullHorizonDynamicsMatrices(std::string&);
+        std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> initializeBernsteinMatrices(const MPCConfig& config);
+        std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> loadDynamicsMatricesFromYAML(const std::string&);
+        std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> loadSparseDynamicsMatricesFromYAML(const std::string&);
+        void generateFullHorizonDynamicsMatrices(const SparseDynamics& dynamics);
 
         void computeX_g(Eigen::MatrixXd& extracted_waypoints,
                         Eigen::VectorXd& penalized_steps,

@@ -105,6 +105,30 @@ PYBIND11_MODULE(amswarm, m)
                 return l;
             }));
 
+    py::class_<Drone::SparseDynamics>(m, "SparseDynamics")
+        .def(py::init<>())
+        .def_readwrite("A", &Drone::SparseDynamics::A)
+        .def_readwrite("B", &Drone::SparseDynamics::B)
+        .def_readwrite("A_prime", &Drone::SparseDynamics::A_prime)
+        .def_readwrite("B_prime", &Drone::SparseDynamics::B_prime)
+        .def(py::pickle(
+            [](const Drone::SparseDynamics &d) { // __getstate__
+                /* Return a tuple that fully encodes the state of the object */
+                return py::make_tuple(d.A, d.B, d.A_prime, d.B_prime);
+            },
+            [](py::tuple t) { // __setstate__
+                if (t.size() != 4)
+                    throw std::runtime_error("Invalid state!");
+
+                /* Create a new C++ instance */
+                Drone::SparseDynamics d;
+                d.A = t[0].cast<Eigen::SparseMatrix<double>>();
+                d.B = t[1].cast<Eigen::SparseMatrix<double>>();
+                d.A_prime = t[2].cast<Eigen::SparseMatrix<double>>();
+                d.B_prime = t[3].cast<Eigen::SparseMatrix<double>>();
+                return d;
+            }));
+
     // Binding for SwarmResult
     py::class_<Swarm::SwarmResult>(m, "SwarmResult")
         .def(py::init<>())
@@ -112,12 +136,12 @@ PYBIND11_MODULE(amswarm, m)
         .def("getDroneData", &Swarm::SwarmResult::getDroneResult);  
 
     py::class_<Drone>(m, "Drone")
-        .def(py::init<std::string&, Eigen::MatrixXd, Drone::MPCConfig, Drone::MPCWeights, Drone::PhysicalLimits, Eigen::VectorXd>())
-        .def(py::init([](std::string& params_filepath,
-                        py::array_t<double> waypoints_npy,
+        .def(py::init<Eigen::MatrixXd, Drone::MPCConfig, Drone::MPCWeights, Drone::PhysicalLimits, Drone::SparseDynamics, Eigen::VectorXd>())
+        .def(py::init([](py::array_t<double> waypoints_npy,
                         Drone::MPCConfig config,
                         Drone::MPCWeights weights,
                         Drone::PhysicalLimits limits,
+                        Drone::SparseDynamics dynamics,
                         py::array_t<double> initial_pos_npy) {
 
                             // convert waypoints from numpy to eigen
@@ -130,8 +154,8 @@ PYBIND11_MODULE(amswarm, m)
                             buffer = array.request();
                             Eigen::VectorXd initial_pos = Eigen::Map<Eigen::VectorXd>(static_cast<double *>(buffer.ptr), buffer.shape[0]);
                             
-                            return new Drone(params_filepath, waypoints, config, weights, limits, initial_pos);}),
-            py::arg("params_filepath"), py::arg("waypoints"), py::arg("config"), py::arg("weights"), py::arg("limits"), py::arg("initial_pos"))
+                            return new Drone(waypoints, config, weights, limits, dynamics, initial_pos);}),
+            py::arg("waypoints"), py::arg("config"), py::arg("weights"), py::arg("limits"), py::arg("dynamics"), py::arg("initial_pos"))
         .def("solve", [](Drone &instance, double current_time,
                         py::array_t<double> x_0_npy, py::array_t<double> initial_guess_control_input_trajectory_vector_py,
                         int j, py::list thetas_py, py::array_t<double> xi_npy,

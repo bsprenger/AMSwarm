@@ -128,7 +128,31 @@ amswarm_kwargs = {}
 amswarm_kwargs["config"] = amswarm.MPCConfig()
 amswarm_kwargs["weights"] = amswarm.MPCWeights()
 amswarm_kwargs["limits"] = amswarm.PhysicalLimits()
-amswarm_kwargs["params_filepath"] = "/home/ben/AMSwarm/cpp/params"
+amswarm_kwargs["dynamics"] = amswarm.SparseDynamics()
+amswarm_kwargs["dynamics"].A = np.array([[1, 0.0, 0.0, 0.166667, 0.0, 0.0],
+                                        [0.0, 1, 0.0, 0.0, 0.166667, 0.0],
+                                        [0.0, 0.0, 1, 0.0, 0.0, 0.166667],
+                                        [-1.4, 0.0, 0.0, 0.1, 0.0, 0.0],
+                                        [0.0, -1.4, 0.0, 0.0, 0.1, 0.0],
+                                        [0.0, 0.0, -1.4, 0.0, 0.0, 0.1]])
+amswarm_kwargs["dynamics"].B = np.array([[0.0, 0.0, 0.0],
+                                        [0.0, 0.0, 0.0],
+                                        [0.0, 0.0, 0.0],
+                                        [1.4, 0.0, 0.0],
+                                        [0.0, 1.4, 0.0],
+                                        [0.0, 0.0, 1.4]])
+amswarm_kwargs["dynamics"].A_prime = np.array([[-1.0079, 0.0, 0.0, 0.4187, 0.0, 0.0],
+                                                [0.0, -1.0079, 0.0, 0.0, 0.4187, 0.0],
+                                                [0.0, 0.0, -1.0079, 0.0, 0.0, 0.4187],
+                                                [-3.5167, 0.0, 0.0, -3.2687, 0.0, 0.0],
+                                                [0.0, -3.5167, 0.0, 0.0, -3.2687, 0.0],
+                                                [0.0, 0.0, -3.5167, 0.0, 0.0, -3.2687]])
+amswarm_kwargs["dynamics"].B_prime = np.array([[1.0079, 0.0, 0.0],
+                                                [0.0, 1.0079, 0.0],
+                                                [0.0, 0.0, 1.0079],
+                                                [3.5167, 0.0, 0.0],
+                                                [0.0, 3.5167, 0.0],
+                                                [0.0, 0.0, 3.5167]])
 
 
 ## --------------------------- CREATE SWARM -------------------------------- ##

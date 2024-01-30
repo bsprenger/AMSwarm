@@ -5,6 +5,7 @@ import multiprocessing as mp
 import sys
 from scipy.io import savemat
 import itertools
+import time
 
 # given a path, iterate through the subfolders and make a big list of all the files
 def get_file_list(path):
@@ -83,14 +84,28 @@ def run_swarm_test(filename, config, weights, limits, unique_id):
         prev_trajectories.append(np.tile(initial_positions[key], amswarm_kwargs["config"].K))
         
     opt = [amswarm.SolveOptions()] * len(drones)
+    for i in range(len(drones)):
+        opt[i].input_continuity_constraints = False
+        opt[i].input_dot_continuity_constraints = False
+        opt[i].input_ddot_continuity_constraints = False
+    
+    # start timer
+    start = time.time()
     
     step_result = swarm.solve(0.0, initial_states, prev_trajectories, opt, prev_inputs)
     failed_drones = [index for index, drone_result in enumerate(step_result.drone_results) if not drone_result.is_successful]
     if failed_drones:
         # go through solve options for the failed drones and set velocity to false
         for index in failed_drones:
+            opt[index].waypoint_position_constraints = False
             opt[index].waypoint_velocity_constraints = False
+            opt[index].waypoint_acceleration_constraints = False
         step_result = swarm.solve(0.0, initial_states, prev_trajectories, opt, prev_inputs)
+        
+    # for i in range(len(drones)):
+    #     opt[i].input_continuity_constraints = True
+    #     opt[i].input_dot_continuity_constraints = True
+    #     opt[i].input_ddot_continuity_constraints = True
         
     prev_inputs.clear()
     prev_trajectories.clear()
@@ -108,11 +123,20 @@ def run_swarm_test(filename, config, weights, limits, unique_id):
     
     for i in range(num_steps):
         current_time = i * amswarm_kwargs["config"].delta_t
+        
+        # reset constraints to be ON
+        for drone in range(len(drones)):
+            opt[drone].waypoint_position_constraints = True
+            opt[drone].waypoint_velocity_constraints = True
+            opt[drone].waypoint_acceleration_constraints = False
+        
         step_result = swarm.solve(current_time, initial_states, prev_trajectories, opt, prev_inputs)
         failed_drones = [index for index, drone_result in enumerate(step_result.drone_results) if not drone_result.is_successful]
         if failed_drones:
             for index in failed_drones:
+                opt[index].waypoint_position_constraints = False
                 opt[index].waypoint_velocity_constraints = False
+                opt[index].waypoint_acceleration_constraints = False
             step_result = swarm.solve(current_time, initial_states, prev_trajectories, opt, prev_inputs)
             
         initial_states.clear()
@@ -143,6 +167,10 @@ def run_swarm_test(filename, config, weights, limits, unique_id):
             position_results[drone] = np.vstack((position_results[drone], step_result.drone_results[drone].position_trajectory[0,:]))
             control_input_results[drone] = np.vstack((control_input_results[drone], step_result.drone_results[drone].control_input_trajectory[0,:]))
     
+    # end timer
+    end = time.time()
+    time_elapsed = end - start
+    
     # save to file
     config_dict = obj_to_dict(config)
     weights_dict = obj_to_dict(weights)
@@ -158,7 +186,8 @@ def run_swarm_test(filename, config, weights, limits, unique_id):
         'config': config_dict,
         'weights': weights_dict,
         'limits': limits_dict,
-        'filename': filename
+        'filename': filename,
+        'time_elapsed': time_elapsed
     }
     savemat(save_filename, mat_data)
     
@@ -171,15 +200,36 @@ def main(folder):
     file_list = [x for x in file_list if x.endswith(".npy")]
     
     # take only the first 2 files for testing
-    file_list = file_list[:1]
+    file_list = file_list[:4]
     
     # weights
     weights = []
-    weights.append(amswarm.MPCWeights())
-    w = amswarm.MPCWeights()
-    w.w_goal_vel = 10001
-    weights.append(w)
-    print(weights[0].w_goal_vel)
+    w1 = amswarm.MPCWeights()
+    w1.w_input_continuity = 0
+    w1.w_input_dot_continuity = 0
+    w1.w_input_ddot_continuity = 0
+    w2 = amswarm.MPCWeights()
+    w2.w_input_continuity = 100
+    w2.w_input_dot_continuity = 100
+    w2.w_input_ddot_continuity = 100
+    w3 = amswarm.MPCWeights()
+    w3.w_input_continuity = 1000
+    w3.w_input_dot_continuity = 1000
+    w3.w_input_ddot_continuity = 1000
+    w4 = amswarm.MPCWeights()
+    w4.w_input_continuity = 10000
+    w4.w_input_dot_continuity = 10000
+    w4.w_input_ddot_continuity = 10000
+    w5 = amswarm.MPCWeights()
+    w5.w_input_continuity = 100000
+    w5.w_input_dot_continuity = 100000
+    w5.w_input_ddot_continuity = 100000
+    weights.append(w1)
+    weights.append(w2)
+    weights.append(w3)
+    weights.append(w4)
+    weights.append(w5)
+    
     
     # configs
     configs = []

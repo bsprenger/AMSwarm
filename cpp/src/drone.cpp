@@ -7,20 +7,17 @@
 #include <stdexcept>
 
 
-Drone::Drone(std::string& params_filepath,
-            Eigen::MatrixXd waypoints,
+Drone::Drone(Eigen::MatrixXd waypoints,
             MPCConfig config,
             MPCWeights weights,
             PhysicalLimits limits,
+            SparseDynamics dynamics,
             Eigen::VectorXd initial_pos)
     : waypoints(waypoints),
     initial_pos(initial_pos),
     config(config),
     weights(weights),
     limits(limits),
-    W(3*config.K,3*(config.n+1)), // TODO modify to change automatically depending on num inputs
-    W_dot(3*config.K,3*(config.n+1)),
-    W_ddot(3*config.K,3*(config.n+1)),
     S_x(),
     S_u(),
     S_x_prime(),
@@ -30,8 +27,9 @@ Drone::Drone(std::string& params_filepath,
 {   
 
     // initialize input parameterization (Bernstein matrices) and full horizon dynamics matrices - these will not change ever during the simulation
-    generateBernsteinMatrices(); // move to struct and constructor
-    generateFullHorizonDynamicsMatrices(params_filepath); // move to struct and constructor
+    // generateBernsteinMatrices(); // move to struct and constructor
+    std::tie(W, W_dot, W_ddot) = initializeBernsteinMatrices(config);
+    generateFullHorizonDynamicsMatrices(dynamics); // move to struct and constructor
     
     // initialize collision envelope - later move this to a yaml or something
     collision_envelope.insert(0,0) = 5.8824; collision_envelope.insert(1,1) = 5.8824; collision_envelope.insert(2,2) = 2.2222;
@@ -173,7 +171,11 @@ Eigen::MatrixXd Drone::extractWaypointsInCurrentHorizon(const double t,
 };
 
 
-void Drone::generateBernsteinMatrices() {
+std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> Drone::initializeBernsteinMatrices(const MPCConfig& config) {
+    Eigen::SparseMatrix<double> W(3*config.K,3*(config.n+1));
+    Eigen::SparseMatrix<double> W_dot(3*config.K,3*(config.n+1));
+    Eigen::SparseMatrix<double> W_ddot(3*config.K,3*(config.n+1));
+
     double t_f = config.delta_t*(config.K-1);
     float t;
     float val;
@@ -244,10 +246,11 @@ void Drone::generateBernsteinMatrices() {
             }
         }
     }
+    return std::make_tuple(W, W_dot, W_ddot);
 };
 
 
-std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> Drone::loadDynamicsMatricesFromFile(const std::string& yamlFilename) {
+std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> Drone::loadDynamicsMatricesFromYAML(const std::string& yamlFilename) {
     YAML::Node config = YAML::LoadFile(yamlFilename);
 
     Eigen::MatrixXd A, A_prime, B, B_prime;
@@ -301,7 +304,7 @@ std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> D
 };
 
 
-std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> Drone::loadSparseDynamicsMatricesFromFile(const std::string& yamlFilename) {
+std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> Drone::loadSparseDynamicsMatricesFromYAML(const std::string& yamlFilename) {
     YAML::Node config = YAML::LoadFile(yamlFilename);
     YAML::Node dynamics = config["dynamics"];
     int num_states = dynamics["A"].size();
@@ -340,24 +343,9 @@ std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::Spar
 }
 
 
-void Drone::generateFullHorizonDynamicsMatrices(std::string& params_filepath) {
-    // std::string executablePath = utils::getExecutablePath(); 
-    std::string modelParamsYamlPath = params_filepath + "/model_params.yaml";
-
-    // std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> matrices = loadDynamicsMatricesFromFile(modelParamsYamlPath);
-    std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> matrices = loadSparseDynamicsMatricesFromFile(modelParamsYamlPath);
-
-    // Eigen::MatrixXd A = std::get<0>(matrices);
-    // Eigen::MatrixXd B = std::get<1>(matrices);
-    // Eigen::MatrixXd A_prime = std::get<2>(matrices);
-    // Eigen::MatrixXd B_prime = std::get<3>(matrices);
-    Eigen::SparseMatrix<double> A = std::get<0>(matrices);
-    Eigen::SparseMatrix<double> B = std::get<1>(matrices);
-    Eigen::SparseMatrix<double> A_prime = std::get<2>(matrices);
-    Eigen::SparseMatrix<double> B_prime = std::get<3>(matrices);
-
-    int num_states = A.rows();
-    int num_inputs = B.cols();
+void Drone::generateFullHorizonDynamicsMatrices(const SparseDynamics& dynamics) {
+    int num_states = dynamics.A.rows();
+    int num_inputs = dynamics.B.cols();
 
     S_x.resize(num_states*config.K, num_states);
     S_x_prime.resize(num_states*config.K, num_states);
@@ -368,9 +356,9 @@ void Drone::generateFullHorizonDynamicsMatrices(std::string& params_filepath) {
     Eigen::SparseMatrix<double> temp_S_x_block(num_states,num_states);
     Eigen::SparseMatrix<double> temp_S_x_prime_block(num_states,num_states);
     for (int k = 0; k < config.K; ++k) {
-        temp_S_x_block = utils::matrixPower(A,k+1); // necesssary to explicitly make this a sparse matrix to avoid ambiguous call to replaceSparseBlock
+        temp_S_x_block = utils::matrixPower(dynamics.A,k+1); // necesssary to explicitly make this a sparse matrix to avoid ambiguous call to replaceSparseBlock
         
-        temp_S_x_prime_block = A_prime * utils::matrixPower(A,k);
+        temp_S_x_prime_block = dynamics.A_prime * utils::matrixPower(dynamics.A,k);
         utils::replaceSparseBlock(S_x, temp_S_x_block, k * num_states, 0);
         utils::replaceSparseBlock(S_x_prime, temp_S_x_prime_block, k * num_states, 0);
     }
@@ -381,13 +369,13 @@ void Drone::generateFullHorizonDynamicsMatrices(std::string& params_filepath) {
     Eigen::SparseMatrix<double> temp_S_u_col_block(num_states,num_inputs);
     Eigen::SparseMatrix<double> temp_S_u_prime_col_block(num_states,num_inputs);
     for (int k = 0; k < config.K; ++k) {
-        temp_S_u_col_block = utils::matrixPower(A,k) * B;
+        temp_S_u_col_block = utils::matrixPower(dynamics.A,k) * dynamics.B;
         utils::replaceSparseBlock(S_u_col, temp_S_u_col_block, k * num_states, 0);
     }
 
-    utils::replaceSparseBlock(S_u_prime_col, B_prime, 0, 0);
+    utils::replaceSparseBlock(S_u_prime_col, dynamics.B_prime, 0, 0);
     for (int k = 1; k < config.K; ++k) {
-        temp_S_u_prime_col_block = A_prime * utils::matrixPower(A,k-1) * B;
+        temp_S_u_prime_col_block = dynamics.A_prime * utils::matrixPower(dynamics.A,k-1) * dynamics.B;
         utils::replaceSparseBlock(S_u_prime_col, temp_S_u_prime_col_block, k * num_states, 0);
     }
 
