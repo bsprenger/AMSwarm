@@ -7,22 +7,16 @@
 #include <stdexcept>
 
 
-Drone::Drone(Eigen::MatrixXd waypoints,
-            MPCConfig config,
-            MPCWeights weights,
-            PhysicalLimits limits,
-            SparseDynamics dynamics,
+Drone::Drone(Eigen::MatrixXd waypoints, MPCConfig config, MPCWeights weights,
+            PhysicalLimits limits, SparseDynamics dynamics, 
             Eigen::VectorXd initial_pos)
-    : waypoints(waypoints),
-    initial_pos(initial_pos),
-    config(config),
-    weights(weights),
-    limits(limits),
-    collision_envelope(3,3),
-    constSelectionMatrices(config.K)
+    : waypoints(waypoints), initial_pos(initial_pos), config(config),
+    weights(weights), limits(limits), dynamics(dynamics),
+    collision_envelope(3,3), constSelectionMatrices(config.K)
 {   
     // initialize bernstein matrices and full horizon dynamics matrices
-    std::tie(W, W_dot, W_ddot) = initBernsteinMatrices(config);
+    
+    std::tie(W, W_dot, W_ddot) = initBernsteinMatrices(config, dynamics); 
     std::tie(S_x, S_u, S_x_prime, S_u_prime) = initFullHorizonDynamicsMatrices(dynamics); // move to struct and constructor
     
     // initialize collision envelope - later move this to a yaml or something
@@ -39,6 +33,8 @@ Drone::DroneResult Drone::solve(const double current_time,
                                 SolveOptions& opt,
                                 const Eigen::VectorXd& initial_guess) {
 
+    int num_inputs = dynamics.B.cols();
+
     // extract waypoints in current horizon
     Eigen::MatrixXd extracted_waypoints = extractWaypointsInCurrentHorizon(current_time, waypoints);
     if (extracted_waypoints.size() == 0) {
@@ -53,8 +49,8 @@ Drone::DroneResult Drone::solve(const double current_time,
 
     // initialize optimization parameters
     VariableSelectionMatrices variableSelectionMatrices(config.K, j, penalized_steps);
-    Residuals residuals(j, config.K, penalized_steps.size());
-    LagrangeMultipliers lambda(j, config.K ,penalized_steps.size());
+    Residuals residuals(this, j, config.K, penalized_steps.size());
+    LagrangeMultipliers lambda(this, j, config.K ,penalized_steps.size());
     Constraints constraints(this, j, x_0, xi, thetas, extracted_waypoints, variableSelectionMatrices);;
 
     // initialize optimization variables
@@ -62,22 +58,21 @@ Drone::DroneResult Drone::solve(const double current_time,
     alpha = Eigen::VectorXd::Zero((2+j) * config.K);
     beta = Eigen::VectorXd::Zero((2+j) * config.K);
     d = Eigen::VectorXd::Zero((2+j) * config.K);
-
+    
     if (initial_guess.size() > 0) {
         zeta_1 = U_to_zeta_1(initial_guess);
     } else {
-        zeta_1 = Eigen::VectorXd::Zero(3*(config.n+1));
+        zeta_1 = Eigen::VectorXd::Zero(num_inputs*(config.n+1)); // extract num_inputs from dynamics
     }
     // get the first three rows of W from Eigen and multiply by zeta_1
-    Eigen::VectorXd u_0_prev = W.block(0,0,3,3*(config.n+1)) * zeta_1;
-    Eigen::VectorXd u_dot_0_prev = W_dot.block(0,0,3,3*(config.n+1)) * zeta_1;
-    Eigen::VectorXd u_ddot_0_prev = W_ddot.block(0,0,3,3*(config.n+1)) * zeta_1;
-
+    Eigen::VectorXd u_0_prev = W.block(0,0,num_inputs,num_inputs*(config.n+1)) * zeta_1;
+    Eigen::VectorXd u_dot_0_prev = W_dot.block(0,0,num_inputs,num_inputs*(config.n+1)) * zeta_1;
+    Eigen::VectorXd u_ddot_0_prev = W_ddot.block(0,0,num_inputs,num_inputs*(config.n+1)) * zeta_1;
+    
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
     
     Eigen::SparseMatrix<double> X_g;
     computeX_g(extracted_waypoints, penalized_steps, X_g);
-    
     compute_h_eq(j, alpha, beta, d, constraints.h_eq);
     s = Eigen::VectorXd::Zero(6 * config.K);
 
@@ -165,10 +160,12 @@ Eigen::MatrixXd Drone::extractWaypointsInCurrentHorizon(const double t,
 };
 
 
-std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> Drone::initBernsteinMatrices(const MPCConfig& config) {
-    Eigen::SparseMatrix<double> W(3*config.K,3*(config.n+1));
-    Eigen::SparseMatrix<double> W_dot(3*config.K,3*(config.n+1));
-    Eigen::SparseMatrix<double> W_ddot(3*config.K,3*(config.n+1));
+std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> Drone::initBernsteinMatrices(const MPCConfig& config, const SparseDynamics& dynamics) {    
+    int num_inputs = dynamics.B.cols();
+    
+    Eigen::SparseMatrix<double> W(num_inputs*config.K,num_inputs*(config.n+1));
+    Eigen::SparseMatrix<double> W_dot(num_inputs*config.K,num_inputs*(config.n+1));
+    Eigen::SparseMatrix<double> W_ddot(num_inputs*config.K,num_inputs*(config.n+1));
 
     double t_f = config.delta_t*(config.K-1);
     float t;
@@ -206,37 +203,16 @@ std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::Sparse
                     +(config.n-m)*(config.n-m-1)*pow(t,m)*pow(t_f-t,config.n-m-2));
             }
 
-            if (val == 0) { // don't bother filling in the value if zero - we are using sparse matrix
-            } else {
-                W.coeffRef(3*k,m) = val;
-                W.coeffRef(3*k+1,m+config.n+1) = val;
-                W.coeffRef(3*k+2,m+2*(config.n+1)) = val;
-
-                // W.coeffRef(6*k+3,m+3*(n+1)) = val; // TODO modify to change automatically depending on num inputs
-                // W.coeffRef(6*k+4,m+4*(n+1)) = val;
-                // W.coeffRef(6*k+5,m+5*(n+1)) = val;
-            }
-
-            if (dot_val == 0) { // don't bother filling in the value if zero - we are using sparse matrix
-            } else {
-                W_dot.coeffRef(3*k,m) = dot_val;
-                W_dot.coeffRef(3*k+1,m+config.n+1) = dot_val;
-                W_dot.coeffRef(3*k+2,m+2*(config.n+1)) = dot_val;
-
-                // W_dot.coeffRef(6*k+3,m+3*(n+1)) = dot_val;
-                // W_dot.coeffRef(6*k+4,m+4*(n+1)) = dot_val;
-                // W_dot.coeffRef(6*k+5,m+5*(n+1)) = dot_val;
-            }
-
-            if (dotdot_val == 0) {
-            } else {
-                W_ddot.coeffRef(3*k,m) = dotdot_val;
-                W_ddot.coeffRef(3*k+1,m+config.n+1) = dotdot_val;
-                W_ddot.coeffRef(3*k+2,m+2*(config.n+1)) = dotdot_val;
-
-                // W_ddot.coeffRef(6*k+3,m+3*(n+1)) = dotdot_val;
-                // W_ddot.coeffRef(6*k+4,m+4*(n+1)) = dotdot_val;
-                // W_ddot.coeffRef(6*k+5,m+5*(n+1)) = dotdot_val;
+            for (int input = 0; input < num_inputs; input++) {
+                if (val != 0) { // don't bother filling in the value if zero - we are using sparse matrix
+                    W.coeffRef(num_inputs * k + input, m + input * (config.n + 1)) = val;
+                }
+                if (dot_val != 0) {
+                    W_dot.coeffRef(num_inputs * k + input, m + input * (config.n + 1)) = dot_val;
+                }
+                if (dotdot_val != 0) {
+                    W_ddot.coeffRef(num_inputs * k + input, m + input * (config.n + 1)) = dotdot_val;
+                }
             }
         }
     }
@@ -297,6 +273,8 @@ void Drone::updateCostMatrices(double rho, CostMatrices& costMatrices,
                             Eigen::VectorXd& u_0_prev,
                             Eigen::VectorXd& u_dot_0_prev,
                             Eigen::VectorXd& u_ddot_0_prev) {
+    
+    int num_inputs = dynamics.B.cols();
 
     costMatrices.A_check = costMatrices.Q + rho * costMatrices.A_check_const_terms;
     costMatrices.b_check = -costMatrices.q - constraints.G_eq.transpose() * lambda.eq - constraints.G_pos.transpose() * lambda.pos + rho * constraints.G_eq.transpose() * (constraints.h_eq - constraints.c_eq) + rho * constraints.G_pos.transpose() * (constraints.h_pos - s);
@@ -310,13 +288,13 @@ void Drone::updateCostMatrices(double rho, CostMatrices& costMatrices,
         costMatrices.b_check = costMatrices.b_check - constraints.G_waypoints_accel.transpose() * lambda.waypoints_accel + rho * constraints.G_waypoints_accel.transpose() * (constraints.h_waypoints_accel - constraints.c_waypoints_accel);
     }
     if (opt.input_continuity_constraints) {
-        costMatrices.b_check = costMatrices.b_check - W.block(0,0,3,3*(config.n+1)).transpose() * lambda.input_continuity + rho * W.block(0,0,3,3*(config.n+1)).transpose() * u_0_prev;
+        costMatrices.b_check = costMatrices.b_check - W.block(0,0,num_inputs,num_inputs*(config.n+1)).transpose() * lambda.input_continuity + rho * W.block(0,0,num_inputs,num_inputs*(config.n+1)).transpose() * u_0_prev;
     }
     if (opt.input_dot_continuity_constraints) {
-        costMatrices.b_check = costMatrices.b_check - W_dot.block(0,0,3,3*(config.n+1)).transpose() * lambda.input_dot_continuity + rho * W_dot.block(0,0,3,3*(config.n+1)).transpose() * u_dot_0_prev;
+        costMatrices.b_check = costMatrices.b_check - W_dot.block(0,0,num_inputs,num_inputs*(config.n+1)).transpose() * lambda.input_dot_continuity + rho * W_dot.block(0,0,num_inputs,num_inputs*(config.n+1)).transpose() * u_dot_0_prev;
     }
     if (opt.input_ddot_continuity_constraints) {
-        costMatrices.b_check = costMatrices.b_check - W_ddot.block(0,0,3,3*(config.n+1)).transpose() * lambda.input_ddot_continuity + rho * W_ddot.block(0,0,3,3*(config.n+1)).transpose() * u_ddot_0_prev;
+        costMatrices.b_check = costMatrices.b_check - W_ddot.block(0,0,num_inputs,num_inputs*(config.n+1)).transpose() * lambda.input_ddot_continuity + rho * W_ddot.block(0,0,num_inputs,num_inputs*(config.n+1)).transpose() * u_ddot_0_prev;
     }
 
 }
@@ -385,15 +363,15 @@ void Drone::computeResiduals(Constraints& constraints,
                             Eigen::VectorXd& u_0_prev,
                             Eigen::VectorXd& u_dot_0_prev,
                             Eigen::VectorXd& u_ddot_0_prev) {
-
+    int num_inputs = dynamics.B.cols();
     residuals.eq = constraints.G_eq * zeta_1 + constraints.c_eq - constraints.h_eq;
     residuals.pos = constraints.G_pos * zeta_1 + s - constraints.h_pos;
     residuals.waypoints_pos = constraints.G_waypoints_pos * zeta_1 + constraints.c_waypoints_pos - constraints.h_waypoints_pos;
     residuals.waypoints_vel = constraints.G_waypoints_vel * zeta_1 + constraints.c_waypoints_vel - constraints.h_waypoints_vel;
     residuals.waypoints_accel = constraints.G_waypoints_accel * zeta_1 + constraints.c_waypoints_accel - constraints.h_waypoints_accel;
-    residuals.input_continuity = W.block(0,0,3,3*(config.n+1)) * zeta_1 - u_0_prev;
-    residuals.input_dot_continuity = W_dot.block(0,0,3,3*(config.n+1)) * zeta_1 - u_dot_0_prev;
-    residuals.input_ddot_continuity = W_ddot.block(0,0,3,3*(config.n+1)) * zeta_1 - u_ddot_0_prev;
+    residuals.input_continuity = W.block(0,0,num_inputs,num_inputs*(config.n+1)) * zeta_1 - u_0_prev;
+    residuals.input_dot_continuity = W_dot.block(0,0,num_inputs,num_inputs*(config.n+1)) * zeta_1 - u_dot_0_prev;
+    residuals.input_ddot_continuity = W_ddot.block(0,0,num_inputs,num_inputs*(config.n+1)) * zeta_1 - u_ddot_0_prev;
 }
 
 
@@ -421,10 +399,10 @@ void Drone::updateLagrangeMultipliers(double rho, Residuals& residuals,
 
 Drone::DroneResult Drone::computeDroneResult(double current_time, Eigen::VectorXd& zeta_1, Eigen::VectorXd x_0) {
     DroneResult drone_result;
-
+    int num_inputs = dynamics.B.cols();
     // input trajectory
     drone_result.control_input_trajectory_vector = W * zeta_1;
-    drone_result.control_input_trajectory = Eigen::Map<Eigen::MatrixXd>(drone_result.control_input_trajectory_vector.data(), 3, config.K).transpose(); // TODO automatically resize based on num inputs
+    drone_result.control_input_trajectory = Eigen::Map<Eigen::MatrixXd>(drone_result.control_input_trajectory_vector.data(), num_inputs, config.K).transpose(); // TODO automatically resize based on num inputs
 
     // state trajectory
     drone_result.state_trajectory_vector = S_x * x_0 + S_u * drone_result.control_input_trajectory_vector;

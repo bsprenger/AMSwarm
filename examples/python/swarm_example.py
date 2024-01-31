@@ -154,6 +154,7 @@ amswarm_kwargs["dynamics"].B_prime = np.array([[1.0079, 0.0, 0.0],
                                                 [0.0, 3.5167, 0.0],
                                                 [0.0, 0.0, 3.5167]])
 
+num_inputs = amswarm_kwargs["dynamics"].B.shape[1]
 
 ## --------------------------- CREATE SWARM -------------------------------- ##
 # First, create a list of individual drones. AMSwarm does not consider drone
@@ -243,15 +244,14 @@ prev_trajectories = []
 
 for key in waypoints:
     position_results.append(initial_positions[key]) # add initial position to results
-    control_input_results.append(np.empty((0,3)))
+    control_input_results.append(np.empty((0,num_inputs)))
     initial_states.append(np.concatenate((initial_positions[key], np.zeros(3))))
-    prev_inputs.append(np.tile(np.zeros(3), amswarm_kwargs["config"].K))
+    prev_inputs.append(np.tile(np.zeros(num_inputs), amswarm_kwargs["config"].K))
     prev_trajectories.append(np.tile(initial_positions[key], amswarm_kwargs["config"].K))
 
 # Get our initial guesses for the drone trajectories
 # create vector of SolveOptions of length num_drones
 opt = [amswarm.SolveOptions()] * len(drones)
-
 
 step_result = swarm.solve(0.0, initial_states, prev_trajectories,
                         opt, prev_inputs)
@@ -347,7 +347,7 @@ for i in range(num_steps):
         second_last_input = step_result.drone_results[i].control_input_trajectory[-2,:]
         extrapolated_input = 2 * last_input - second_last_input
         
-        new_inputs = np.hstack((step_result.drone_results[i].control_input_trajectory_vector[3:], extrapolated_input))
+        new_inputs = np.hstack((step_result.drone_results[i].control_input_trajectory_vector[num_inputs:], extrapolated_input))
         prev_inputs.append(new_inputs)
         
         # Get the last two points of the trajectory
