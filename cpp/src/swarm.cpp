@@ -31,7 +31,7 @@ Swarm::SwarmResult Swarm::solve(const double current_time,
     SwarmResult swarm_result;
     swarm_result.drone_results.resize(num_drones);
     
-    // # pragma omp parallel for
+    # pragma omp parallel for
     for (int i = 0; i < drones.size(); ++i) {
         std::vector<Eigen::SparseMatrix<double>> thetas = all_thetas;
         thetas.erase(thetas.begin() + i);
@@ -60,10 +60,10 @@ Swarm::SwarmResult Swarm::solve(const double current_time,
         
 
         // use a critical section to update shared vectors
-        // # pragma omp critical
-        // {
+        # pragma omp critical
+        {
             swarm_result.drone_results[i] = result;
-        // }
+        }
     }
     
     return swarm_result;
