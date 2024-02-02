@@ -1,5 +1,7 @@
 import amswarm
 import numpy as np
+import yaml
+import os
 
 # Define initial positions and waypoints
 initial_positions = {72: np.array([1,0,1]), 1: np.array([0,1,1]), 2: np.array([0,-1,1])}
@@ -129,54 +131,17 @@ amswarm_kwargs["config"] = amswarm.MPCConfig()
 amswarm_kwargs["weights"] = amswarm.MPCWeights()
 amswarm_kwargs["limits"] = amswarm.PhysicalLimits()
 amswarm_kwargs["dynamics"] = amswarm.SparseDynamics()
-# amswarm_kwargs["dynamics"].A = np.array([[1, 0.0, 0.0, 0.166667, 0.0, 0.0],
-#                                         [0.0, 1, 0.0, 0.0, 0.166667, 0.0],
-#                                         [0.0, 0.0, 1, 0.0, 0.0, 0.166667],
-#                                         [-1.4, 0.0, 0.0, 0.1, 0.0, 0.0],
-#                                         [0.0, -1.4, 0.0, 0.0, 0.1, 0.0],
-#                                         [0.0, 0.0, -1.4, 0.0, 0.0, 0.1]])
-# amswarm_kwargs["dynamics"].B = np.array([[0.0, 0.0, 0.0],
-#                                         [0.0, 0.0, 0.0],
-#                                         [0.0, 0.0, 0.0],
-#                                         [1.4, 0.0, 0.0],
-#                                         [0.0, 1.4, 0.0],
-#                                         [0.0, 0.0, 1.4]])
-# amswarm_kwargs["dynamics"].A_prime = np.array([[-1.0079, 0.0, 0.0, 0.4187, 0.0, 0.0],
-#                                                 [0.0, -1.0079, 0.0, 0.0, 0.4187, 0.0],
-#                                                 [0.0, 0.0, -1.0079, 0.0, 0.0, 0.4187],
-#                                                 [-3.5167, 0.0, 0.0, -3.2687, 0.0, 0.0],
-#                                                 [0.0, -3.5167, 0.0, 0.0, -3.2687, 0.0],
-#                                                 [0.0, 0.0, -3.5167, 0.0, 0.0, -3.2687]])
-# amswarm_kwargs["dynamics"].B_prime = np.array([[1.0079, 0.0, 0.0],
-#                                                 [0.0, 1.0079, 0.0],
-#                                                 [0.0, 0.0, 1.0079],
-#                                                 [3.5167, 0.0, 0.0],
-#                                                 [0.0, 3.5167, 0.0],
-#                                                 [0.0, 0.0, 3.5167]])
-amswarm_kwargs["dynamics"].A = np.array([[1.0000,    0.0000,         0,    0.2000,    0.0000,         0],
-                                        [0.0000,    1.0000,         0,   -0.0000,    0.2000,         0],
-                                        [0,         0,    1.0000,         0,         0,    0.2000],
-                                        [-0.4989,   -0.0000,         0,    0.0049,   0.0000,         0],
-                                        [0.0000,   -0.5616,         0,   -0.0000,    0.1758,         0],
-                                        [0,         0,   -0.3827,         0,         0,    0.0279]])
-amswarm_kwargs["dynamics"].B = np.array([[0.0000,   -0.0000,         0,    0.0044,   -0.0000,         0],
-                                        [0.0000,    0.0001,         0,    0.0000,    0.0065,         0],
-                                        [0,         0,    0.0001,         0,         0,    0.0336],
-                                        [0.4933,    0.0000,         0,   0.9135,    0.0000,         0],
-                                        [0.0000,    0.5568,         0,   -0.0000,    0.7327,         0],
-                                        [0,         0,    0.3814,         0,         0,    0.7571]])
-amswarm_kwargs["dynamics"].A_prime = np.array([[-0.4252,    0.0000,         0,    0.1896,    0.0000 ,        0],
-                                                [0.0000,   -0.4039,         0,   -0.0000 ,   0.4396 ,        0],
-                                                [0  ,       0 ,  -0.3234   ,      0     ,    0  ,  0.2069],
-                                            [-0.4730,   -0.0000   ,      0  , -1.3685 ,  -0.0000  ,       0],
-                                                [0.0000,   -1.2345  ,       0  ,  0.0000  , -2.2155 ,        0],
-                                                [0 ,        0  , -0.3959 ,        0  ,       0 ,  -1.3291]])
-amswarm_kwargs["dynamics"].B_prime = np.array([[0.4206,    0.0000,         0,    0.8012,    0.0000,         0],
-                                                [0.0000,    0.4008 ,        0   , 0.0000  ,  0.5603  ,       0],
-                                                [0 ,        0  ,  0.3229 ,        0    ,     0  ,  0.8129],
-                                                [0.4676  ,  0.0000    ,     0  ,  0.8567,    0.0000    ,     0],
-                                                [-0.0000   , 1.2238  ,       0  , -0.0000  ,  1.5974  ,       0],
-                                                [0     ,    0  ,  0.3945   ,      0  ,       0  ,  0.7289]])
+cwd = os.getcwd()
+file_path = os.path.join(cwd, 'cpp', 'params', 'model_params.yaml')
+with open(file_path, 'r') as file:
+    data = yaml.safe_load(file)
+
+# Assuming amswarm_kwargs and its "dynamics" object already exist
+# and have the appropriate structure to assign A, B, A_prime, B_prime
+amswarm_kwargs["dynamics"].A = np.array(data['dynamics']['A'])
+amswarm_kwargs["dynamics"].B = np.array(data['dynamics']['B'])
+amswarm_kwargs["dynamics"].A_prime = np.array(data['dynamics']['A_prime'])
+amswarm_kwargs["dynamics"].B_prime = np.array(data['dynamics']['B_prime'])
 
 num_inputs = amswarm_kwargs["dynamics"].B.shape[1]
 
