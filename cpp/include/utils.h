@@ -7,27 +7,31 @@
 #include <vector>
 #include <yaml-cpp/yaml.h>
 
+
+using namespace Eigen;
+
+
 namespace utils
 {
     int nchoosek(int n, int k);
 
-    Eigen::MatrixXd matrixPower(const Eigen::MatrixXd&, int);
-    Eigen::SparseMatrix<double> matrixPower(const Eigen::SparseMatrix<double>&, int);
-    Eigen::MatrixXd kroneckerProduct(const Eigen::MatrixXd&, const Eigen::MatrixXd&);
-    Eigen::SparseMatrix<double> kroneckerProduct(const Eigen::SparseMatrix<double>&, const Eigen::SparseMatrix<double>&);
-    Eigen::MatrixXd horzcat(const Eigen::MatrixXd&, const Eigen::MatrixXd&);
-    Eigen::SparseMatrix<double> horzcat(const Eigen::SparseMatrix<double>&, const Eigen::SparseMatrix<double>&);
-    Eigen::MatrixXd vertcat(const Eigen::MatrixXd&, const Eigen::MatrixXd&);
-    Eigen::SparseMatrix<double> vertcat(const Eigen::SparseMatrix<double>&, const Eigen::SparseMatrix<double>&);
-    Eigen::SparseMatrix<double> replicateSparseMatrix(const Eigen::SparseMatrix<double>&, int, int);
-    Eigen::SparseMatrix<double> getSparseIdentity(int);
-    Eigen::MatrixXd blkDiag(const std::vector<Eigen::MatrixXd>&);
-    Eigen::SparseMatrix<double> blkDiag(const std::vector<Eigen::SparseMatrix<double>>&);
-    void replaceSparseBlock(Eigen::SparseMatrix<double>&, const Eigen::MatrixXd&, int, int);
-    void replaceSparseBlock(Eigen::SparseMatrix<double>&, const Eigen::SparseMatrix<double>&, int, int);
+    MatrixXd matrixPower(const MatrixXd&, int);
+    SparseMatrix<double> matrixPower(const SparseMatrix<double>&, int);
+    MatrixXd kroneckerProduct(const MatrixXd&, const MatrixXd&);
+    SparseMatrix<double> kroneckerProduct(const SparseMatrix<double>&, const SparseMatrix<double>&);
+    MatrixXd horzcat(const MatrixXd&, const MatrixXd&);
+    SparseMatrix<double> horzcat(const SparseMatrix<double>&, const SparseMatrix<double>&);
+    MatrixXd vertcat(const MatrixXd&, const MatrixXd&);
+    SparseMatrix<double> vertcat(const SparseMatrix<double>&, const SparseMatrix<double>&);
+    SparseMatrix<double> replicateSparseMatrix(const SparseMatrix<double>&, int, int);
+    SparseMatrix<double> getSparseIdentity(int);
+    MatrixXd blkDiag(const std::vector<MatrixXd>&);
+    SparseMatrix<double> blkDiag(const std::vector<SparseMatrix<double>>&);
+    void replaceSparseBlock(SparseMatrix<double>&, const MatrixXd&, int, int);
+    void replaceSparseBlock(SparseMatrix<double>&, const SparseMatrix<double>&, int, int);
     std::string getExecutablePath();
-    std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> loadDynamicsMatricesFromYAML(const std::string& yamlFilename);
-    std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> loadSparseDynamicsMatricesFromYAML(const std::string& yamlFilename);
+    std::tuple<MatrixXd, MatrixXd, MatrixXd, MatrixXd> loadDynamicsMatricesFromYAML(const std::string& yamlFilename);
+    std::tuple<SparseMatrix<double>, SparseMatrix<double>, SparseMatrix<double>, SparseMatrix<double>> loadSparseDynamicsMatricesFromYAML(const std::string& yamlFilename);
 
 } // end namespace utils
 

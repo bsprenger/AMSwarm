@@ -11,22 +11,27 @@
 #include <Eigen/SparseQR>
 
 
+using namespace Eigen;
+
+
 class Drone {
     public:
         // Public struct definitions
 
         class DroneResult {
             public:
-                Eigen::VectorXd position_state_time_stamps; // time stamps for both position and state
-                Eigen::VectorXd control_input_time_stamps;
+                VectorXd position_state_time_stamps; // time stamps for both position and state
+                VectorXd control_input_time_stamps;
 
-                Eigen::MatrixXd position_trajectory;
-                Eigen::MatrixXd state_trajectory;
-                Eigen::MatrixXd control_input_trajectory;
+                MatrixXd position_trajectory;
+                MatrixXd state_trajectory;
+                MatrixXd control_input_trajectory;
 
-                Eigen::VectorXd position_trajectory_vector;
-                Eigen::VectorXd state_trajectory_vector;
-                Eigen::VectorXd control_input_trajectory_vector;
+                VectorXd position_trajectory_vector;
+                VectorXd state_trajectory_vector;
+                VectorXd control_input_trajectory_vector;
+
+                VectorXd spline_coeffs;
 
                 bool is_successful;
         };
@@ -59,50 +64,73 @@ class Drone {
             double w_input_continuity = 100;
             double w_input_dot_continuity = 100;
             double w_input_ddot_continuity = 100;
+
+            MPCWeights() {}
+
+            MPCWeights(double goal_pos, double goal_vel, double smoothness, double input_smoothness, 
+               double input_continuity, double input_dot_continuity, double input_ddot_continuity) 
+            : w_goal_pos(goal_pos), w_goal_vel(goal_vel), w_smoothness(smoothness), 
+            w_input_smoothness(input_smoothness), w_input_continuity(input_continuity), 
+            w_input_dot_continuity(input_dot_continuity), w_input_ddot_continuity(input_ddot_continuity) {}
         };
 
         struct MPCConfig {
             int K = 25;
             int n = 10;
-            double delta_t = 1.0/5.0;
+            double delta_t = 1.0/8.0;
+
+            MPCConfig() {}
+
+            MPCConfig(int K, int n, double delta_t) : K(K), n(n), delta_t(delta_t) {}
         };
 
         struct PhysicalLimits {
-            Eigen::VectorXd p_min = Eigen::VectorXd::Constant(3,-10);
-            Eigen::VectorXd p_max = Eigen::VectorXd::Constant(3,10);
+            VectorXd p_min = VectorXd::Constant(3,-10);
+            VectorXd p_max = VectorXd::Constant(3,10);
             double v_bar = 1.73;
             double f_bar = 0.75 * 9.81;
+
+            PhysicalLimits() {}
+
+            PhysicalLimits(const Eigen::VectorXd& p_min, const Eigen::VectorXd& p_max, double v_bar, double f_bar) 
+            : p_min(p_min), p_max(p_max), v_bar(v_bar), f_bar(f_bar) {}
         };
 
         struct Dynamics {
-            Eigen::MatrixXd A, B, A_prime, B_prime;
+            MatrixXd A, B, A_prime, B_prime;
         };
 
         struct SparseDynamics {
-            Eigen::SparseMatrix<double> A, B, A_prime, B_prime;
+            SparseMatrix<double> A, B, A_prime, B_prime;
+
+            SparseDynamics() {}
+            
+            SparseDynamics(const Eigen::SparseMatrix<double>& A, const Eigen::SparseMatrix<double>& B, 
+                   const Eigen::SparseMatrix<double>& A_prime, const Eigen::SparseMatrix<double>& B_prime) 
+            : A(A), B(B), A_prime(A_prime), B_prime(B_prime) {}
         };
 
         // Constructors
-        Drone(Eigen::MatrixXd waypoints, // necessary input
+        Drone(MatrixXd waypoints, // necessary input
                 MPCConfig config,
                 MPCWeights weights,
                 PhysicalLimits limits,
                 SparseDynamics dynamics,
-                Eigen::VectorXd initial_pos = Eigen::VectorXd::Zero(3));
+                VectorXd initial_pos = VectorXd::Zero(3));
 
         // Public methods
         DroneResult solve(const double current_time,
-                                const Eigen::VectorXd x_0,
+                                const VectorXd x_0,
                                 const int j,
-                                std::vector<Eigen::SparseMatrix<double>> thetas,
-                                const Eigen::VectorXd xi,
+                                std::vector<SparseMatrix<double>> thetas,
+                                const VectorXd xi,
                                 SolveOptions& opt,
-                                const Eigen::VectorXd& initial_guess = Eigen::VectorXd());
+                                const VectorXd& initial_guess = VectorXd());
         
         // Getters
-        Eigen::VectorXd getInitialPosition();
-        Eigen::SparseMatrix<double> getCollisionEnvelope();
-        Eigen::MatrixXd getWaypoints();
+        VectorXd getInitialPosition();
+        SparseMatrix<double> getCollisionEnvelope();
+        MatrixXd getWaypoints();
         float getDeltaT();
         int getK();
 
@@ -113,13 +141,13 @@ class Drone {
     private:
         // Private struct definitions 
         struct ConstSelectionMatrices {
-            Eigen::SparseMatrix<double> M_p, M_v, M_a; // maybe rename to pos,vel,acc
+            SparseMatrix<double> M_p, M_v, M_a; // maybe rename to pos,vel,acc
 
             ConstSelectionMatrices(int K) {
                 // Intermediate matrices used in building selection matrices
-                Eigen::SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
-                Eigen::SparseMatrix<double> eyeK = utils::getSparseIdentity(K);
-                Eigen::SparseMatrix<double> zeroMat(3, 3);
+                SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
+                SparseMatrix<double> eyeK = utils::getSparseIdentity(K);
+                SparseMatrix<double> zeroMat(3, 3);
                 zeroMat.setZero();
 
                 M_p = utils::kroneckerProduct(eyeK, utils::horzcat(eye3, zeroMat));
@@ -129,20 +157,20 @@ class Drone {
         };
 
         struct VariableSelectionMatrices {
-            Eigen::SparseMatrix<double> M_x, M_y, M_z, M_waypoints_position, M_waypoints_velocity; // maybe rename to x,y,z,timestep?
+            SparseMatrix<double> M_x, M_y, M_z, M_waypoints_position, M_waypoints_velocity; // maybe rename to x,y,z,timestep?
 
-            VariableSelectionMatrices(int K, int j, Eigen::VectorXd& penalized_steps) {
-                Eigen::SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
-                Eigen::SparseMatrix<double> eye6 = utils::getSparseIdentity(6);
-                Eigen::SparseMatrix<double> eyeK = utils::getSparseIdentity(K);
-                Eigen::SparseMatrix<double> eyeK2j = utils::getSparseIdentity((2 + j) * K);
-                Eigen::SparseMatrix<double> zeroMat(3, 3);
+            VariableSelectionMatrices(int K, int j, VectorXd& penalized_steps) {
+                SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
+                SparseMatrix<double> eye6 = utils::getSparseIdentity(6);
+                SparseMatrix<double> eyeK = utils::getSparseIdentity(K);
+                SparseMatrix<double> eyeK2j = utils::getSparseIdentity((2 + j) * K);
+                SparseMatrix<double> zeroMat(3, 3);
                 zeroMat.setZero();
-                Eigen::SparseMatrix<double> x_step(1, 3);
+                SparseMatrix<double> x_step(1, 3);
                 x_step.coeffRef(0, 0) = 1.0;
-                Eigen::SparseMatrix<double> y_step(1, 3);
+                SparseMatrix<double> y_step(1, 3);
                 y_step.coeffRef(0, 1) = 1.0;
-                Eigen::SparseMatrix<double> z_step(1, 3);
+                SparseMatrix<double> z_step(1, 3);
                 z_step.coeffRef(0, 2) = 1.0;
 
                 M_x = utils::kroneckerProduct(eyeK2j, x_step);
@@ -162,127 +190,127 @@ class Drone {
         };
 
         struct Constraints {
-            Eigen::SparseMatrix<double> G_eq, G_pos, G_waypoints_pos,G_waypoints_vel, G_waypoints_accel;
-            Eigen::VectorXd h_eq, h_pos, h_waypoints_pos, h_waypoints_vel, h_waypoints_accel;
-            Eigen::VectorXd c_eq, c_waypoints_pos, c_waypoints_vel, c_waypoints_accel;
+            SparseMatrix<double> G_eq, G_pos, G_waypoints_pos,G_waypoints_vel, G_waypoints_accel;
+            VectorXd h_eq, h_pos, h_waypoints_pos, h_waypoints_vel, h_waypoints_accel;
+            VectorXd c_eq, c_waypoints_pos, c_waypoints_vel, c_waypoints_accel;
 
             // Constructor
-            Constraints(const Drone* parentDrone, int j, const Eigen::VectorXd& x_0,
-                        const Eigen::VectorXd& xi, std::vector<Eigen::SparseMatrix<double>> thetas,
-                        const Eigen::MatrixXd& extracted_waypoints,
+            Constraints(const Drone* parentDrone, int j, const VectorXd& x_0,
+                        const VectorXd& xi, std::vector<SparseMatrix<double>> thetas,
+                        const MatrixXd& extracted_waypoints,
                         const VariableSelectionMatrices& variableSelectionMatrices) {
                             G_waypoints_pos = variableSelectionMatrices.M_waypoints_position * parentDrone->S_u * parentDrone->W_input;
                             c_waypoints_pos = variableSelectionMatrices.M_waypoints_position * parentDrone->S_x * x_0;
-                            h_waypoints_pos = extracted_waypoints.block(0, 1, extracted_waypoints.rows(), extracted_waypoints.cols() - 4).reshaped<Eigen::RowMajor>();
+                            h_waypoints_pos = extracted_waypoints.block(0, 1, extracted_waypoints.rows(), extracted_waypoints.cols() - 4).reshaped<RowMajor>();
 
                             G_waypoints_vel = variableSelectionMatrices.M_waypoints_velocity * parentDrone->S_u * parentDrone->W_input;
                             c_waypoints_vel = variableSelectionMatrices.M_waypoints_velocity * parentDrone->S_x * x_0;
-                            h_waypoints_vel = extracted_waypoints.block(0, 4, extracted_waypoints.rows(), extracted_waypoints.cols() - 4).reshaped<Eigen::RowMajor>();
+                            h_waypoints_vel = extracted_waypoints.block(0, 4, extracted_waypoints.rows(), extracted_waypoints.cols() - 4).reshaped<RowMajor>();
 
                             G_waypoints_accel = variableSelectionMatrices.M_waypoints_position * parentDrone->S_u_prime * parentDrone->W_input;
                             c_waypoints_accel = variableSelectionMatrices.M_waypoints_position * parentDrone->S_x_prime * x_0;
-                            h_waypoints_accel = Eigen::VectorXd::Zero(G_waypoints_accel.rows());
+                            h_waypoints_accel = VectorXd::Zero(G_waypoints_accel.rows());
 
-                            Eigen::SparseMatrix<double> S_theta = utils::blkDiag(thetas);
-                            Eigen::SparseMatrix<double> G_eq_blk1 = parentDrone->constSelectionMatrices.M_v * parentDrone->S_u * parentDrone->W_input;
-                            Eigen::SparseMatrix<double> G_eq_blk2 = parentDrone->constSelectionMatrices.M_a * parentDrone->S_u_prime * parentDrone->W_input;
-                            Eigen::SparseMatrix<double> G_eq_blk3 = S_theta * utils::replicateSparseMatrix(parentDrone->constSelectionMatrices.M_p * parentDrone->S_u * parentDrone->W_input, j, 1);
+                            SparseMatrix<double> S_theta = utils::blkDiag(thetas);
+                            SparseMatrix<double> G_eq_blk1 = parentDrone->constSelectionMatrices.M_v * parentDrone->S_u * parentDrone->W_input;
+                            SparseMatrix<double> G_eq_blk2 = parentDrone->constSelectionMatrices.M_a * parentDrone->S_u_prime * parentDrone->W_input;
+                            SparseMatrix<double> G_eq_blk3 = S_theta * utils::replicateSparseMatrix(parentDrone->constSelectionMatrices.M_p * parentDrone->S_u * parentDrone->W_input, j, 1);
                             G_eq = utils::vertcat(utils::vertcat(G_eq_blk1, G_eq_blk2), G_eq_blk3);
 
-                            Eigen::SparseMatrix<double> G_pos_blk1 = parentDrone->constSelectionMatrices.M_p * parentDrone->S_u * parentDrone->W_input;
-                            Eigen::SparseMatrix<double> G_pos_blk2 = -parentDrone->constSelectionMatrices.M_p * parentDrone->S_u * parentDrone->W_input;
+                            SparseMatrix<double> G_pos_blk1 = parentDrone->constSelectionMatrices.M_p * parentDrone->S_u * parentDrone->W_input;
+                            SparseMatrix<double> G_pos_blk2 = -parentDrone->constSelectionMatrices.M_p * parentDrone->S_u * parentDrone->W_input;
                             G_pos = utils::vertcat(G_pos_blk1, G_pos_blk2);
 
-                            Eigen::VectorXd h_pos_blk1 = parentDrone->limits.p_max.replicate(parentDrone->config.K, 1) - parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
-                            Eigen::VectorXd h_pos_blk2 = -parentDrone->limits.p_min.replicate(parentDrone->config.K, 1) + parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
+                            VectorXd h_pos_blk1 = parentDrone->limits.p_max.replicate(parentDrone->config.K, 1) - parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
+                            VectorXd h_pos_blk2 = -parentDrone->limits.p_min.replicate(parentDrone->config.K, 1) + parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
                             h_pos.resize(h_pos_blk1.rows() + h_pos_blk2.rows());
                             h_pos << h_pos_blk1, h_pos_blk2;
 
-                            Eigen::VectorXd c_eq_blk1 = parentDrone->constSelectionMatrices.M_v * parentDrone->S_x * x_0;
-                            Eigen::VectorXd c_eq_blk2 = parentDrone->constSelectionMatrices.M_a * parentDrone->S_x_prime * x_0;
-                            Eigen::VectorXd c_eq_blk3 = S_theta * ((parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0).replicate(j, 1) - xi);
+                            VectorXd c_eq_blk1 = parentDrone->constSelectionMatrices.M_v * parentDrone->S_x * x_0;
+                            VectorXd c_eq_blk2 = parentDrone->constSelectionMatrices.M_a * parentDrone->S_x_prime * x_0;
+                            VectorXd c_eq_blk3 = S_theta * ((parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0).replicate(j, 1) - xi);
                             c_eq.resize(c_eq_blk1.rows() + c_eq_blk2.rows() + c_eq_blk3.rows());
                             c_eq << c_eq_blk1, c_eq_blk2, c_eq_blk3;
                         }
         };
 
         struct Residuals {
-            Eigen::VectorXd eq; // equality constraint residuals
-            Eigen::VectorXd pos; // position constraint residuals
-            Eigen::VectorXd waypoints_pos; // waypoint constraint residuals
-            Eigen::VectorXd waypoints_vel; // waypoint constraint residuals
-            Eigen::VectorXd waypoints_accel; // acceleration constraint residuals --> to do change this
-            Eigen::VectorXd input_continuity; // input continuity constraint residuals
-            Eigen::VectorXd input_dot_continuity; // input continuity constraint residuals
-            Eigen::VectorXd input_ddot_continuity; // input continuity constraint residuals
+            VectorXd eq; // equality constraint residuals
+            VectorXd pos; // position constraint residuals
+            VectorXd waypoints_pos; // waypoint constraint residuals
+            VectorXd waypoints_vel; // waypoint constraint residuals
+            VectorXd waypoints_accel; // acceleration constraint residuals --> to do change this
+            VectorXd input_continuity; // input continuity constraint residuals
+            VectorXd input_dot_continuity; // input continuity constraint residuals
+            VectorXd input_ddot_continuity; // input continuity constraint residuals
 
             Residuals(const Drone* parentDrone, int j, int K, int num_penalized_steps) {
-                eq = Eigen::VectorXd::Ones((2 + j) * 3 * K); // TODO something more intelligent then setting these to 1 -> they should be bigger than threshold
-                pos = Eigen::VectorXd::Ones(6 * K);
-                waypoints_pos = Eigen::VectorXd::Ones(3 * num_penalized_steps);
-                waypoints_vel = Eigen::VectorXd::Ones(3 * num_penalized_steps);
-                waypoints_accel = Eigen::VectorXd::Ones(3 * num_penalized_steps);
+                eq = VectorXd::Ones((2 + j) * 3 * K); // TODO something more intelligent then setting these to 1 -> they should be bigger than threshold
+                pos = VectorXd::Ones(6 * K);
+                waypoints_pos = VectorXd::Ones(3 * num_penalized_steps);
+                waypoints_vel = VectorXd::Ones(3 * num_penalized_steps);
+                waypoints_accel = VectorXd::Ones(3 * num_penalized_steps);
 
-                input_continuity = Eigen::VectorXd::Ones(3);
-                input_dot_continuity = Eigen::VectorXd::Ones(3);
-                input_ddot_continuity = Eigen::VectorXd::Ones(3);
+                input_continuity = VectorXd::Ones(3);
+                input_dot_continuity = VectorXd::Ones(3);
+                input_ddot_continuity = VectorXd::Ones(3);
             }
         };
 
         struct LagrangeMultipliers {
-            Eigen::VectorXd eq; // equality constraint residuals
-            Eigen::VectorXd pos; // position constraint residuals
-            Eigen::VectorXd waypoints_pos; // waypoint constraint residuals
-            Eigen::VectorXd waypoints_vel; // waypoint constraint residuals
-            Eigen::VectorXd waypoints_accel; // acceleration constraint residuals --> to do change this
-            Eigen::VectorXd input_continuity; // input continuity constraint residuals
-            Eigen::VectorXd input_dot_continuity;
-            Eigen::VectorXd input_ddot_continuity;
+            VectorXd eq; // equality constraint residuals
+            VectorXd pos; // position constraint residuals
+            VectorXd waypoints_pos; // waypoint constraint residuals
+            VectorXd waypoints_vel; // waypoint constraint residuals
+            VectorXd waypoints_accel; // acceleration constraint residuals --> to do change this
+            VectorXd input_continuity; // input continuity constraint residuals
+            VectorXd input_dot_continuity;
+            VectorXd input_ddot_continuity;
 
             LagrangeMultipliers(const Drone* parentDrone, int j, int K, int num_penalized_steps) {
-                eq = Eigen::VectorXd::Zero((2 + j) * 3 * K);
-                pos = Eigen::VectorXd::Zero(6 * K);
-                waypoints_pos = Eigen::VectorXd::Zero(3 * num_penalized_steps);
-                waypoints_vel = Eigen::VectorXd::Zero(3 * num_penalized_steps);
-                waypoints_accel = Eigen::VectorXd::Zero(3 * num_penalized_steps);
+                eq = VectorXd::Zero((2 + j) * 3 * K);
+                pos = VectorXd::Zero(6 * K);
+                waypoints_pos = VectorXd::Zero(3 * num_penalized_steps);
+                waypoints_vel = VectorXd::Zero(3 * num_penalized_steps);
+                waypoints_accel = VectorXd::Zero(3 * num_penalized_steps);
 
-                input_continuity = Eigen::VectorXd::Zero(3);
-                input_dot_continuity = Eigen::VectorXd::Zero(3);
-                input_ddot_continuity = Eigen::VectorXd::Zero(3);
+                input_continuity = VectorXd::Zero(3);
+                input_dot_continuity = VectorXd::Zero(3);
+                input_ddot_continuity = VectorXd::Zero(3);
             }
         };
 
         struct CostMatrices {
-            Eigen::SparseMatrix<double> Q, q; // why is q a matrix? --> clarify this later
-            Eigen::SparseMatrix<double> A_check_const_terms;
-            Eigen::SparseMatrix<double> A_check;
-            Eigen::SparseVector<double> b_check;
+            SparseMatrix<double> Q, q; // why is q a matrix? --> clarify this later
+            SparseMatrix<double> A_check_const_terms;
+            SparseMatrix<double> A_check;
+            SparseVector<double> b_check;
 
             CostMatrices(const Drone* parentDrone,
-                        Eigen::VectorXd& penalized_steps,
-                        Eigen::VectorXd x_0,
-                        Eigen::SparseMatrix<double>& X_g,
-                        Eigen::VectorXd u_0_prev,
-                        Eigen::VectorXd u_dot_0_prev,
-                        Eigen::VectorXd u_ddot_0_prev,
+                        VectorXd& penalized_steps,
+                        VectorXd x_0,
+                        SparseMatrix<double>& X_g,
+                        VectorXd u_0_prev,
+                        VectorXd u_dot_0_prev,
+                        VectorXd u_ddot_0_prev,
                         Constraints& constraints,
                         SolveOptions& opt) {
 
-                Eigen::SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
-                Eigen::SparseMatrix<double> eyeK = utils::getSparseIdentity(parentDrone->config.K);
+                SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
+                SparseMatrix<double> eyeK = utils::getSparseIdentity(parentDrone->config.K);
 
-                std::vector<Eigen::SparseMatrix<double>> tmp_cost_vec = {eye3 * parentDrone->weights.w_goal_pos, eye3 * parentDrone->weights.w_goal_vel}; // clarify this
-                Eigen::SparseMatrix<double> R_g = utils::blkDiag(tmp_cost_vec); // clarify this
+                std::vector<SparseMatrix<double>> tmp_cost_vec = {eye3 * parentDrone->weights.w_goal_pos, eye3 * parentDrone->weights.w_goal_vel}; // clarify this
+                SparseMatrix<double> R_g = utils::blkDiag(tmp_cost_vec); // clarify this
 
-                Eigen::SparseMatrix<double> tmp_R_g_tilde(parentDrone->config.K,parentDrone->config.K); // for selecting which steps to penalize
+                SparseMatrix<double> tmp_R_g_tilde(parentDrone->config.K,parentDrone->config.K); // for selecting which steps to penalize
                 for (int idx : penalized_steps) {
                     tmp_R_g_tilde.insert(idx - 1, idx - 1) = 1.0; // this needs to be clarified -> since the first block in R_g_tilde corresponds to x(1), we need to subtract 1 from the index. penalized_steps gives the TIME STEP number, not matrix index
                 }
-                Eigen::SparseMatrix<double> R_g_tilde = utils::kroneckerProduct(tmp_R_g_tilde, R_g);
+                SparseMatrix<double> R_g_tilde = utils::kroneckerProduct(tmp_R_g_tilde, R_g);
                 
                 // initialize R_s_tilde
-                Eigen::SparseMatrix<double> R_s = eye3 * parentDrone->weights.w_smoothness;
-                Eigen::SparseMatrix<double> R_s_tilde = utils::kroneckerProduct(eyeK, R_s);
+                SparseMatrix<double> R_s = eye3 * parentDrone->weights.w_smoothness;
+                SparseMatrix<double> R_s_tilde = utils::kroneckerProduct(eyeK, R_s);
 
                 // initialize cost matrices
                 Q = 2.0 * parentDrone->W_input.transpose() * parentDrone->S_u.transpose() * R_g_tilde * parentDrone->S_u * parentDrone->W_input
@@ -323,68 +351,68 @@ class Drone {
 
         
         // Private variables
-        Eigen::SparseMatrix<double> W, W_dot, W_ddot, W_input;
-        Eigen::SparseMatrix<double> S_x, S_u, S_x_prime, S_u_prime;
+        SparseMatrix<double> W, W_dot, W_ddot, W_input;
+        SparseMatrix<double> S_x, S_u, S_x_prime, S_u_prime;
         MPCConfig config;
         MPCWeights weights;
         PhysicalLimits limits;
         SparseDynamics dynamics;
 
-        Eigen::MatrixXd waypoints;
-        Eigen::VectorXd initial_pos;
-        Eigen::SparseMatrix<double> collision_envelope; // this drone's collision envelope - NOT the other obstacles' collision envelopes
+        MatrixXd waypoints;
+        VectorXd initial_pos;
+        SparseMatrix<double> collision_envelope; // this drone's collision envelope - NOT the other obstacles' collision envelopes
 
         // Private methods
         ConstSelectionMatrices constSelectionMatrices;
 
 
-        Eigen::MatrixXd extractWaypointsInCurrentHorizon(const double t,
-                                                        const Eigen::MatrixXd& waypoints);
-        std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> initBernsteinMatrices(const MPCConfig& config);
-        std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> initFullHorizonDynamicsMatrices(const SparseDynamics& dynamics);
+        MatrixXd extractWaypointsInCurrentHorizon(const double t,
+                                                        const MatrixXd& waypoints);
+        std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>> initBernsteinMatrices(const MPCConfig& config);
+        std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>> initFullHorizonDynamicsMatrices(const SparseDynamics& dynamics);
 
-        void computeX_g(Eigen::MatrixXd& extracted_waypoints,
-                        Eigen::VectorXd& penalized_steps,
-                        Eigen::SparseMatrix<double>& X_g);
+        void computeX_g(MatrixXd& extracted_waypoints,
+                        VectorXd& penalized_steps,
+                        SparseMatrix<double>& X_g);
 
-        void compute_h_eq(int, Eigen::VectorXd&, Eigen::VectorXd&, Eigen::VectorXd&,Eigen::VectorXd&);
+        void compute_h_eq(int, VectorXd&, VectorXd&, VectorXd&,VectorXd&);
 
         void compute_d(int j, double rho,
-                    Constraints& constraints, Eigen::VectorXd& zeta_1,
+                    Constraints& constraints, VectorXd& zeta_1,
                     LagrangeMultipliers& lambda,
-                    Eigen::VectorXd& alpha, Eigen::VectorXd& beta,
-                    Eigen::VectorXd& d);
+                    VectorXd& alpha, VectorXd& beta,
+                    VectorXd& d);
 
         void computeAlphaBeta(double rho, Constraints& constraints,
-                            Eigen::VectorXd& zeta_1,
+                            VectorXd& zeta_1,
                             LagrangeMultipliers& lambda, 
-                            Eigen::VectorXd& alpha, Eigen::VectorXd& beta,
+                            VectorXd& alpha, VectorXd& beta,
                             VariableSelectionMatrices& variableSelectionMatrices);
                             
         void computeResiduals(Constraints& constraints,
-                            Eigen::VectorXd& zeta_1, Eigen::VectorXd& s,
+                            VectorXd& zeta_1, VectorXd& s,
                             Residuals& residuals,
-                            Eigen::VectorXd& u_0_prev,
-                            Eigen::VectorXd& u_dot_0_prev,
-                            Eigen::VectorXd& u_ddot_0_prev);
+                            VectorXd& u_0_prev,
+                            VectorXd& u_dot_0_prev,
+                            VectorXd& u_ddot_0_prev);
 
         void updateLagrangeMultipliers(double rho, Residuals& residuals, LagrangeMultipliers& lambda);
 
         void updateCostMatrices(double rho, CostMatrices& costMatrices,
                             Constraints& constraints,
-                            Eigen::VectorXd& s,
+                            VectorXd& s,
                             LagrangeMultipliers& lambda,
                             SolveOptions& opt,
-                            Eigen::VectorXd& u_0_prev,
-                            Eigen::VectorXd& u_dot_0_prev,
-                            Eigen::VectorXd& u_ddot_0_prev);
+                            VectorXd& u_0_prev,
+                            VectorXd& u_dot_0_prev,
+                            VectorXd& u_ddot_0_prev);
 
-        DroneResult computeDroneResult(double current_time, Eigen::VectorXd& zeta_1,Eigen::VectorXd x_0);
+        DroneResult computeDroneResult(double current_time, VectorXd& zeta_1,VectorXd x_0);
 
         void printUnsatisfiedResiduals(const Residuals& residuals,
                                         SolveOptions& opt);
 
-        Eigen::VectorXd U_to_zeta_1(const Eigen::VectorXd& U);
+        VectorXd U_to_zeta_1(const VectorXd& U);
 };
 
 #endif

@@ -3,6 +3,10 @@
 #include <unistd.h>
 #include <libgen.h>  // Include the header for dirname
 
+
+using namespace Eigen;
+
+
 namespace utils 
 {
     int nchoosek(int n, int k) {
@@ -23,12 +27,12 @@ namespace utils
         return result;
     };
 
-    Eigen::MatrixXd matrixPower(const Eigen::MatrixXd& base, int exponent) {
+    MatrixXd matrixPower(const MatrixXd& base, int exponent) {
         if (exponent == 0) {
             // Return the identity matrix for A^0
-            return Eigen::MatrixXd::Identity(base.rows(), base.cols());
+            return MatrixXd::Identity(base.rows(), base.cols());
         } else if (exponent > 0) {
-            Eigen::MatrixXd result = base;
+            MatrixXd result = base;
             for (int i = 1; i < exponent; ++i) {
                 result *= base;
             }
@@ -39,14 +43,14 @@ namespace utils
         }
     }
 
-    Eigen::SparseMatrix<double> matrixPower(const Eigen::SparseMatrix<double>& base, int exponent) {
+    SparseMatrix<double> matrixPower(const SparseMatrix<double>& base, int exponent) {
         if (exponent == 0) {
             // Return the identity matrix for A^0
-            Eigen::SparseMatrix<double> result = Eigen::SparseMatrix<double>(base.rows(), base.cols());
+            SparseMatrix<double> result = SparseMatrix<double>(base.rows(), base.cols());
             result.setIdentity();
             return result;
         } else if (exponent > 0) {
-            Eigen::SparseMatrix<double> result = base;
+            SparseMatrix<double> result = base;
             for (int i = 1; i < exponent; ++i) {
                 result = result * base;
             }
@@ -58,13 +62,13 @@ namespace utils
     }
 
     // Function to perform Kronecker product for two matrices
-    Eigen::MatrixXd kroneckerProduct(const Eigen::MatrixXd& A, const Eigen::MatrixXd& B) {
+    MatrixXd kroneckerProduct(const MatrixXd& A, const MatrixXd& B) {
         int rowsA = A.rows();
         int colsA = A.cols();
         int rowsB = B.rows();
         int colsB = B.cols();
 
-        Eigen::MatrixXd result(rowsA * rowsB, colsA * colsB);
+        MatrixXd result(rowsA * rowsB, colsA * colsB);
 
         for (int i = 0; i < rowsA; ++i) {
             for (int j = 0; j < colsA; ++j) {
@@ -75,19 +79,19 @@ namespace utils
         return result;
     };
 
-    Eigen::SparseMatrix<double> kroneckerProduct(const Eigen::SparseMatrix<double>& A, const Eigen::SparseMatrix<double>& B) {
+    SparseMatrix<double> kroneckerProduct(const SparseMatrix<double>& A, const SparseMatrix<double>& B) {
         int rowsA = A.rows();
         int colsA = A.cols();
         int rowsB = B.rows();
         int colsB = B.cols();
 
-        Eigen::SparseMatrix<double> result(rowsA * rowsB, colsA * colsB);
+        SparseMatrix<double> result(rowsA * rowsB, colsA * colsB);
         result.reserve(rowsA * rowsB * colsA * colsB);
 
         for (int kA = 0; kA < A.outerSize(); ++kA) {
-            for (Eigen::SparseMatrix<double>::InnerIterator itA(A, kA); itA; ++itA) {
+            for (SparseMatrix<double>::InnerIterator itA(A, kA); itA; ++itA) {
                 for (int kB = 0; kB < B.outerSize(); ++kB) {
-                    for (Eigen::SparseMatrix<double>::InnerIterator itB(B, kB); itB; ++itB) {
+                    for (SparseMatrix<double>::InnerIterator itB(B, kB); itB; ++itB) {
                         result.insert(itA.row() * rowsB + itB.row(), itA.col() * colsB + itB.col()) = itA.value() * itB.value();
                     }
                 }
@@ -98,15 +102,15 @@ namespace utils
         return result;
     };
 
-    Eigen::SparseMatrix<double> replicateSparseMatrix(const Eigen::SparseMatrix<double>& input, int n, int m) {
-        Eigen::SparseMatrix<double> result(input.rows() * n, input.cols() * m);
+    SparseMatrix<double> replicateSparseMatrix(const SparseMatrix<double>& input, int n, int m) {
+        SparseMatrix<double> result(input.rows() * n, input.cols() * m);
 
         result.reserve(input.nonZeros() * n * m);
 
         for (int i = 0; i < n; ++i) {
             for (int j = 0; j < m; ++j) {
                 for (int k = 0; k < input.outerSize(); ++k) {
-                    for (Eigen::SparseMatrix<double>::InnerIterator it(input, k); it; ++it) {
+                    for (SparseMatrix<double>::InnerIterator it(input, k); it; ++it) {
                         result.insert(i * input.rows() + it.row(), j * input.cols() + it.col()) = it.value();
                     }
                 }
@@ -117,16 +121,16 @@ namespace utils
         return result;
     }
 
-    Eigen::SparseMatrix<double> getSparseIdentity(int n) {
-        Eigen::SparseMatrix<double> result(n, n);
+    SparseMatrix<double> getSparseIdentity(int n) {
+        SparseMatrix<double> result(n, n);
         result.setIdentity();
         return result;
     }
 
-    Eigen::MatrixXd blkDiag(const std::vector<Eigen::MatrixXd>& matrices) {
+    MatrixXd blkDiag(const std::vector<MatrixXd>& matrices) {
         if (matrices.empty()) {
             // Return an empty matrix or handle the case as needed
-            return Eigen::MatrixXd();
+            return MatrixXd();
         }
 
         // Calculate the size of the resulting block-diagonal matrix
@@ -138,7 +142,7 @@ namespace utils
         }
 
         // Create a block-diagonal matrix
-        Eigen::MatrixXd result(rows, cols);
+        MatrixXd result(rows, cols);
         int row_offset = 0;
         int col_offset = 0;
         for (const auto& matrix : matrices) {
@@ -150,10 +154,10 @@ namespace utils
         return result;
     }
 
-    Eigen::SparseMatrix<double> blkDiag(const std::vector<Eigen::SparseMatrix<double>>& matrices) {
+    SparseMatrix<double> blkDiag(const std::vector<SparseMatrix<double>>& matrices) {
         if (matrices.empty()) {
             // Return an empty matrix or handle the case as needed
-            return Eigen::SparseMatrix<double>();
+            return SparseMatrix<double>();
         }
 
         // Calculate the size of the resulting block-diagonal matrix
@@ -165,12 +169,12 @@ namespace utils
         }
 
         // Create a block-diagonal matrix
-        Eigen::SparseMatrix<double> result(rows, cols);
+        SparseMatrix<double> result(rows, cols);
         int row_offset = 0;
         int col_offset = 0;
         for (const auto& matrix : matrices) {
             for (int k = 0; k < matrix.outerSize(); ++k) {
-                for (typename Eigen::SparseMatrix<double>::InnerIterator it(matrix, k); it; ++it) {
+                for (typename SparseMatrix<double>::InnerIterator it(matrix, k); it; ++it) {
                     result.insert(row_offset + it.row(), col_offset + it.col()) = it.value();
                 }
             }
@@ -184,25 +188,25 @@ namespace utils
     }
 
     // Function to concatenate matrices horizontally
-    Eigen::MatrixXd horzcat(const Eigen::MatrixXd& A, const Eigen::MatrixXd& B) {
-        Eigen::MatrixXd result(A.rows(), A.cols() + B.cols());
+    MatrixXd horzcat(const MatrixXd& A, const MatrixXd& B) {
+        MatrixXd result(A.rows(), A.cols() + B.cols());
         result << A, B;
         return result;
     };
 
     // Function to concatenate sparse matrices horizontally
-    Eigen::SparseMatrix<double> horzcat(const Eigen::SparseMatrix<double>& A, const Eigen::SparseMatrix<double>& B) {
-        Eigen::SparseMatrix<double> result(A.rows(), A.cols() + B.cols());
+    SparseMatrix<double> horzcat(const SparseMatrix<double>& A, const SparseMatrix<double>& B) {
+        SparseMatrix<double> result(A.rows(), A.cols() + B.cols());
         result.reserve(A.nonZeros() + B.nonZeros());
 
         for (int k = 0; k < A.outerSize(); ++k) {
-            for (Eigen::SparseMatrix<double>::InnerIterator it(A, k); it; ++it) {
+            for (SparseMatrix<double>::InnerIterator it(A, k); it; ++it) {
                 result.insert(it.row(), it.col()) = it.value();
             }
         }
 
         for (int k = 0; k < B.outerSize(); ++k) {
-            for (Eigen::SparseMatrix<double>::InnerIterator it(B, k); it; ++it) {
+            for (SparseMatrix<double>::InnerIterator it(B, k); it; ++it) {
                 result.insert(it.row(), it.col() + A.cols()) = it.value();
             }
         }
@@ -212,24 +216,24 @@ namespace utils
     };
 
     // Function to concatenate vertically
-    Eigen::MatrixXd vertcat(const Eigen::MatrixXd& A, const Eigen::MatrixXd& B) {
-        Eigen::MatrixXd result(A.rows() + B.rows(), A.cols());
+    MatrixXd vertcat(const MatrixXd& A, const MatrixXd& B) {
+        MatrixXd result(A.rows() + B.rows(), A.cols());
         result << A, B;
         return result;
     };
 
-    Eigen::SparseMatrix<double> vertcat(const Eigen::SparseMatrix<double>& A, const Eigen::SparseMatrix<double>& B) {
-        Eigen::SparseMatrix<double> result(A.rows() + B.rows(), A.cols());
+    SparseMatrix<double> vertcat(const SparseMatrix<double>& A, const SparseMatrix<double>& B) {
+        SparseMatrix<double> result(A.rows() + B.rows(), A.cols());
         result.reserve(A.nonZeros() + B.nonZeros());
 
         for (int k = 0; k < A.outerSize(); ++k) {
-            for (Eigen::SparseMatrix<double>::InnerIterator it(A, k); it; ++it) {
+            for (SparseMatrix<double>::InnerIterator it(A, k); it; ++it) {
                 result.insert(it.row(), it.col()) = it.value();
             }
         }
 
         for (int k = 0; k < B.outerSize(); ++k) {
-            for (Eigen::SparseMatrix<double>::InnerIterator it(B, k); it; ++it) {
+            for (SparseMatrix<double>::InnerIterator it(B, k); it; ++it) {
                 result.insert(it.row() + A.rows(), it.col()) = it.value();
             }
         }
@@ -238,7 +242,7 @@ namespace utils
         return result;
     }
 
-    void replaceSparseBlock(Eigen::SparseMatrix<double>& sparseMatrix, const Eigen::MatrixXd& denseBlock, int startRow, int startCol) {
+    void replaceSparseBlock(SparseMatrix<double>& sparseMatrix, const MatrixXd& denseBlock, int startRow, int startCol) {
         // Check if the dimensions match
         assert(startRow + denseBlock.rows() <= sparseMatrix.rows());
         assert(startCol + denseBlock.cols() <= sparseMatrix.cols());
@@ -252,14 +256,14 @@ namespace utils
         }
     }
 
-    void replaceSparseBlock(Eigen::SparseMatrix<double>& targetSparseMatrix, const Eigen::SparseMatrix<double>& sourceSparseMatrix, int startRow, int startCol) {
+    void replaceSparseBlock(SparseMatrix<double>& targetSparseMatrix, const SparseMatrix<double>& sourceSparseMatrix, int startRow, int startCol) {
         // Check if the dimensions match
         assert(startRow + sourceSparseMatrix.rows() <= targetSparseMatrix.rows());
         assert(startCol + sourceSparseMatrix.cols() <= targetSparseMatrix.cols());
 
         // Iterate through the source sparse matrix
         for (int k = 0; k < sourceSparseMatrix.outerSize(); ++k) {
-            for (Eigen::SparseMatrix<double>::InnerIterator it(sourceSparseMatrix, k); it; ++it) {
+            for (SparseMatrix<double>::InnerIterator it(sourceSparseMatrix, k); it; ++it) {
                 // Set the value in the target sparse matrix
                 targetSparseMatrix.coeffRef(startRow + it.row(), startCol + it.col()) = it.value();
             }
@@ -282,10 +286,10 @@ namespace utils
         }
     }
 
-    std::tuple<Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd, Eigen::MatrixXd> loadDynamicsMatricesFromYAML(const std::string& yamlFilename) {
+    std::tuple<MatrixXd, MatrixXd, MatrixXd, MatrixXd> loadDynamicsMatricesFromYAML(const std::string& yamlFilename) {
         YAML::Node config = YAML::LoadFile(yamlFilename);
 
-        Eigen::MatrixXd A, A_prime, B, B_prime;
+        MatrixXd A, A_prime, B, B_prime;
         
         // check if dynamics is defined in yaml file
         if (config["dynamics"]) {
@@ -336,14 +340,14 @@ namespace utils
     };
 
 
-    std::tuple<Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>, Eigen::SparseMatrix<double>> loadSparseDynamicsMatricesFromYAML(const std::string& yamlFilename) {
+    std::tuple<SparseMatrix<double>, SparseMatrix<double>, SparseMatrix<double>, SparseMatrix<double>> loadSparseDynamicsMatricesFromYAML(const std::string& yamlFilename) {
         YAML::Node config = YAML::LoadFile(yamlFilename);
         YAML::Node dynamics = config["dynamics"];
         int num_states = dynamics["A"].size();
         int num_inputs = dynamics["B"][0].size();
         
         // check if A matrix is square and A_prime is the same size
-        Eigen::SparseMatrix<double> A(num_states, num_states), A_prime(num_states, num_states);
+        SparseMatrix<double> A(num_states, num_states), A_prime(num_states, num_states);
         for (int i = 0; i < num_states; i++) {
             for (int j = 0; j < num_states; j++) {
                 double value = dynamics["A"][i][j].as<double>();
@@ -357,7 +361,7 @@ namespace utils
             }
         }
 
-        Eigen::SparseMatrix<double> B(num_states, num_inputs), B_prime(num_states, num_inputs);
+        SparseMatrix<double> B(num_states, num_inputs), B_prime(num_states, num_inputs);
         for (int i = 0; i < num_states; i++) {
             for (int j = 0; j < num_inputs; j++) {
                 double value = dynamics["B"][i][j].as<double>();

@@ -18,6 +18,7 @@ PYBIND11_MODULE(amswarm, m)
         .def_readwrite("control_input_trajectory", &Drone::DroneResult::control_input_trajectory)
         .def_readwrite("state_trajectory", &Drone::DroneResult::state_trajectory)
         .def_readwrite("position_trajectory", &Drone::DroneResult::position_trajectory)
+        .def_readwrite("spline_coeffs", &Drone::DroneResult::spline_coeffs)
         .def_readwrite("is_successful", &Drone::DroneResult::is_successful);
 
     py::class_<Drone::SolveOptions>(m, "SolveOptions") // TODO set defaults?
@@ -30,6 +31,14 @@ PYBIND11_MODULE(amswarm, m)
         .def_readwrite("input_ddot_continuity_constraints", &Drone::SolveOptions::input_ddot_continuity_constraints);
 
     py::class_<Drone::MPCWeights>(m, "MPCWeights")
+        .def(py::init<double, double, double, double, double, double, double>(), 
+            py::arg("w_goal_pos") = 7000, 
+            py::arg("w_goal_vel") = 1000, 
+            py::arg("w_smoothness") = 100, 
+            py::arg("w_input_smoothness") = 1000, 
+            py::arg("w_input_continuity") = 100, 
+            py::arg("w_input_dot_continuity") = 100, 
+            py::arg("w_input_ddot_continuity") = 100)
         .def(py::init<>())
         .def_readwrite("w_goal_pos", &Drone::MPCWeights::w_goal_pos)
         .def_readwrite("w_goal_vel", &Drone::MPCWeights::w_goal_vel)
@@ -60,6 +69,10 @@ PYBIND11_MODULE(amswarm, m)
             }));
 
     py::class_<Drone::MPCConfig>(m, "MPCConfig")
+        .def(py::init<int, int, double>(), 
+            py::arg("K") = 25, 
+            py::arg("n") = 10, 
+            py::arg("delta_t") = 1.0 / 8.0)
         .def(py::init<>())
         .def_readwrite("K", &Drone::MPCConfig::K)
         .def_readwrite("n", &Drone::MPCConfig::n)
@@ -82,6 +95,11 @@ PYBIND11_MODULE(amswarm, m)
             }));
 
     py::class_<Drone::PhysicalLimits>(m, "PhysicalLimits")
+        .def(py::init<Eigen::VectorXd, Eigen::VectorXd, double, double>(), 
+            py::arg("p_min") = Eigen::VectorXd::Constant(3, -10), 
+            py::arg("p_max") = Eigen::VectorXd::Constant(3, 10), 
+            py::arg("v_bar") = 1.73, 
+            py::arg("f_bar") = 0.75 * 9.81)
         .def(py::init<>())
         .def_readwrite("p_min", &Drone::PhysicalLimits::p_min)
         .def_readwrite("p_max", &Drone::PhysicalLimits::p_max)
@@ -106,6 +124,9 @@ PYBIND11_MODULE(amswarm, m)
             }));
 
     py::class_<Drone::SparseDynamics>(m, "SparseDynamics")
+        .def(py::init<const Eigen::SparseMatrix<double>&, const Eigen::SparseMatrix<double>&, 
+                   const Eigen::SparseMatrix<double>&, const Eigen::SparseMatrix<double>&>(),
+                   py::arg("A"), py::arg("B"), py::arg("A_prime"), py::arg("B_prime"))
         .def(py::init<>())
         .def_readwrite("A", &Drone::SparseDynamics::A)
         .def_readwrite("B", &Drone::SparseDynamics::B)

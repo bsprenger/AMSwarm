@@ -3,6 +3,10 @@
 
 #include <drone.h>
 
+
+using namespace Eigen;
+
+
 class Swarm {
     public:
         class SwarmResult {
@@ -18,17 +22,17 @@ class Swarm {
         Swarm(std::vector<Drone> drones);
 
         SwarmResult solve(const double current_time,
-                            std::vector<Eigen::VectorXd> x_0_vector, // rename these
-                            std::vector<Eigen::VectorXd> prev_trajectories,
+                            std::vector<VectorXd> x_0_vector, // rename these
+                            std::vector<VectorXd> prev_trajectories,
                             std::vector<Drone::SolveOptions> opt,
-                            std::vector<Eigen::VectorXd> prev_inputs = std::vector<Eigen::VectorXd>(0));
+                            std::vector<VectorXd> prev_inputs = std::vector<VectorXd>(0));
 
         SwarmResult runSimulation();
 
     private:
         int num_drones;
         std::vector<Drone> drones;
-        std::vector<Eigen::SparseMatrix<double>> all_thetas; // to do more elegant solution 
+        std::vector<SparseMatrix<double>> all_thetas; // to do more elegant solution 
 };
 
 #endif
