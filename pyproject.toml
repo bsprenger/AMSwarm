@@ -1,0 +1,31 @@
+[build-system]
+requires = [
+    "setuptools>=65",
+    "pybind11>=2.10.0",
+    "pybind11-global",  # Make pybind11 visible in CMakeLists.txt
+    "cmake>=3.12",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["pybindings"]
+
+
+[project]
+name = "amswarm"
+version = "0.1.0"
+readme = "README.md"
+authors = [{ name = "Ben Sprenger" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+]
+keywords = ["drones", "control", "swarm", "path planning"]
+dependencies = []
+requires-python = ">=3.10"
