@@ -18,7 +18,7 @@ Drone::Drone(MatrixXd waypoints, MPCConfig config, MPCWeights weights,
     collision_envelope(3,3), constSelectionMatrices(config.K)
 {   
     // initialize bernstein matrices and full horizon dynamics matrices
-    
+
     std::tie(W, W_dot, W_ddot, W_input) = initBernsteinMatrices(config); 
     std::tie(S_x, S_u, S_x_prime, S_u_prime) = initFullHorizonDynamicsMatrices(dynamics); // move to struct and constructor
     
@@ -369,6 +369,8 @@ void Drone::compute_d(int j, double rho,
     omega_matrix.row(2) = (beta.array().cos()).transpose();
     VectorXd tmp_vec4 = (constraints.G_eq * zeta_1 + constraints.c_eq + lambda.eq / rho);
 
+    VectorXd d_prev = d;
+
     for (int i = 0; i < d.size(); ++i) {
         d(i) = tmp_vec4.segment(3 * i, 3).transpose().dot(omega_matrix.block<3, 1>(0, i));
 
@@ -377,8 +379,10 @@ void Drone::compute_d(int j, double rho,
             d(i) = std::min(d(i), limits.v_bar);
         } else if (i >= config.K && i < 2 * config.K) {
             d(i) = std::min(d(i), limits.f_bar);
+        } else if (i % config.K == 0) { // 1st collision constraint for each obstacle
+            d(i) = std::max(d(i), 1.0); // to fix this needs serious changes so leave for now
         } else {
-            d(i) = std::max(d(i), 1.0);
+            d(i) = std::max(d(i), 1.0 + (1.0 - config.bf_gamma) * (d_prev(i-1)-1.0));
         }
     }
 }

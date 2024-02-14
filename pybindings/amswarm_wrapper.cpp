@@ -69,21 +69,23 @@ PYBIND11_MODULE(amswarm, m)
             }));
 
     py::class_<Drone::MPCConfig>(m, "MPCConfig")
-        .def(py::init<int, int, double>(), 
+        .def(py::init<int, int, double, double>(), 
             py::arg("K") = 25, 
             py::arg("n") = 10, 
-            py::arg("delta_t") = 1.0 / 8.0)
+            py::arg("delta_t") = 1.0 / 8.0,
+            py::arg("bf_gamma") = 1.0)
         .def(py::init<>())
         .def_readwrite("K", &Drone::MPCConfig::K)
         .def_readwrite("n", &Drone::MPCConfig::n)
         .def_readwrite("delta_t", &Drone::MPCConfig::delta_t)
+        .def_readwrite("bf_gamma", &Drone::MPCConfig::bf_gamma)
         .def(py::pickle(
             [](const Drone::MPCConfig &c) { // __getstate__
                 /* Return a tuple that fully encodes the state of the object */
-                return py::make_tuple(c.K, c.n, c.delta_t);
+                return py::make_tuple(c.K, c.n, c.delta_t, c.bf_gamma);
             },
             [](py::tuple t) { // __setstate__
-                if (t.size() != 3)
+                if (t.size() != 4)
                     throw std::runtime_error("Invalid state!");
 
                 /* Create a new C++ instance */
@@ -91,6 +93,7 @@ PYBIND11_MODULE(amswarm, m)
                 c.K = t[0].cast<int>();
                 c.n = t[1].cast<int>();
                 c.delta_t = t[2].cast<double>();
+                c.bf_gamma = t[3].cast<double>();
                 return c;
             }));
 
