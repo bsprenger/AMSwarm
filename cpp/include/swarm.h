@@ -27,12 +27,12 @@ class Swarm {
                             std::vector<Drone::SolveOptions> opt,
                             std::vector<VectorXd> prev_inputs = std::vector<VectorXd>(0));
 
-        SwarmResult runSimulation();
-
     private:
         int num_drones;
         std::vector<Drone> drones;
         std::vector<SparseMatrix<double>> all_thetas; // to do more elegant solution 
+
+        bool checkIntersection(const VectorXd& traj1, const VectorXd& traj2, const SparseMatrix<double>& theta_tmp);
 };
 
 #endif

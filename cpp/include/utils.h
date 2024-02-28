@@ -2,6 +2,7 @@
 #define UTILS_H
 
 #include <string>
+#include <random>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <vector>
@@ -32,6 +33,7 @@ namespace utils
     std::string getExecutablePath();
     std::tuple<MatrixXd, MatrixXd, MatrixXd, MatrixXd> loadDynamicsMatricesFromYAML(const std::string& yamlFilename);
     std::tuple<SparseMatrix<double>, SparseMatrix<double>, SparseMatrix<double>, SparseMatrix<double>> loadSparseDynamicsMatricesFromYAML(const std::string& yamlFilename);
+    void addRandomPerturbation(Eigen::VectorXd& zeta_1);
 
 } // end namespace utils
 

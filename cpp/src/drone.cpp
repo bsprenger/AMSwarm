@@ -41,9 +41,9 @@ Drone::DroneResult Drone::solve(const double current_time,
     if (extracted_waypoints.size() == 0) {
         throw std::runtime_error("Error: no waypoints within current horizon. Either increase horizon length or add waypoints.");
     }
-
+    
     // extract the penalized steps from the first column of extracted_waypoints
-    // note that our optimization is over x(1) to x(K). penalized_steps lines up with these indexes, i.e. the first possible penalized step is 1, NOT 0
+    // note that the first possible penalized step is 1, NOT 0 TODO check this
     VectorXd penalized_steps;
     penalized_steps.resize(extracted_waypoints.rows());
     penalized_steps = extracted_waypoints.block(0,0,extracted_waypoints.rows(),1);
@@ -56,27 +56,26 @@ Drone::DroneResult Drone::solve(const double current_time,
 
     // initialize optimization variables
     VectorXd alpha, beta, d, zeta_1, s;
-    alpha = VectorXd::Zero((2+j) * config.K);
-    beta = VectorXd::Zero((2+j) * config.K);
-    d = VectorXd::Zero((2+j) * config.K);
+    alpha = VectorXd::Zero((2+j) * (config.K+1));
+    beta = VectorXd::Zero((2+j) * (config.K+1));
+    d = VectorXd::Zero((2+j) * (config.K+1));
     
     if (initial_guess.size() > 0) {
         zeta_1 = U_to_zeta_1(initial_guess);
     } else {
         zeta_1 = VectorXd::Zero(3*(config.n+1)); 
     }
+    // utils::addRandomPerturbation(zeta_1); // add random perturbation to initial guess for stability reasons
     // get the first three rows of W from Eigen and multiply by zeta_1
     VectorXd u_0_prev = W.block(0,0,3,3*(config.n+1)) * zeta_1;
     VectorXd u_dot_0_prev = W_dot.block(0,0,3,3*(config.n+1)) * zeta_1;
     VectorXd u_ddot_0_prev = W_ddot.block(0,0,3,3*(config.n+1)) * zeta_1;
-    
     SimplicialLDLT<SparseMatrix<double>> solver;
     
     SparseMatrix<double> X_g;
     computeX_g(extracted_waypoints, penalized_steps, X_g);
     compute_h_eq(j, alpha, beta, d, constraints.h_eq);
-    s = VectorXd::Zero(6 * config.K);
-
+    s = VectorXd::Zero(6 * (config.K+1));
     CostMatrices costMatrices(this, penalized_steps, x_0, X_g, u_0_prev,
                                 u_dot_0_prev, u_ddot_0_prev, constraints,
                                 opt);
@@ -132,7 +131,7 @@ Drone::DroneResult Drone::solve(const double current_time,
         drone_result.is_successful = true; // Solution found within max iterations
     } else {
         drone_result.is_successful = false; // Max iterations reached, constraints not satisfied
-        // printUnsatisfiedResiduals(residuals, opt);
+        printUnsatisfiedResiduals(residuals, opt);
     }
     
     return drone_result;    
@@ -251,18 +250,23 @@ std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,Sparse
     int num_states = dynamics.A.rows();
     int num_inputs = dynamics.B.cols();
 
-    SparseMatrix<double> S_x(num_states*config.K, num_states);
-    SparseMatrix<double> S_x_prime(num_states*config.K, num_states);
-    SparseMatrix<double> S_u(num_states*config.K, num_inputs*config.K);
-    SparseMatrix<double> S_u_prime(num_states*config.K, num_inputs*config.K);
+    SparseMatrix<double> S_x(num_states*(config.K+1), num_states);
+    SparseMatrix<double> S_x_prime(num_states*(config.K+1), num_states);
+    SparseMatrix<double> S_u(num_states*(config.K+1), num_inputs*config.K);
+    SparseMatrix<double> S_u_prime(num_states*(config.K+1), num_inputs*config.K);
 
     // Build S_x and S_x_prime --> to do at some point, build A_prime and B_prime from A and B, accounting for identified model time
     SparseMatrix<double> temp_S_x_block(num_states,num_states);
     SparseMatrix<double> temp_S_x_prime_block(num_states,num_states);
-    for (int k = 0; k < config.K; ++k) {
-        temp_S_x_block = utils::matrixPower(dynamics.A,k+1); // necesssary to explicitly make this a sparse matrix to avoid ambiguous call to replaceSparseBlock
+    for (int k = 0; k <= config.K; ++k) {
+        temp_S_x_block = utils::matrixPower(dynamics.A,k); // necesssary to explicitly make this a sparse matrix to avoid ambiguous call to replaceSparseBlock
         
-        temp_S_x_prime_block = dynamics.A_prime * utils::matrixPower(dynamics.A,k);
+        if (k == 0) {
+            temp_S_x_prime_block = SparseMatrix<double>(num_states,num_states);
+        } else {
+            temp_S_x_prime_block = dynamics.A_prime * utils::matrixPower(dynamics.A,k-1);
+        }
+        // temp_S_x_prime_block = dynamics.A_prime * utils::matrixPower(dynamics.A,k);
         utils::replaceSparseBlock(S_x, temp_S_x_block, k * num_states, 0);
         utils::replaceSparseBlock(S_x_prime, temp_S_x_prime_block, k * num_states, 0);
     }
@@ -284,8 +288,8 @@ std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,Sparse
     }
 
     for (int k = 0; k < config.K; ++k) {
-        utils::replaceSparseBlock(S_u, static_cast<SparseMatrix<double>>(S_u_col.block(0, 0, (config.K - k) * num_states, num_inputs)), k * num_states, k * num_inputs);
-        utils::replaceSparseBlock(S_u_prime, static_cast<SparseMatrix<double>>(S_u_prime_col.block(0, 0, (config.K - k) * num_states, num_inputs)), k * num_states, k * num_inputs);
+        utils::replaceSparseBlock(S_u, static_cast<SparseMatrix<double>>(S_u_col.block(0, 0, (config.K - k) * num_states, num_inputs)), (k+1) * num_states, k * num_inputs);
+        utils::replaceSparseBlock(S_u_prime, static_cast<SparseMatrix<double>>(S_u_prime_col.block(0, 0, (config.K - k) * num_states, num_inputs)), (k+1) * num_states, k * num_inputs);
     }
     return std::make_tuple(S_x, S_u, S_x_prime, S_u_prime);
 };
@@ -329,7 +333,7 @@ void Drone::updateCostMatrices(double rho, CostMatrices& costMatrices,
 
 void Drone::compute_h_eq(int j, VectorXd& alpha, VectorXd& beta, VectorXd& d,VectorXd& h_eq) {
     // initialize omega
-    MatrixXd omega_matrix = MatrixXd::Zero(3, (2 + j) * config.K); // temporary matrix to hold omega values before reshaping
+    MatrixXd omega_matrix = MatrixXd::Zero(3, (2 + j) * (config.K+1)); // temporary matrix to hold omega values before reshaping
     omega_matrix.row(0) = (alpha.array().cos() * beta.array().sin()).transpose();
     omega_matrix.row(1) = (alpha.array().sin() * beta.array().sin()).transpose();
     omega_matrix.row(2) = (beta.array().cos()).transpose();
@@ -363,7 +367,7 @@ void Drone::compute_d(int j, double rho,
                     LagrangeMultipliers& lambda,
                     VectorXd& alpha, VectorXd& beta,
                     VectorXd& d) {
-    MatrixXd omega_matrix = MatrixXd::Zero(3, (2 + j) * config.K); // temporary matrix to hold omega values before reshaping
+    MatrixXd omega_matrix = MatrixXd::Zero(3, (2 + j) * (config.K+1)); // temporary matrix to hold omega values before reshaping
     omega_matrix.row(0) = (alpha.array().cos() * beta.array().sin()).transpose();
     omega_matrix.row(1) = (alpha.array().sin() * beta.array().sin()).transpose();
     omega_matrix.row(2) = (beta.array().cos()).transpose();
@@ -375,11 +379,11 @@ void Drone::compute_d(int j, double rho,
         d(i) = tmp_vec4.segment(3 * i, 3).transpose().dot(omega_matrix.block<3, 1>(0, i));
 
         // clip d -- improve this later
-        if (i < config.K) {
+        if (i < config.K+1) {
             d(i) = std::min(d(i), limits.v_bar);
-        } else if (i >= config.K && i < 2 * config.K) {
+        } else if (i >= config.K + 1 && i < 2 * (config.K+1)) {
             d(i) = std::min(d(i), limits.f_bar);
-        } else if (i % config.K == 0) { // 1st collision constraint for each obstacle
+        } else if (i % (config.K+1) == 0) { // 1st collision constraint for each obstacle
             d(i) = std::max(d(i), 1.0); // to fix this needs serious changes so leave for now
         } else {
             d(i) = std::max(d(i), 1.0 + (1.0 - config.bf_gamma) * (d_prev(i-1)-1.0));
@@ -407,10 +411,10 @@ void Drone::computeResiduals(Constraints& constraints,
 
 
 void Drone::computeX_g(MatrixXd& extracted_waypoints, VectorXd& penalized_steps, SparseMatrix<double>& X_g) {
-    X_g.resize(6 * config.K, 1); // position and velocity for time steps 1 to K. since no sparse vector types exist, make a sparse matrix with 1 column TODO FACT CHECK THIS!!!
+    X_g.resize(6 * (config.K+1), 1); // position and velocity for time steps 0 to K. since no sparse vector types exist, make a sparse matrix with 1 column TODO FACT CHECK THIS!!!
     for (int i = 0; i < penalized_steps.size(); ++i) {
         MatrixXd tmp_waypoint = extracted_waypoints.block(i,1,1,extracted_waypoints.cols()-1).transpose();
-        utils::replaceSparseBlock(X_g, tmp_waypoint,(penalized_steps(i) - 1) * 6, 0); // TODO explain why we subtract 1 from penalized_steps(i)
+        utils::replaceSparseBlock(X_g, tmp_waypoint,(penalized_steps(i)) * 6, 0); // TODO explain why we subtract 1 from penalized_steps(i) --> no longer needed as x(0) start instead of x(1)  now
     }
 }
 
@@ -437,16 +441,16 @@ Drone::DroneResult Drone::computeDroneResult(double current_time, VectorXd& zeta
 
     // state trajectory
     drone_result.state_trajectory_vector = S_x * x_0 + S_u * drone_result.control_input_trajectory_vector;
-    drone_result.state_trajectory = Map<MatrixXd>(drone_result.state_trajectory_vector.data(), 6, config.K).transpose();
+    drone_result.state_trajectory = Map<MatrixXd>(drone_result.state_trajectory_vector.data(), 6, (config.K+1)).transpose();
 
     // position trajectory
     drone_result.position_trajectory_vector = constSelectionMatrices.M_p * drone_result.state_trajectory_vector;
-    drone_result.position_trajectory = Map<MatrixXd>(drone_result.position_trajectory_vector.data(), 3, config.K).transpose();
+    drone_result.position_trajectory = Map<MatrixXd>(drone_result.position_trajectory_vector.data(), 3, (config.K+1)).transpose();
 
     // Time stamps for position and state trajectories
-    drone_result.position_state_time_stamps.resize(config.K);
-    for (int i = 0; i < config.K; ++i) {
-        drone_result.position_state_time_stamps(i) = current_time + (i+1) * config.delta_t;
+    drone_result.position_state_time_stamps.resize(config.K+1);
+    for (int i = 0; i < config.K+1; ++i) {
+        drone_result.position_state_time_stamps(i) = current_time + (i) * config.delta_t;
     }
 
     // Time stamps for control input trajectory
@@ -469,7 +473,7 @@ void Drone::printUnsatisfiedResiduals(const Residuals& residuals,
             if (std::abs(residual[i]) > threshold || (i + 1 < end && std::abs(residual[i+1]) > threshold) || (i + 2 < end && std::abs(residual[i+2]) > threshold)) {
                 int step = (i - start) / 3 + 1;
                 if (wrap) {
-                    step = (step - 1) % config.K + 1; // Wrap step number if it exceeds K
+                    step = (step - 1) % (config.K+1) + 1; // Wrap step number if it exceeds K
                 }
                 exceedingSteps.push_back(step); // Adjust for relative step number
             }
@@ -486,10 +490,10 @@ void Drone::printUnsatisfiedResiduals(const Residuals& residuals,
 
     // Check and print for each type of constraint
     if (residuals.eq.cwiseAbs().maxCoeff() > opt.eq_threshold) {
-        printExceedingSteps(residuals.eq, 0, 3*config.K, "Velocity constraints residual exceeds threshold", opt.eq_threshold);
-        printExceedingSteps(residuals.eq, 3*config.K, 6*config.K, "Acceleration constraints residual exceeds threshold", opt.eq_threshold);
+        printExceedingSteps(residuals.eq, 0, 3*(config.K+1), "Velocity constraints residual exceeds threshold", opt.eq_threshold);
+        printExceedingSteps(residuals.eq, 3*(config.K+1), 6*(config.K+1), "Acceleration constraints residual exceeds threshold", opt.eq_threshold);
         // For collision constraints, wrap the step number if it exceeds K
-        printExceedingSteps(residuals.eq, 6*config.K, residuals.eq.size(), "Collision constraints residual exceeds threshold", opt.eq_threshold, true);
+        printExceedingSteps(residuals.eq, 6*(config.K+1), residuals.eq.size(), "Collision constraints residual exceeds threshold", opt.eq_threshold, true);
     }
 
     if (residuals.pos.maxCoeff() > opt.pos_threshold) {

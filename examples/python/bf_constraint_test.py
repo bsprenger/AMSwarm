@@ -18,7 +18,7 @@ def initialize_swarm_optimization(waypoints: dict, settings: dict) -> tuple:
         initial_states.append(np.concatenate((initial_pos, np.zeros(3))))
         prev_inputs.append(
             np.tile(np.concatenate((initial_pos, np.zeros(3))), settings["MPCConfig"]["K"]))
-        prev_trajectories.append(np.tile(initial_pos, settings["MPCConfig"]["K"]))
+        prev_trajectories.append(np.tile(initial_pos, settings["MPCConfig"]["K"]+1))
     return initial_states, prev_inputs, prev_trajectories
 
 
@@ -87,7 +87,7 @@ def update_for_next_iteration(step_result: amswarm.SwarmResult):
     prev_trajectories = []
     
     for drone_index, result in enumerate(step_result.drone_results):
-        initial_states.append(result.state_trajectory[0,:])
+        initial_states.append(result.state_trajectory[1,:])
         last_input, second_last_input = get_last_two_elements(result.control_input_trajectory)
         extrapolated_input = extrapolate(last_input, second_last_input)
 
@@ -107,11 +107,16 @@ def main():
     settings['MPCConfig']['delta_t'] = 1 / settings['MPCConfig']['mpc_freq']
     del settings['MPCConfig']['mpc_freq']
     
-    initial_positions = {0: np.array([1,0,1]), 1: np.array([0,1,1])}
-    waypoints = {0: np.array([[0.00, 1.00, 0.00, 1.00, 0.00, 0.00, 0.00],
-                            [2.25, -1.00, 0.00, 1.00, 0.00, 0.00, 0.00]]),
-            1: np.array([[0.00, 0.00, 1.00, 1.00, 0.00, 0.00, 0.00],
-                        [2.25, 0.00, -1.00, 1.00, 0.00, 0.00, 0.00]])}
+    # initial_positions = {0: np.array([0,1,1])}
+    initial_positions = {0: np.array([0,0.5,1.0]), 1: np.array([0.5,0,1.0])}
+    # waypoints = {0: np.array([[0.00, 1.00, 0.00, 1.00, 0.00, 0.00, 0.00],
+    #                         [2.25, 0.00, 0.00, 1.00, 0.00, 0.00, 0.00]]),
+            # 1: np.array([[0.00, 0.00, 1.00, 1.00, 0.00, 0.00, 0.00],
+            #             [2.25, 0.00, -1.00, 1.00, 0.00, 0.00, 0.00]])}
+    waypoints = {0: np.array([[0.00, 0.00, 0.50, 1.00, 0.00, 0.00, 0.00],
+                              [5, 0.00, -0.50, 1.00, 0.00, 0.00, 0.00]]),
+                 1: np.array([[0.00, 0.50, 0.00, 1.00, 0.00, 0.00, 0.00],
+                              [5, -0.50, 0.00, 1.00, 0.00, 0.00, 0.00]])}
     num_drones = len(waypoints)
     amswarm_kwargs = {
         "config": amswarm.MPCConfig(**settings['MPCConfig']),
@@ -138,12 +143,13 @@ def main():
     opt = [amswarm.SolveOptions()] * num_drones
     step_result = solve_swarm(swarm, 0, initial_states, prev_trajectories, opt,
                                 prev_inputs)
+    
     prev_inputs.clear()
     prev_trajectories.clear()
     for i in range(len(drones)):
         prev_inputs.append(step_result.drone_results[i].control_input_trajectory_vector)
         prev_trajectories.append(step_result.drone_results[i].position_trajectory_vector)
-    
+    print(prev_trajectories)
     final_waypoint_time = 0.0
     for key in waypoints:
         if waypoints[key][-1,0] > final_waypoint_time:
@@ -152,8 +158,9 @@ def main():
     final_waypoint_time = round(final_waypoint_time / amswarm_kwargs["config"].delta_t) * amswarm_kwargs["config"].delta_t
     num_steps = int(final_waypoint_time / amswarm_kwargs["config"].delta_t)-1 # stop one time step before end -> no control input at last time step
     
-    for i in range(num_steps):
+    for i in range(num_steps): # num_steps
         current_time = i * amswarm_kwargs["config"].delta_t
+        
         step_result = solve_swarm(swarm, current_time, initial_states, prev_trajectories, opt, prev_inputs)
         initial_states, prev_inputs, prev_trajectories = update_for_next_iteration(step_result)
         
@@ -161,10 +168,10 @@ def main():
             position_results[i] = np.vstack((position_results[i], step_result.drone_results[i].position_trajectory[0,:]))
             control_input_results[i] = np.vstack((control_input_results[i], step_result.drone_results[i].control_input_trajectory[0,:]))
             
-    formatted_string = '[' + '; '.join([str(row)[1:-1] for row in position_results[1]]) + ']'
+    formatted_string = '[' + '; '.join([str(row)[1:-1] for row in position_results[0]]) + ']'
     print(formatted_string)
     np.set_printoptions(precision=3, suppress=True, linewidth=100, threshold=np.inf)
-    formatted_string = '[' + '; '.join([str(row)[1:-1] for row in control_input_results[1]]) + ']'
+    formatted_string = '[' + '; '.join([str(row)[1:-1] for row in control_input_results[0]]) + ']'
     print("\n")
     print(formatted_string)
     

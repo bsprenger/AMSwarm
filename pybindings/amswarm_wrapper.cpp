@@ -281,8 +281,9 @@ PYBIND11_MODULE(amswarm, m)
                 return instance.solve(current_time, x_0_vector, prev_trajectories, opt, prev_inputs);
             }
         }, py::arg("current_time"), py::arg("x_0_vector"), py::arg("prev_trajectories"), py::arg("opt"), py::arg("prev_inputs") = py::list())
-        .def("run_simulation", [](Swarm &instance) {
-            Swarm::SwarmResult swarm_result = instance.runSimulation();
-            return swarm_result;
-        });
+        // .def("run_simulation", [](Swarm &instance) {
+        //     Swarm::SwarmResult swarm_result = instance.runSimulation();
+        //     return swarm_result;
+        // });
+        ;
 }

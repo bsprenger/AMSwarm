@@ -49,7 +49,7 @@ class Drone {
             double eq_threshold = 0.01;
             double pos_threshold = 0.01;
             double waypoint_position_threshold = 0.01;
-            double waypoint_velocity_threshold = 0.01;
+            double waypoint_velocity_threshold = 0.05;
             double waypoint_acceleration_threshold = 0.01;
             double input_continuity_threshold = 0.01;
             double input_dot_continuity_threshold = 0.01;
@@ -95,10 +95,6 @@ class Drone {
 
             PhysicalLimits(const Eigen::VectorXd& p_min, const Eigen::VectorXd& p_max, double v_bar, double f_bar) 
             : p_min(p_min), p_max(p_max), v_bar(v_bar), f_bar(f_bar) {}
-        };
-
-        struct Dynamics {
-            MatrixXd A, B, A_prime, B_prime;
         };
 
         struct SparseDynamics {
@@ -147,13 +143,13 @@ class Drone {
             ConstSelectionMatrices(int K) {
                 // Intermediate matrices used in building selection matrices
                 SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
-                SparseMatrix<double> eyeK = utils::getSparseIdentity(K);
+                SparseMatrix<double> eyeKplus1 = utils::getSparseIdentity(K+1);
                 SparseMatrix<double> zeroMat(3, 3);
                 zeroMat.setZero();
 
-                M_p = utils::kroneckerProduct(eyeK, utils::horzcat(eye3, zeroMat));
-                M_v = utils::kroneckerProduct(eyeK, utils::horzcat(zeroMat, eye3));
-                M_a = utils::kroneckerProduct(eyeK, utils::horzcat(zeroMat, eye3));
+                M_p = utils::kroneckerProduct(eyeKplus1, utils::horzcat(eye3, zeroMat));
+                M_v = utils::kroneckerProduct(eyeKplus1, utils::horzcat(zeroMat, eye3));
+                M_a = utils::kroneckerProduct(eyeKplus1, utils::horzcat(zeroMat, eye3));
             }
         };
 
@@ -164,7 +160,7 @@ class Drone {
                 SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
                 SparseMatrix<double> eye6 = utils::getSparseIdentity(6);
                 SparseMatrix<double> eyeK = utils::getSparseIdentity(K);
-                SparseMatrix<double> eyeK2j = utils::getSparseIdentity((2 + j) * K);
+                SparseMatrix<double> eyeKplus12j = utils::getSparseIdentity((2 + j) * (K+1));
                 SparseMatrix<double> zeroMat(3, 3);
                 zeroMat.setZero();
                 SparseMatrix<double> x_step(1, 3);
@@ -174,18 +170,18 @@ class Drone {
                 SparseMatrix<double> z_step(1, 3);
                 z_step.coeffRef(0, 2) = 1.0;
 
-                M_x = utils::kroneckerProduct(eyeK2j, x_step);
-                M_y = utils::kroneckerProduct(eyeK2j, y_step);
-                M_z = utils::kroneckerProduct(eyeK2j, z_step);
+                M_x = utils::kroneckerProduct(eyeKplus12j, x_step);
+                M_y = utils::kroneckerProduct(eyeKplus12j, y_step);
+                M_z = utils::kroneckerProduct(eyeKplus12j, z_step);
 
-                M_waypoints_position.resize(3 * penalized_steps.size(), 6 * K);
+                M_waypoints_position.resize(3 * penalized_steps.size(), 6 * (K+1));
                 for (int i = 0; i < penalized_steps.size(); ++i) {
-                    utils::replaceSparseBlock(M_waypoints_position, eye3, 3 * i, 6 * (penalized_steps(i) - 1));
+                    utils::replaceSparseBlock(M_waypoints_position, eye3, 3 * i, 6 * (penalized_steps(i))); // CHECK THIS
                 }
 
-                M_waypoints_velocity.resize(3 * penalized_steps.size(), 6 * K);
+                M_waypoints_velocity.resize(3 * penalized_steps.size(), 6 * (K+1));
                 for (int i = 0; i < penalized_steps.size(); ++i) {
-                    utils::replaceSparseBlock(M_waypoints_velocity, eye3, 3 * i, 6 * (penalized_steps(i) - 1) + 3);
+                    utils::replaceSparseBlock(M_waypoints_velocity, eye3, 3 * i, 6 * (penalized_steps(i)) + 3); // CHECK THIS
                 }
             }
         };
@@ -208,8 +204,8 @@ class Drone {
                             c_waypoints_vel = variableSelectionMatrices.M_waypoints_velocity * parentDrone->S_x * x_0;
                             h_waypoints_vel = extracted_waypoints.block(0, 4, extracted_waypoints.rows(), extracted_waypoints.cols() - 4).reshaped<RowMajor>();
 
-                            G_waypoints_accel = variableSelectionMatrices.M_waypoints_position * parentDrone->S_u_prime * parentDrone->W_input;
-                            c_waypoints_accel = variableSelectionMatrices.M_waypoints_position * parentDrone->S_x_prime * x_0;
+                            G_waypoints_accel = variableSelectionMatrices.M_waypoints_velocity * parentDrone->S_u_prime * parentDrone->W_input; // vel should be used here because we are using the same selection matrix
+                            c_waypoints_accel = variableSelectionMatrices.M_waypoints_velocity * parentDrone->S_x_prime * x_0;
                             h_waypoints_accel = VectorXd::Zero(G_waypoints_accel.rows());
 
                             SparseMatrix<double> S_theta = utils::blkDiag(thetas);
@@ -222,8 +218,8 @@ class Drone {
                             SparseMatrix<double> G_pos_blk2 = -parentDrone->constSelectionMatrices.M_p * parentDrone->S_u * parentDrone->W_input;
                             G_pos = utils::vertcat(G_pos_blk1, G_pos_blk2);
 
-                            VectorXd h_pos_blk1 = parentDrone->limits.p_max.replicate(parentDrone->config.K, 1) - parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
-                            VectorXd h_pos_blk2 = -parentDrone->limits.p_min.replicate(parentDrone->config.K, 1) + parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
+                            VectorXd h_pos_blk1 = parentDrone->limits.p_max.replicate(parentDrone->config.K+1, 1) - parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
+                            VectorXd h_pos_blk2 = -parentDrone->limits.p_min.replicate(parentDrone->config.K+1, 1) + parentDrone->constSelectionMatrices.M_p * parentDrone->S_x * x_0;
                             h_pos.resize(h_pos_blk1.rows() + h_pos_blk2.rows());
                             h_pos << h_pos_blk1, h_pos_blk2;
 
@@ -246,8 +242,8 @@ class Drone {
             VectorXd input_ddot_continuity; // input continuity constraint residuals
 
             Residuals(const Drone* parentDrone, int j, int K, int num_penalized_steps) {
-                eq = VectorXd::Ones((2 + j) * 3 * K); // TODO something more intelligent then setting these to 1 -> they should be bigger than threshold
-                pos = VectorXd::Ones(6 * K);
+                eq = VectorXd::Ones((2 + j) * 3 * (K+1)); // TODO something more intelligent then setting these to 1 -> they should be bigger than threshold
+                pos = VectorXd::Ones(6 * (K+1));
                 waypoints_pos = VectorXd::Ones(3 * num_penalized_steps);
                 waypoints_vel = VectorXd::Ones(3 * num_penalized_steps);
                 waypoints_accel = VectorXd::Ones(3 * num_penalized_steps);
@@ -269,8 +265,8 @@ class Drone {
             VectorXd input_ddot_continuity;
 
             LagrangeMultipliers(const Drone* parentDrone, int j, int K, int num_penalized_steps) {
-                eq = VectorXd::Zero((2 + j) * 3 * K);
-                pos = VectorXd::Zero(6 * K);
+                eq = VectorXd::Zero((2 + j) * 3 * (K+1));
+                pos = VectorXd::Zero(6 * (K+1));
                 waypoints_pos = VectorXd::Zero(3 * num_penalized_steps);
                 waypoints_vel = VectorXd::Zero(3 * num_penalized_steps);
                 waypoints_accel = VectorXd::Zero(3 * num_penalized_steps);
@@ -298,20 +294,20 @@ class Drone {
                         SolveOptions& opt) {
 
                 SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
-                SparseMatrix<double> eyeK = utils::getSparseIdentity(parentDrone->config.K);
+                SparseMatrix<double> eyeKp1 = utils::getSparseIdentity(parentDrone->config.K+1);
 
                 std::vector<SparseMatrix<double>> tmp_cost_vec = {eye3 * parentDrone->weights.w_goal_pos, eye3 * parentDrone->weights.w_goal_vel}; // clarify this
                 SparseMatrix<double> R_g = utils::blkDiag(tmp_cost_vec); // clarify this
 
-                SparseMatrix<double> tmp_R_g_tilde(parentDrone->config.K,parentDrone->config.K); // for selecting which steps to penalize
+                SparseMatrix<double> tmp_R_g_tilde(parentDrone->config.K+1,parentDrone->config.K+1); // for selecting which steps to penalize
                 for (int idx : penalized_steps) {
-                    tmp_R_g_tilde.insert(idx - 1, idx - 1) = 1.0; // this needs to be clarified -> since the first block in R_g_tilde corresponds to x(1), we need to subtract 1 from the index. penalized_steps gives the TIME STEP number, not matrix index
+                    tmp_R_g_tilde.insert(idx, idx) = 1.0; // TODO FIX THIS this needs to be clarified -> since the first block in R_g_tilde now corresponds to x(0), we do not need to subtract 1 from the index. penalized_steps gives the TIME STEP number, not matrix index
                 }
                 SparseMatrix<double> R_g_tilde = utils::kroneckerProduct(tmp_R_g_tilde, R_g);
                 
                 // initialize R_s_tilde
                 SparseMatrix<double> R_s = eye3 * parentDrone->weights.w_smoothness;
-                SparseMatrix<double> R_s_tilde = utils::kroneckerProduct(eyeK, R_s);
+                SparseMatrix<double> R_s_tilde = utils::kroneckerProduct(eyeKp1, R_s);
 
                 // initialize cost matrices
                 Q = 2.0 * parentDrone->W_input.transpose() * parentDrone->S_u.transpose() * R_g_tilde * parentDrone->S_u * parentDrone->W_input

@@ -27,6 +27,16 @@ namespace utils
         return result;
     };
 
+    void addRandomPerturbation(Eigen::VectorXd& zeta_1) {
+        std::random_device rd; // Obtain a random number from hardware
+        std::mt19937 gen(rd()); // Seed the generator
+        std::normal_distribution<> distr(0.0, 1e-4); // Mean 0, small std dev
+
+        for (int i = 0; i < zeta_1.size(); ++i) {
+            zeta_1(i) += distr(gen); // Add a tiny random value to each element
+        }
+    }
+
     MatrixXd matrixPower(const MatrixXd& base, int exponent) {
         if (exponent == 0) {
             // Return the identity matrix for A^0
