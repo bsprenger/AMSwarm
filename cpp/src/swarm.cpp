@@ -35,11 +35,11 @@ Swarm::SwarmResult Swarm::solve(const double current_time,
     SwarmResult swarm_result;
     swarm_result.drone_results.resize(num_drones);
 
-    // SparseMatrix<double> eyeKp1 = SparseMatrix<double>(K+1,K+1);
-    // eyeKp1.setIdentity();
-    // SparseMatrix<double> buffer(3,3);
-    // buffer.insert(0,0) = 5; buffer.insert(1,1) = 5; buffer.insert(2,2) = 5;
-    // SparseMatrix<double> theta_intersection_buffer = utils::kroneckerProduct(eyeKp1, drones[i].getCollisionEnvelope());
+    SparseMatrix<double> eyeKp1 = SparseMatrix<double>(K+1,K+1);
+    eyeKp1.setIdentity();
+    SparseMatrix<double> buffer(3,3);
+    buffer.insert(0,0) = 5; buffer.insert(1,1) = 5; buffer.insert(2,2) = 5;
+    SparseMatrix<double> theta_intersection_buffer = utils::kroneckerProduct(eyeKp1, buffer);
     
     # pragma omp parallel for
     for (int i = 0; i < drones.size(); ++i) {
@@ -48,9 +48,10 @@ Swarm::SwarmResult Swarm::solve(const double current_time,
         // VectorXd xi(3 * (K+1) * j);
         Eigen::VectorXd xi;
         std::vector<SparseMatrix<double>> thetas;
+        std::vector<int> intersecting_drones;
         // assign each each obstacle's trajectory to xi - in this case, all OTHER drones
         for (int drone = 0; drone < drones.size(); ++drone) {
-            if (drone != i && Swarm::checkIntersection(prev_trajectories[i], prev_trajectories[drone], all_thetas[drone])) {
+            if (drone != i && drone < i && Swarm::checkIntersection(prev_trajectories[i], prev_trajectories[drone], all_thetas[drone] + theta_intersection_buffer)) {
                 // If there is an intersection, append this drone's trajectory to xi
                 VectorXd to_append = prev_trajectories[drone];
                 if (xi.size() == 0) {
@@ -62,6 +63,7 @@ Swarm::SwarmResult Swarm::solve(const double current_time,
 
                 // Also append the corresponding theta to thetas
                 thetas.push_back(all_thetas[drone]);
+                intersecting_drones.push_back(drone); // here
             }
         }
         
@@ -96,8 +98,8 @@ Swarm::SwarmResult Swarm::solve(const double current_time,
     return swarm_result;
 }
 
-bool Swarm::checkIntersection(const VectorXd& traj1, const VectorXd& traj2, const SparseMatrix<double>& theta_tmp) {
-    VectorXd diff = theta_tmp*(traj1 - traj2);
+bool Swarm::checkIntersection(const VectorXd& traj1, const VectorXd& traj2, const SparseMatrix<double>& theta) {
+    VectorXd diff = theta*(traj1 - traj2);
     // Iterate over chunks of 3 rows
     for (int i = 0; i < diff.size(); i += 3) {
         // Ensure not to exceed the vector's bounds
@@ -106,10 +108,7 @@ bool Swarm::checkIntersection(const VectorXd& traj1, const VectorXd& traj2, cons
         // double norm = (theta_tmp.block(i, 0, chunkSize, diff.size()) * chunkDiff).norm();
         double norm = diff.segment(i, 3).norm();
         // If the norm of any chunk is less than or equal to 1, return true for an intersection
-        if (norm <= 1.000) {
-            std::cout << "Intersection detected" << std::endl;
-            std::cout << traj1.block(i, 0, 3, 1) << std::endl;
-            std::cout << traj2.block(i, 0, 3, 1) << std::endl;
+        if (norm <= 1.0) {
             return true;
         }
     }

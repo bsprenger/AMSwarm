@@ -33,7 +33,8 @@ namespace utils
     std::string getExecutablePath();
     std::tuple<MatrixXd, MatrixXd, MatrixXd, MatrixXd> loadDynamicsMatricesFromYAML(const std::string& yamlFilename);
     std::tuple<SparseMatrix<double>, SparseMatrix<double>, SparseMatrix<double>, SparseMatrix<double>> loadSparseDynamicsMatricesFromYAML(const std::string& yamlFilename);
-    void addRandomPerturbation(Eigen::VectorXd& zeta_1);
+    void addRandomPerturbation(Eigen::VectorXd& vec, double max_shift);
+    VectorXd generateRandomShiftVector(int length, double max_shift);
 
 } // end namespace utils
 

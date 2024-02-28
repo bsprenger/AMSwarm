@@ -27,14 +27,27 @@ namespace utils
         return result;
     };
 
-    void addRandomPerturbation(Eigen::VectorXd& zeta_1) {
+    void addRandomPerturbation(Eigen::VectorXd& vec, double max_shift) {
         std::random_device rd; // Obtain a random number from hardware
         std::mt19937 gen(rd()); // Seed the generator
-        std::normal_distribution<> distr(0.0, 1e-4); // Mean 0, small std dev
+        std::uniform_real_distribution<> distr(-max_shift, max_shift); // Mean 0, small std dev
 
-        for (int i = 0; i < zeta_1.size(); ++i) {
-            zeta_1(i) += distr(gen); // Add a tiny random value to each element
+        for (int i = 0; i < vec.size(); ++i) {
+            vec(i) += distr(gen); // Add a tiny random value to each element
         }
+    }
+
+    VectorXd generateRandomShiftVector(int length, double max_shift) {
+        VectorXd shiftVector(length);
+        std::random_device rd; // Obtain a random number from hardware
+        std::mt19937 gen(rd()); // Seed the generator
+        std::uniform_real_distribution<> distr(-max_shift, max_shift); // Uniform distribution between -max_shift and max_shift
+
+        double randomShift = distr(gen); // Generate a random shift value
+
+        shiftVector.fill(randomShift); // Fill the vector with the random shift value
+
+        return shiftVector;
     }
 
     MatrixXd matrixPower(const MatrixXd& base, int exponent) {

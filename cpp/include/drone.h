@@ -120,7 +120,7 @@ class Drone {
                                 const VectorXd x_0,
                                 const int j,
                                 std::vector<SparseMatrix<double>> thetas,
-                                const VectorXd xi,
+                                VectorXd xi,
                                 SolveOptions& opt,
                                 const VectorXd& initial_guess = VectorXd());
         

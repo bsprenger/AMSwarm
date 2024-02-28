@@ -32,7 +32,7 @@ Drone::DroneResult Drone::solve(const double current_time,
                                 const VectorXd x_0,
                                 const int j,
                                 std::vector<SparseMatrix<double>> thetas,
-                                const VectorXd xi,
+                                VectorXd xi,
                                 SolveOptions& opt,
                                 const VectorXd& initial_guess) {
 
@@ -47,6 +47,21 @@ Drone::DroneResult Drone::solve(const double current_time,
     VectorXd penalized_steps;
     penalized_steps.resize(extracted_waypoints.rows());
     penalized_steps = extracted_waypoints.block(0,0,extracted_waypoints.rows(),1);
+
+    // add random shift to each chunk of length K+1 to xi - to avoid oscillation issues with two drones with symmetrical paths
+    // std::random_device rd;
+    // std::mt19937 gen(rd());
+    // double max_shift = 0.005;
+    // std::uniform_real_distribution<> dis(-max_shift, max_shift);
+    // // no shift on first index as it can cause instability (drone thinks collision at current time possibly)
+    // for (int i = 0; i < xi.size(); i += config.K+1) {
+    //     xi.segment(i+3, config.K-2) += VectorXd::LinSpaced(config.K-2, dis(gen), dis(gen));
+    // }
+
+    // for (int i = 0; i < xi.size(); i += config.K+1) {
+    //     int sign = (rand() % 2) * 2 - 1;
+    //     xi.segment(i+3, config.K-2) += VectorXd::LinSpaced(config.K-2, sign*0.001, sign*0.001);
+    // }
 
     // initialize optimization parameters
     VariableSelectionMatrices variableSelectionMatrices(config.K, j, penalized_steps);
@@ -124,14 +139,14 @@ Drone::DroneResult Drone::solve(const double current_time,
         computeResiduals(constraints, zeta_1, s, residuals, u_0_prev, u_dot_0_prev, u_ddot_0_prev);
         updateLagrangeMultipliers(rho, residuals, lambda);
     } // end iterative loop
-    
+    // utils::addRandomPerturbation(zeta_1,1e-2);
     // calculate and return inputs and predicted trajectory
     DroneResult drone_result = computeDroneResult(current_time, zeta_1, x_0);
     if (iters < opt.max_iters) {
         drone_result.is_successful = true; // Solution found within max iterations
     } else {
         drone_result.is_successful = false; // Max iterations reached, constraints not satisfied
-        printUnsatisfiedResiduals(residuals, opt);
+        // printUnsatisfiedResiduals(residuals, opt);
     }
     
     return drone_result;    
