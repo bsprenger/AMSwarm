@@ -16,9 +16,10 @@ using namespace Eigen;
 class Constraint {
 public:
     virtual ~Constraint() {}
-    virtual SparseMatrix<double> getQuadCost(double rho) = 0;
-    virtual VectorXd getLinearCost(double rho) = 0;
+    virtual SparseMatrix<double> getQuadCost(double rho) const = 0;
+    virtual VectorXd getLinearCost(double rho) const = 0;
     virtual void update(double rho, const VectorXd& x) = 0;
+    virtual bool isSatisfied(const VectorXd& x) const = 0;
     virtual void reset() = 0;
 };
 
@@ -28,12 +29,14 @@ private:
     SparseMatrix<double> G;
     VectorXd h;
     VectorXd lagrangeMult;
+    double tolerance;
 
 public:
-    EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h);
+    EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-3);
     SparseMatrix<double> getQuadCost(double rho) const override;
     VectorXd getLinearCost(double rho) const override;
     void update(double rho, const VectorXd& x) override;
+    bool isSatisfied(const VectorXd& x) const override;
     void reset() override;
 };
 
@@ -44,12 +47,14 @@ private:
     VectorXd h;
     VectorXd slack;
     VectorXd lagrangeMult;
+    double tolerance;
 
 public:
-    InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h);
+    InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-3);
     SparseMatrix<double> getQuadCost(double rho) const override;
     VectorXd getLinearCost(double rho) const override;
     void update(double rho, const VectorXd& x) override;
+    bool isSatisfied(const VectorXd& x) const override;
     void reset() override;
 };
 
@@ -65,15 +70,17 @@ private:
     double lwr_bound; // can be -inf for unbounded
     double upr_bound; // can be +inf for unbounded
     double bf_gamma;
+    double tolerance;
 
     VectorXd calculateOmega() const;
     VectorXd replicateVector(const VectorXd& vec, int times) const;
 
 public:
-    PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound, double upr_bound, double bf_gamma);
+    PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound, double upr_bound, double bf_gamma = 1.0, double tolerance = 1e-3);
     SparseMatrix<double> getQuadCost(double rho) const override;
     VectorXd getLinearCost(double rho) const override;
     void update(double rho, const VectorXd& x) override;
+    bool isSatisfied(const VectorXd& x) const override;
     void reset() override;
 };
 
@@ -83,6 +90,10 @@ protected:
     std::vector<std::unique_ptr<Constraint>> constConstraints;
     std::vector<std::unique_ptr<Constraint>> nonConstConstraints;
 
+    // cost of the form 0.5 * x^T * quadCost * x + x^T * linearCost
+    SparseMatrix<double> quadCost;
+    VectorXd linearCost;
+
     virtual void preSolve();
     virtual void postSolve();
     void actualSolve();
@@ -91,7 +102,7 @@ public:
     virtual ~AMSolver() {}
     void addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant);
     void updateConstraints(double rho, const VectorXd& x);
-    void solve() final;
+    void solve();
 };
 
 

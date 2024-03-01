@@ -1,12 +1,14 @@
 #include <amsolver.h>
 
+#include <algorithm>
+#include <execution>
+
 using namespace Eigen;
 
 
-EqualityConstraint::EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h) : G(G), h(h) {
-    if (G.rows() != h.size()) {
-        throw std::invalid_argument("G and h are not compatible sizes");
-    }
+EqualityConstraint::EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance)
+    : G(G), h(h), tolerance(tolerance) {
+    if (G.rows() != h.size()) throw std::invalid_argument("G and h are not compatible sizes");
     lagrangeMult = VectorXd::Zero(h.size());
 }
 
@@ -15,24 +17,25 @@ SparseMatrix<double> EqualityConstraint::getQuadCost(double rho) const {
 }
 
 VectorXd EqualityConstraint::getLinearCost(double rho) const {
-    return -2 * rho * G.transpose() * (h - lagrangeMult / rho);
+    return -rho * G.transpose() * (h - lagrangeMult / rho);
 }
 
 void EqualityConstraint::update(double rho, const VectorXd& x) {
-    if (G.cols() != x.size()) {
-        throw std::invalid_argument("G and x are not compatible sizes");
-    }
+    if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
     lagrangeMult += rho * (G * x - h);
+}
+
+bool EqualityConstraint::isSatisfied(const VectorXd& x) const {
+    return (G * x - h).cwiseAbs().maxCoeff() <= tolerance;
 }
 
 void EqualityConstraint::reset() {
     lagrangeMult.setZero();
 }
 
-InequalityConstraint::InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h) : G(G), h(h) {
-    if (G.rows() != h.size()) {
-        throw std::invalid_argument("G and h are not compatible sizes");
-    }
+InequalityConstraint::InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance)
+    : G(G), h(h), tolerance(tolerance) {
+    if (G.rows() != h.size()) throw std::invalid_argument("G and h are not compatible sizes");
     slack = VectorXd::Zero(h.size());
     lagrangeMult = VectorXd::Zero(h.size());
 }
@@ -42,15 +45,17 @@ SparseMatrix<double> InequalityConstraint::getQuadCost(double rho) const {
 }
 
 VectorXd InequalityConstraint::getLinearCost(double rho) const {
-    return -2 * rho * G.transpose() * (h - slack - lagrangeMult / rho);
+    return -rho * G.transpose() * (h - slack - lagrangeMult / rho);
 }
 
 void InequalityConstraint::update(double rho, const VectorXd& x) {
-    if (G.cols() != x.size()) {
-        throw std::invalid_argument("G and x are not compatible sizes");
-    }
+    if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
     slack = (- G * x + h - lagrangeMult / rho).cwiseMax(0);
-    lagrangeMult += rho * (G * x - h - slack);
+    lagrangeMult += rho * (G * x - h + slack);
+}
+
+bool InequalityConstraint::isSatisfied(const VectorXd& x) const {
+    return (G * x - h).maxCoeff() < tolerance;
 }
 
 void InequalityConstraint::reset() {
@@ -74,13 +79,13 @@ VectorXd PolarInequalityConstraint::calculateOmega() const {
 VectorXd PolarInequalityConstraint::replicateVector(const VectorXd& vec, int times) const {
     VectorXd replicated(vec.size() * times);
     for (int i = 0; i < vec.size(); ++i) {
-        replicated.segment(i * times, times).setConstant(vec(i));
+        replicated.segment(i * times, times).setConstant(vec(i)); // TODO check if fixed-size is faster
     }
     return replicated;
 }
 
-PolarInequalityConstraint::PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound, double upr_bound, double bf_gamma)
-    : G(G), c(c), lwr_bound(lwr_bound), upr_bound(upr_bound), bf_gamma(bf_gamma) {
+PolarInequalityConstraint::PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound, double upr_bound, double bf_gamma, double tolerance)
+    : G(G), c(c), lwr_bound(lwr_bound), upr_bound(upr_bound), bf_gamma(bf_gamma), tolerance(tolerance) {
     if (G.rows() != c.size()) throw std::invalid_argument("G and c are not compatible sizes");
     if (bf_gamma < 0 || bf_gamma > 1) throw std::invalid_argument("bf_gamma must be between 0 and 1");
     if (lwr_bound >= upr_bound) throw std::invalid_argument("lwr_bound must be strictly less than upr_bound");
@@ -100,7 +105,7 @@ VectorXd PolarInequalityConstraint::getLinearCost(double rho) const {
     VectorXd omega = calculateOmega();
     VectorXd d_replicated = replicateVector(d, 3);
     VectorXd h = d_replicated.array() * omega.array() - c.array();
-    return -2 * rho * G.transpose() * (h - lagrangeMult / rho);
+    return -rho * G.transpose() * (h - lagrangeMult / rho);
 }
 
 void PolarInequalityConstraint::update(double rho, const VectorXd& x) {
@@ -114,7 +119,7 @@ void PolarInequalityConstraint::update(double rho, const VectorXd& x) {
         double constraint_z = constraint_vec(i * 3 + 2);
 
         alpha(i) = std::atan2(constraint_y, constraint_x);
-        beta(i) = std::atan2(constraint_x, constraint_z);
+        beta(i) = std::atan2(constraint_x / std::cos(alpha(i)), constraint_z);
     }
 
     // update d
@@ -123,12 +128,11 @@ void PolarInequalityConstraint::update(double rho, const VectorXd& x) {
     // Precompute adjustments based on bounds
     bool apply_upr_bound = !std::isinf(upr_bound);
     bool apply_lwr_bound = !std::isinf(lwr_bound);
-
     for (int i = 0; i < d.size(); ++i) {
         d(i) = constraint_vec.segment(i * 3, 3).dot(omega.segment(i * 3, 3));
         if (i > 0) {
             if (apply_upr_bound) {
-                d(i) = std::min(d(i), upr_bound + (1.0 - bf_gamma)*(d(i-1) - upr_bound)); // TODO check this
+                d(i) = std::min(d(i), upr_bound - (1.0 - bf_gamma)*(upr_bound - d(i-1))); // TODO check this
             }
             if (apply_lwr_bound) {
                 d(i) = std::max(d(i), lwr_bound + (1.0 - bf_gamma)*(d(i-1) - lwr_bound)); // TODO check this
@@ -143,7 +147,11 @@ void PolarInequalityConstraint::update(double rho, const VectorXd& x) {
         }
     }
 
-    lagrangeMult += rho * (G * x - omega.array() * replicateVector(d, 3).array() - c.array()); // TODO check this
+    lagrangeMult += (rho * ((G * x + c).array() - omega.array() * replicateVector(d, 3).array())).matrix();
+}
+
+bool PolarInequalityConstraint::isSatisfied(const VectorXd& x) const {
+    return ((G * x + c).array() - calculateOmega().array() * replicateVector(d, 3).array()).maxCoeff() < tolerance;
 }
 
 void PolarInequalityConstraint::reset() {
@@ -157,21 +165,29 @@ void AMSolver::actualSolve() {
     SimplicialLDLT<SparseMatrix<double>> linearSolver;
 
     int iters  = 0;
-    double rho = 1.3;
+    double rho_init = 1.3;
+    double rho = rho_init;
     int max_iters = 1000;
     bool solver_initialized = false;
+    bool all_constraints_satisfied = false;
+
+    SparseMatrix<double> Q;
+    VectorXd q;
+    VectorXd zeta;
 
     while (iters < max_iters) {
+        // Reset Q and q to the base cost
+        Q = quadCost;
+        q = linearCost;
+
         // Construct the quadratic and linear cost matrices
-        SparseMatrix<double> quadCost = SparseMatrix<double>(0, 0); // TODO check this
-        VectorXd linearCost = VectorXd::Zero(0); // TODO check this
         for (auto& constraint : constConstraints) {
-            quadCost += constraint->getQuadCost(rho);
-            linearCost += constraint->getLinearCost(rho);
+            Q += constraint->getQuadCost(rho);
+            q += constraint->getLinearCost(rho);
         }
         for (auto& constraint : nonConstConstraints) {
-            quadCost += constraint->getQuadCost(rho);
-            linearCost += constraint->getLinearCost(rho);
+            Q += constraint->getQuadCost(rho);
+            q += constraint->getLinearCost(rho);
         }
 
         // Solve the linear system
@@ -179,16 +195,29 @@ void AMSolver::actualSolve() {
             linearSolver.analyzePattern(quadCost);
             solver_initialized = true;
         }
-        solver.factorize(quadCost);
-        zeta_1 = solver.solve(-linearCost); // TODO check this
+        linearSolver.factorize(quadCost);
+        zeta = linearSolver.solve(-linearCost);
         
         // Update the constraints
-        updateConstraints(rho, ????); // TODO
+        updateConstraints(rho, zeta);
 
-        // Check for convergence
+        // Check constraints satisfaction
+        bool all_constraints_satisfied = std::all_of(std::execution::par, constConstraints.begin(), constConstraints.end(),
+                                                     [&zeta](const std::unique_ptr<Constraint>& constraint) {
+                                                         return constraint->isSatisfied(zeta);
+                                                     }) &&
+                                         std::all_of(std::execution::par, nonConstConstraints.begin(), nonConstConstraints.end(),
+                                                     [&zeta](const std::unique_ptr<Constraint>& constraint) {
+                                                         return constraint->isSatisfied(zeta);
+                                                     });
 
-        // Update the penalty parameter
-        rho *= 10; // TODO proper update
+        if (all_constraints_satisfied) {
+            break; // Exit the loop if all constraints are satisfied
+        }
+
+        // Update the penalty parameter and iters
+        rho *= rho_init;
+        rho = std::min(rho, 5.0e5);
         iters++;
     }
 }
@@ -202,10 +231,15 @@ void AMSolver::addConstraint(std::unique_ptr<Constraint> constraint, bool isCons
 }
 
 void AMSolver::updateConstraints(double rho, const VectorXd& x) {
-    for (auto& constraint : constConstraints) {
-        constraint->update(rho, x);
-    }
-    for (auto& constraint : nonConstConstraints) {
-        constraint->update(rho, x);
-    }
+    // Parallel update for constant constraints
+    std::for_each(std::execution::par, constConstraints.begin(), constConstraints.end(),
+                  [rho, &x](const std::unique_ptr<Constraint>& constraint) {
+                      constraint->update(rho, x);
+                  });
+
+    // Parallel update for non-constant constraints
+    std::for_each(std::execution::par, nonConstConstraints.begin(), nonConstConstraints.end(),
+                  [rho, &x](const std::unique_ptr<Constraint>& constraint) {
+                      constraint->update(rho, x);
+                  });
 }
