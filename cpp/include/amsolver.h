@@ -1,85 +1,18 @@
 #ifndef AMSOLVER_H
 #define AMSOLVER_H
 
+#include "constraint.h"
+
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
+#include <Eigen/SparseQR>
 
 #include <vector>
 #include <memory>
+#include <algorithm>
+#include <execution>
 
 using namespace Eigen;
-
-// Base class for constraints
-class Constraint {
-public:
-    virtual ~Constraint() {}
-    virtual SparseMatrix<double> getQuadCost(double rho) const = 0;
-    virtual VectorXd getLinearCost(double rho) const = 0;
-    virtual void update(double rho, const VectorXd& x) = 0;
-    virtual bool isSatisfied(const VectorXd& x) const = 0;
-    virtual void reset() = 0;
-};
-
-// Child class for equality constraints of form Gx = h
-class EqualityConstraint : public Constraint {
-private:
-    SparseMatrix<double> G;
-    VectorXd h;
-    VectorXd lagrangeMult;
-    double tolerance;
-
-public:
-    EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-3);
-    SparseMatrix<double> getQuadCost(double rho) const override;
-    VectorXd getLinearCost(double rho) const override;
-    void update(double rho, const VectorXd& x) override;
-    bool isSatisfied(const VectorXd& x) const override;
-    void reset() override;
-};
-
-// Child class for inequality constraints of form Gx <= h
-class InequalityConstraint : public Constraint {
-private:
-    SparseMatrix<double> G;
-    VectorXd h;
-    VectorXd slack;
-    VectorXd lagrangeMult;
-    double tolerance;
-
-public:
-    InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-3);
-    SparseMatrix<double> getQuadCost(double rho) const override;
-    VectorXd getLinearCost(double rho) const override;
-    void update(double rho, const VectorXd& x) override;
-    bool isSatisfied(const VectorXd& x) const override;
-    void reset() override;
-};
-
-// Child class for polar inequality constraints of form {Gx + c = h(alpha, beta, d), d <= upr_bound}
-class PolarInequalityConstraint : public Constraint {
-private:
-    SparseMatrix<double> G;
-    VectorXd c;
-    VectorXd alpha;
-    VectorXd beta;
-    VectorXd d;
-    VectorXd lagrangeMult;
-    double lwr_bound; // can be -inf for unbounded
-    double upr_bound; // can be +inf for unbounded
-    double bf_gamma;
-    double tolerance;
-
-    VectorXd calculateOmega() const;
-    VectorXd replicateVector(const VectorXd& vec, int times) const;
-
-public:
-    PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound, double upr_bound, double bf_gamma = 1.0, double tolerance = 1e-3);
-    SparseMatrix<double> getQuadCost(double rho) const override;
-    VectorXd getLinearCost(double rho) const override;
-    void update(double rho, const VectorXd& x) override;
-    bool isSatisfied(const VectorXd& x) const override;
-    void reset() override;
-};
 
 // Abstract class for solver
 template<typename ResultType, typename SolverArgsType>
@@ -94,7 +27,7 @@ protected:
 
     virtual void preSolve(const SolverArgsType& args) = 0;
     virtual ResultType postSolve(const VectorXd& x, const SolverArgsType& args) = 0;
-    VectorXd actualSolve(const SolverArgsType& args);
+    std::pair<bool, VectorXd> actualSolve(const SolverArgsType& args);
 
 public:
     AMSolver(const SparseMatrix<double>& qc, const VectorXd& lc) : quadCost(qc), linearCost(lc) {}
@@ -103,8 +36,119 @@ public:
     void addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant);
     void updateConstraints(double rho, const VectorXd& x);
     void resetConstraints();
-    ResultType solve(const SolverArgsType& args);
+    std::pair<bool, ResultType> solve(const SolverArgsType& args);
 };
 
+
+// -------------------------- IMPLEMENTATION -------------------------- //
+
+template<typename ResultType, typename SolverArgsType>
+std::pair<bool, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(const SolverArgsType& args) {
+    resetConstraints();
+
+    SimplicialLDLT<SparseMatrix<double>> linearSolver;
+
+    int iters  = 0;
+    double rho_init = 1.3;
+    double rho = rho_init;
+    int max_iters = 1000;
+    bool solver_initialized = false;
+
+    SparseMatrix<double> Q;
+    VectorXd q;
+    VectorXd x;
+
+    while (iters < max_iters) {
+        // Reset Q and q to the base cost
+        Q = quadCost;
+        q = linearCost;
+
+        // Construct the quadratic and linear cost matrices
+        for (auto& constraint : constConstraints) {
+            Q += constraint->getQuadCost(rho);
+            q += constraint->getLinearCost(rho);
+        }
+        for (auto& constraint : nonConstConstraints) {
+            Q += constraint->getQuadCost(rho);
+            q += constraint->getLinearCost(rho);
+        }
+
+        // Solve the linear system
+        if (!solver_initialized) {
+            linearSolver.analyzePattern(Q);
+            solver_initialized = true;
+        }
+        linearSolver.factorize(Q);
+        x = linearSolver.solve(-q);
+        
+        // Update the constraints
+        updateConstraints(rho, x);
+
+        // Check constraints satisfaction
+        bool all_constraints_satisfied = std::all_of(std::execution::par, constConstraints.begin(), constConstraints.end(),
+                                                     [&x](const std::unique_ptr<Constraint>& constraint) {
+                                                         return constraint->isSatisfied(x);
+                                                     }) &&
+                                         std::all_of(std::execution::par, nonConstConstraints.begin(), nonConstConstraints.end(),
+                                                     [&x](const std::unique_ptr<Constraint>& constraint) {
+                                                         return constraint->isSatisfied(x);
+                                                     });
+
+        if (all_constraints_satisfied) {
+            return {true, x}; // Exit the loop, indicate success with the bool
+        }
+
+        // Update the penalty parameter and iters
+        rho *= rho_init;
+        rho = std::min(rho, 5.0e5);
+        iters++;
+    }
+
+    return {false, x}; // Indicate failure with the bool. Still return the vector anyways
+}
+
+template<typename ResultType, typename SolverArgsType>
+void AMSolver<ResultType, SolverArgsType>::addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant) {
+    if (isConstant) {
+        constConstraints.push_back(std::move(constraint));
+    } else {
+        nonConstConstraints.push_back(std::move(constraint));
+    }
+}
+
+template<typename ResultType, typename SolverArgsType>
+void AMSolver<ResultType, SolverArgsType>::updateConstraints(double rho, const VectorXd& x) {
+    // Parallel update for constant constraints
+    std::for_each(std::execution::par, constConstraints.begin(), constConstraints.end(),
+                  [rho, &x](const std::unique_ptr<Constraint>& constraint) {
+                      constraint->update(rho, x);
+                  });
+
+    // Parallel update for non-constant constraints
+    std::for_each(std::execution::par, nonConstConstraints.begin(), nonConstConstraints.end(),
+                  [rho, &x](const std::unique_ptr<Constraint>& constraint) {
+                      constraint->update(rho, x);
+                  });
+}
+
+template<typename ResultType, typename SolverArgsType>
+void AMSolver<ResultType, SolverArgsType>::resetConstraints() {
+    std::for_each(std::execution::par, constConstraints.begin(), constConstraints.end(),
+                  [](const std::unique_ptr<Constraint>& constraint) {
+                      constraint->reset();
+                  });
+
+    std::for_each(std::execution::par, nonConstConstraints.begin(), nonConstConstraints.end(),
+                  [](const std::unique_ptr<Constraint>& constraint) {
+                      constraint->reset();
+                  });
+}
+
+template<typename ResultType, typename SolverArgsType>
+std::pair<bool, ResultType> AMSolver<ResultType, SolverArgsType>::solve(const SolverArgsType& args) {
+    preSolve(args);
+    auto [success, result] = actualSolve(args);
+    return {success, postSolve(result, args)};
+}
 
 #endif // AMSOLVER_H
