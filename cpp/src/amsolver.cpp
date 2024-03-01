@@ -1,7 +1,12 @@
-#include <amsolver.h>
+#include "../include/amsolver.h"
+
+#include <Eigen/SparseQR>
 
 #include <algorithm>
 #include <execution>
+#include <stdexcept>
+#include <cmath>
+#include <limits>
 
 using namespace Eigen;
 
@@ -87,6 +92,7 @@ VectorXd PolarInequalityConstraint::replicateVector(const VectorXd& vec, int tim
 PolarInequalityConstraint::PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound, double upr_bound, double bf_gamma, double tolerance)
     : G(G), c(c), lwr_bound(lwr_bound), upr_bound(upr_bound), bf_gamma(bf_gamma), tolerance(tolerance) {
     if (G.rows() != c.size()) throw std::invalid_argument("G and c are not compatible sizes");
+    if (G.rows() % 3 != 0) throw std::invalid_argument("G must have a number of rows that is a multiple of 3");
     if (bf_gamma < 0 || bf_gamma > 1) throw std::invalid_argument("bf_gamma must be between 0 and 1");
     if (lwr_bound >= upr_bound) throw std::invalid_argument("lwr_bound must be strictly less than upr_bound");
 
@@ -161,7 +167,10 @@ void PolarInequalityConstraint::reset() {
     lagrangeMult.setZero();
 }
 
-void AMSolver::actualSolve() {
+template<typename ResultType, typename SolverArgsType>
+VectorXd AMSolver<ResultType, SolverArgsType>::actualSolve(const SolverArgsType& args) {
+    resetConstraints();
+
     SimplicialLDLT<SparseMatrix<double>> linearSolver;
 
     int iters  = 0;
@@ -169,11 +178,10 @@ void AMSolver::actualSolve() {
     double rho = rho_init;
     int max_iters = 1000;
     bool solver_initialized = false;
-    bool all_constraints_satisfied = false;
 
     SparseMatrix<double> Q;
     VectorXd q;
-    VectorXd zeta;
+    VectorXd x;
 
     while (iters < max_iters) {
         // Reset Q and q to the base cost
@@ -192,27 +200,27 @@ void AMSolver::actualSolve() {
 
         // Solve the linear system
         if (!solver_initialized) {
-            linearSolver.analyzePattern(quadCost);
+            linearSolver.analyzePattern(Q);
             solver_initialized = true;
         }
-        linearSolver.factorize(quadCost);
-        zeta = linearSolver.solve(-linearCost);
+        linearSolver.factorize(Q);
+        x = linearSolver.solve(-q);
         
         // Update the constraints
-        updateConstraints(rho, zeta);
+        updateConstraints(rho, x);
 
         // Check constraints satisfaction
         bool all_constraints_satisfied = std::all_of(std::execution::par, constConstraints.begin(), constConstraints.end(),
-                                                     [&zeta](const std::unique_ptr<Constraint>& constraint) {
-                                                         return constraint->isSatisfied(zeta);
+                                                     [&x](const std::unique_ptr<Constraint>& constraint) {
+                                                         return constraint->isSatisfied(x);
                                                      }) &&
                                          std::all_of(std::execution::par, nonConstConstraints.begin(), nonConstConstraints.end(),
-                                                     [&zeta](const std::unique_ptr<Constraint>& constraint) {
-                                                         return constraint->isSatisfied(zeta);
+                                                     [&x](const std::unique_ptr<Constraint>& constraint) {
+                                                         return constraint->isSatisfied(x);
                                                      });
 
         if (all_constraints_satisfied) {
-            break; // Exit the loop if all constraints are satisfied
+            return x; // Exit the loop if all constraints are satisfied
         }
 
         // Update the penalty parameter and iters
@@ -222,7 +230,8 @@ void AMSolver::actualSolve() {
     }
 }
 
-void AMSolver::addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant) {
+template<typename ResultType, typename SolverArgsType>
+void AMSolver<ResultType, SolverArgsType>::addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant) {
     if (isConstant) {
         constConstraints.push_back(std::move(constraint));
     } else {
@@ -230,7 +239,8 @@ void AMSolver::addConstraint(std::unique_ptr<Constraint> constraint, bool isCons
     }
 }
 
-void AMSolver::updateConstraints(double rho, const VectorXd& x) {
+template<typename ResultType, typename SolverArgsType>
+void AMSolver<ResultType, SolverArgsType>::updateConstraints(double rho, const VectorXd& x) {
     // Parallel update for constant constraints
     std::for_each(std::execution::par, constConstraints.begin(), constConstraints.end(),
                   [rho, &x](const std::unique_ptr<Constraint>& constraint) {
@@ -242,4 +252,24 @@ void AMSolver::updateConstraints(double rho, const VectorXd& x) {
                   [rho, &x](const std::unique_ptr<Constraint>& constraint) {
                       constraint->update(rho, x);
                   });
+}
+
+template<typename ResultType, typename SolverArgsType>
+void AMSolver<ResultType, SolverArgsType>::resetConstraints() {
+    std::for_each(std::execution::par, constConstraints.begin(), constConstraints.end(),
+                  [](const std::unique_ptr<Constraint>& constraint) {
+                      constraint->reset();
+                  });
+
+    std::for_each(std::execution::par, nonConstConstraints.begin(), nonConstConstraints.end(),
+                  [](const std::unique_ptr<Constraint>& constraint) {
+                      constraint->reset();
+                  });
+}
+
+template<typename ResultType, typename SolverArgsType>
+ResultType AMSolver<ResultType, SolverArgsType>::solve(const SolverArgsType& args) {
+    preSolve(args);
+    VectorXd result = actualSolve(args);
+    return postSolve(result, args);
 }

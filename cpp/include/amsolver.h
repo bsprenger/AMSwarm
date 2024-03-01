@@ -3,12 +3,9 @@
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
-#include <Eigen/SparseQR>
+
 #include <vector>
 #include <memory>
-#include <stdexcept>
-#include <cmath>
-#include <limits>
 
 using namespace Eigen;
 
@@ -85,6 +82,7 @@ public:
 };
 
 // Abstract class for solver
+template<typename ResultType, typename SolverArgsType>
 class AMSolver {
 protected:
     std::vector<std::unique_ptr<Constraint>> constConstraints;
@@ -94,15 +92,18 @@ protected:
     SparseMatrix<double> quadCost;
     VectorXd linearCost;
 
-    virtual void preSolve();
-    virtual void postSolve();
-    void actualSolve();
+    virtual void preSolve(const SolverArgsType& args) = 0;
+    virtual ResultType postSolve(const VectorXd& x, const SolverArgsType& args) = 0;
+    VectorXd actualSolve(const SolverArgsType& args);
 
 public:
+    AMSolver(const SparseMatrix<double>& qc, const VectorXd& lc) : quadCost(qc), linearCost(lc) {}
     virtual ~AMSolver() {}
+
     void addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant);
     void updateConstraints(double rho, const VectorXd& x);
-    void solve();
+    void resetConstraints();
+    ResultType solve(const SolverArgsType& args);
 };
 
 
