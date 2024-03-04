@@ -1,7 +1,7 @@
 #ifndef AMSOLVER_H
 #define AMSOLVER_H
 
-#include "constraint.h"
+#include <constraint.h>
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
@@ -30,8 +30,8 @@ protected:
     std::pair<bool, VectorXd> actualSolve(const SolverArgsType& args);
 
 public:
-    AMSolver(const SparseMatrix<double>& qc, const VectorXd& lc) : quadCost(qc), linearCost(lc) {}
-    virtual ~AMSolver() {}
+    AMSolver() = default;
+    virtual ~AMSolver() = default;
 
     void addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant);
     void updateConstraints(double rho, const VectorXd& x);

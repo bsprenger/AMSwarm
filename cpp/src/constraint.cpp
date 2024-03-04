@@ -128,7 +128,7 @@ void PolarInequalityConstraint::update(double rho, const VectorXd& x) {
 
     // Precompute adjustments based on bounds
     bool apply_upr_bound = !std::isinf(upr_bound);
-    bool apply_lwr_bound = !std::isinf(lwr_bound);
+    bool apply_lwr_bound = !std::isinf(lwr_bound); // TODO CHECK THIS SHOULD BE NEGATIVE INF
     for (int i = 0; i < d.size(); ++i) {
         d(i) = constraint_vec.segment(i * 3, 3).dot(omega.segment(i * 3, 3));
         if (i > 0) {
