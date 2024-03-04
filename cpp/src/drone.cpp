@@ -2,7 +2,6 @@
 
 #include <iostream>
 #include <cmath>
-#include <yaml-cpp/yaml.h>
 #include <algorithm>
 #include <stdexcept>
 
@@ -15,7 +14,7 @@ Drone::Drone(MatrixXd waypoints, MPCConfig config, MPCWeights weights,
             VectorXd initial_pos)
     : waypoints(waypoints), initial_pos(initial_pos), config(config),
     weights(weights), limits(limits), dynamics(dynamics),
-    collision_envelope(3,3), constSelectionMatrices(config.K)
+    collision_envelope(3,3), selectionMats(config.K)
 {   
     std::tie(W, W_dot, W_ddot, W_input) = initBernsteinMatrices(config); // move to struct and constructor 
     std::tie(S_x, S_u, S_x_prime, S_u_prime) = initFullHorizonDynamicsMatrices(dynamics); // move to struct and constructor
@@ -29,15 +28,14 @@ Drone::Drone(MatrixXd waypoints, MPCConfig config, MPCWeights weights,
 };
 
 
-Drone::DroneResult Drone::preSolve(const DroneArgs& args) {
-    // clear constraints
-    nonConstConstraints.clear();
-
+Drone::DroneResult Drone::preSolve(const DroneSolveArgs& args) {
     // extract waypoints in current horizon
-    MatrixXd extracted_waypoints = extractWaypointsInCurrentHorizon(args.current_time, waypoints);
-    if (extracted_waypoints.size() == 0) {
-        throw std::runtime_error("Error: no waypoints within current horizon. Either increase horizon length or add waypoints.");
-    }
+    // first column is the STEP, not the TIME TODO check this and also round on init instead of each time
+    // Create a matrix to hold filtered waypoints
+    Matrix<double, Dynamic, Dynamic, RowMajor> extracted_waypoints = extractWaypointsInCurrentHorizon(args.current_time);
+    VectorXd extracted_waypoints_pos = VectorXd::Map(extracted_waypoints.block(0, 1, extracted_waypoints.rows(), 3).data(), extracted_waypoints.rows() * 3);
+    VectorXd extracted_waypoints_vel = VectorXd::Map(extracted_waypoints.block(0, 4, extracted_waypoints.rows(), 3).data(), extracted_waypoints.rows() * 3);
+    VectorXd extracted_waypoints_acc = VectorXd::Map(extracted_waypoints.block(0, 7, extracted_waypoints.rows(), 3).data(), extracted_waypoints.rows() * 3);
     
     // extract the penalized steps from the first column of extracted_waypoints
     // note that the first possible penalized step is 1, NOT 0 TODO check this
@@ -46,60 +44,86 @@ Drone::DroneResult Drone::preSolve(const DroneArgs& args) {
     penalized_steps = extracted_waypoints.block(0,0,extracted_waypoints.rows(),1);
 
     // initialize optimization parameters
-    VariableSelectionMatrices variableSelectionMatrices(config.K, j, penalized_steps);
+    SparseMatrix<double> M_waypoints(3 * penalized_steps.size(), 3 * (config.K + 1));
+    SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
+    for (int i = 0; i < penalized_steps.size(); ++i) {
+        utils::replaceSparseBlock(M_waypoints, eye3, 3 * i, 3 * (penalized_steps(i))); // CHECK THIS
+    }
 
     // Input smoothness cost
     quadCost += 2 * weights.input_smoothness * (W_ddot.transpose() * W_ddot); // remaining cost terms must be added at solve time
 
     // Output smoothness cost
-    quadCost += 2 * weights.smoothness * W_input.transpose() * S_u_prime.transpose() * M_a.transpose() * M_a * S_u_prime * W_input;
-    linearCost += 2 * weights.smoothness * W_input.transpose() * S_u_prime.transpose() * M_a.transpose() * M_a * S_x_prime * x_0;
+    quadCost += 2 * weights.smoothness * W_input.transpose() * S_u_prime.transpose() * selectionMats.M_a.transpose() * selectionMats.M_a * S_u_prime * W_input;
+    linearCost += 2 * weights.smoothness * W_input.transpose() * S_u_prime.transpose() * selectionMats.M_a.transpose() * selectionMats.M_a * S_x_prime * args.x_0;
 
     // Waypoint position cost and/or equality constraint
-    SparseMatrix<double>  G_wp = M_w * M_p * S_u * W_input;
-    VectorXd h_wp = extracted_waypoints_pos - M_w * M_p * S_x * x_0;
-    quadCost += 2 * weights.waypoint_position * G_wp.transpose() * G_wp;
+    SparseMatrix<double>  G_wp = M_waypoints * selectionMats.M_p * S_u * W_input;
+    VectorXd h_wp = extracted_waypoints_pos - M_waypoints * selectionMats.M_p * S_x * args.x_0;
+    quadCost += 2 * weights.waypoint_pos * G_wp.transpose() * G_wp;
+    linearCost += -2 * weights.waypoints_pos * G_wp.transpose() * h_wp;
     std::unique_ptr<Constraint> wpConstraint = std::make_unique<EqualityConstraint>(G_wp, h_wp);
     addConstraint(std::move(wpConstraint), false);
 
     // Waypoint velocity cost and/or equality constraint
-    SparseMatrix<double>  G_wv = M_w * M_v * S_u * W_input;
-    VectorXd h_wv = extracted_waypoints_vel - M_w * M_v * S_x * x_0;
-    quadCost += 2 * weights.waypoint_velocity * G_wv.transpose() * G_wv;
+    SparseMatrix<double>  G_wv = M_waypoints * selectionMats.M_v * S_u * W_input;
+    VectorXd h_wv = extracted_waypoints_vel - M_waypoints * selectionMats.M_v * S_x * args.x_0;
+    quadCost += 2 * weights.waypoint_vel * G_wv.transpose() * G_wv;
+    linearCost += -2 * weights.waypoints_vel * G_wv.transpose() * h_wv;
     std::unique_ptr<Constraint> wvConstraint = std::make_unique<EqualityConstraint>(G_wv, h_wv);
     addConstraint(std::move(wvConstraint), false);
 
     // Waypoint acceleration cost and/or equality constraint
-    SparseMatrix<double>  G_wa = M_w * M_a * S_u * W_input;
-    VectorXd h_wa = extracted_waypoints_acc - M_w * M_a * S_x * x_0;
-    quadCost += 2 * weights.waypoint_acceleration * G_wa.transpose() * G_wa;
+    SparseMatrix<double>  G_wa = M_waypoints * selectionMats.M_a * S_u * W_input;
+    VectorXd h_wa = extracted_waypoints_acc - M_waypoints * selectionMats.M_a * S_x * args.x_0;
+    quadCost += 2 * weights.waypoint_acc * G_wa.transpose() * G_wa;
+    linearCost += -2 * weights.waypoints_acc * G_wa.transpose() * h_wa;
     std::unique_ptr<Constraint> waConstraint = std::make_unique<EqualityConstraint>(G_wa, h_wa);
     addConstraint(std::move(waConstraint), false);
 
     // Input continuity cost and/or equality constraint
+    SparseMatrix<double> G_u(9,3*(config.n+1));
+    G_u << W.block(0,0,3,3*(config.n+1)), W_dot.block(0,0,3,3*(config.n+1)), W_ddot.block(0,0,3,3*(config.n+1));
+    VectorXd h_u(9);
+    h_u << args.u_0, args.u_dot_0, args.u_ddot_0;
+    quadCost += 2 * weights.input_continuity * G_u.transpose() * G_u;
+    linearCost += -2 * weights.input_continuity * G_u.transpose() * h_u;
+    std::unique_ptr<Constraint> uConstraint = std::make_unique<EqualityConstraint>(G_u, h_u);
+    addConstraint(std::move(uConstraint), false);
+
+    // Position constraint
+    SparseMatrix<double> G_p(6 * (K + 1), 3 * (config.n + 1));
+    G_p << selectionMats.M_p * S_u * W_input, -selectionMats.M_p * S_u * W_input;
+    VectorXd h_p(6 * (K + 1));
+    h_p << p_max.replicate(config.K + 1, 1) - selectionMats.M_p * S_x * args.x_0, -p_min.replicate(config.K + 1, 1) + selectionMats.M_p * S_x * args.x_0;
+    std::unique_ptr<Constraint> pConstraint = std::make_unique<InequalityConstraint>(G_p, h_p);
 
     // Velocity constraint
-
+    SparseMatrix<double> G_v = selectionMats.M_v * S_u * W_input;
+    VectorXd c_v = selectionMats.M_v * S_x * args.x_0;
     std::unique_ptr<Constraint> vConstraint = std::make_unique<PolarInequalityConstraint>(G_v, c_v, -std::numeric_limits<double>::infinity(), limits.v_bar); // FIX CONSTRAINTS NEGATIVE INF
     addConstraint(std::move(vConstraint), false);
 
     // Acceleration constraint
-
+    SparseMatrix<double> G_a = selectionMats.M_a * S_u_prime * W_input;
+    VectorXd c_a = selectionMats.M_a * S_x_prime * args.x_0;
     std::unique_ptr<Constraint> aConstraint = std::make_unique<PolarInequalityConstraint>(G_a, c_a, -std::numeric_limits<double>::infinity(), limits.a_bar); // FIX CONSTRAINTS NEGATIVE INF
     addConstraint(std::move(aConstraint), false);
 
-    // Collision constraint
-    std::unique_ptr<Constraint> cConstraint = std::make_unique<PolarInequalityConstraint>(G_a, c_a, 1.0, inf, bf_gamma);
-    addConstraint(std::move(cConstraint), false);
-
+    // Collision constraints
+    for (int i = 0; i < args.num_obstacles; ++i) {
+        SparseMatrix<double> G_c = args.obstacle_envelopes[i] * selectionMats.M_p * S_u * W_input;
+        VectorXd c_c = args.obstacle_envelopes[i] * (selectionMats.M_p * S_x * args.x_0 - args.obstacle_positions[i]);
+        std::unique_ptr<Constraint> cConstraint = std::make_unique<PolarInequalityConstraint>(G_c, c_c, 1.0, std::numeric_limits<double>::infinity(), config.bf_gamma);
+        addConstraint(std::move(cConstraint), false);
+    }
 };
 
 
-MatrixXd Drone::extractWaypointsInCurrentHorizon(const double t,
-                                                        const MatrixXd& waypoints) {
+Matrix<double, Dynamic, Dynamic, RowMajor> Drone::extractWaypointsInCurrentHorizon(double t) {
     // round all the waypoints to the nearest time step. 
     // negative time steps are allowed -- we will filter them out later
-    MatrixXd rounded_waypoints = waypoints;
+    Matrix<double, Dynamic, Dynamic, RowMajor> rounded_waypoints = waypoints;
     rounded_waypoints.col(0) = ((rounded_waypoints.col(0).array() - t) / config.delta_t).round();
     // filter out waypoints that are outside the current horizon
     std::vector<int> rows_in_horizon;
@@ -109,11 +133,20 @@ MatrixXd Drone::extractWaypointsInCurrentHorizon(const double t,
         }
     }
 
-    // keep all columns
-    VectorXi cols = VectorXi::LinSpaced(rounded_waypoints.cols(), 0,rounded_waypoints.cols());
+    if (rows_in_horizon.empty()) {
+        throw std::runtime_error("Error: no waypoints within current horizon. Either increase horizon length or add waypoints.");
+    }
 
-    // return the rounded waypoints that are within the current horizon. if none, will return empty matrix. error handling elsewhere
-    return rounded_waypoints(rows_in_horizon,cols);
+    // Create a matrix to hold filtered waypoints
+    Matrix<double, Dynamic, Dynamic, RowMajor> filtered_waypoints(rows_in_horizon.size(), rounded_waypoints.cols());
+
+    // Copy the rows in the horizon to the new matrix
+    for (size_t i = 0; i < rows_in_horizon.size(); ++i) {
+        filtered_waypoints.row(i) = rounded_waypoints.row(rows_in_horizon[i]);
+    }
+
+    // return the rounded waypoints that are within the current horizon
+    return filtered_waypoints;
 };
 
 
@@ -282,64 +315,6 @@ Drone::DroneResult Drone::computeDroneResult(double current_time, VectorXd& zeta
     drone_result.spline_coeffs = zeta_1;
 
     return drone_result;
-}
-
-void Drone::printUnsatisfiedResiduals(const Residuals& residuals,
-                                    SolveOptions& opt) {
-    // Helper function to print steps where residuals exceed threshold
-    auto printExceedingSteps = [this](const VectorXd& residual, int start, int end, const std::string& message, double threshold, bool wrap = false) {
-        std::vector<int> exceedingSteps;
-        for (int i = start; i < end; i += 3) { // Iterate in steps of 3
-            if (std::abs(residual[i]) > threshold || (i + 1 < end && std::abs(residual[i+1]) > threshold) || (i + 2 < end && std::abs(residual[i+2]) > threshold)) {
-                int step = (i - start) / 3 + 1;
-                if (wrap) {
-                    step = (step - 1) % (config.K+1) + 1; // Wrap step number if it exceeds K
-                }
-                exceedingSteps.push_back(step); // Adjust for relative step number
-            }
-        }
-        if (!exceedingSteps.empty()) {
-            std::cout << message << " at steps: ";
-            for (size_t i = 0; i < exceedingSteps.size(); ++i) {
-                if (i > 0) std::cout << ", ";
-                std::cout << exceedingSteps[i];
-            }
-            std::cout << std::endl;
-        }
-    };
-
-    // Check and print for each type of constraint
-    if (residuals.eq.cwiseAbs().maxCoeff() > opt.eq_threshold) {
-        printExceedingSteps(residuals.eq, 0, 3*(config.K+1), "Velocity constraints residual exceeds threshold", opt.eq_threshold);
-        printExceedingSteps(residuals.eq, 3*(config.K+1), 6*(config.K+1), "Acceleration constraints residual exceeds threshold", opt.eq_threshold);
-        // For collision constraints, wrap the step number if it exceeds K
-        printExceedingSteps(residuals.eq, 6*(config.K+1), residuals.eq.size(), "Collision constraints residual exceeds threshold", opt.eq_threshold, true);
-    }
-
-    if (residuals.pos.maxCoeff() > opt.pos_threshold) {
-        printExceedingSteps(residuals.pos, 0, residuals.pos.size(), "Position constraints residual exceeds threshold", opt.pos_threshold);
-    }
-
-    if (opt.waypoint_position_constraints && residuals.waypoints_pos.cwiseAbs().maxCoeff() > opt.waypoint_position_threshold) {
-        printExceedingSteps(residuals.waypoints_pos, 0, residuals.waypoints_pos.size(), "Waypoint position constraints residual exceeds threshold", opt.waypoint_position_threshold);
-    }
-
-    if (opt.waypoint_velocity_constraints && residuals.waypoints_vel.cwiseAbs().maxCoeff() > opt.waypoint_velocity_threshold) {
-        printExceedingSteps(residuals.waypoints_vel, 0, residuals.waypoints_vel.size(), "Waypoint velocity constraints residual exceeds threshold", opt.waypoint_velocity_threshold);
-    }
-
-    if (opt.waypoint_acceleration_constraints && residuals.waypoints_accel.cwiseAbs().maxCoeff() > opt.waypoint_acceleration_threshold) {
-        printExceedingSteps(residuals.waypoints_accel, 0, residuals.waypoints_accel.size(), "Waypoint acceleration constraints residual exceeds threshold", opt.waypoint_acceleration_threshold);
-    }
-}
-
-
-VectorXd Drone::U_to_zeta_1(const VectorXd& U) {
-    SparseQR<SparseMatrix<double>,COLAMDOrdering<int>> solver;
-    solver.analyzePattern(W_input);
-    solver.factorize(W_input);
-    VectorXd zeta_1 = solver.solve(U);
-    return zeta_1;
 }
 
 

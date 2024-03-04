@@ -146,8 +146,9 @@ void AMSolver<ResultType, SolverArgsType>::resetConstraints() {
 
 template<typename ResultType, typename SolverArgsType>
 std::pair<bool, ResultType> AMSolver<ResultType, SolverArgsType>::solve(const SolverArgsType& args) {
-    preSolve(args);
-    auto [success, result] = actualSolve(args);
+    nonConstConstraints.clear();
+    preSolve(args); // builds new non-const. constraints
+    auto [success, result] = actualSolve(args); // TODO make explicit
     return {success, postSolve(result, args)};
 }
 

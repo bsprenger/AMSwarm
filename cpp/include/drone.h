@@ -14,8 +14,6 @@
 using namespace Eigen;
 
 struct DroneResult {
-    VectorXd position_state_time_stamps; // time stamps for both position and state
-    VectorXd control_input_time_stamps;
     MatrixXd position_trajectory;
     MatrixXd state_trajectory;
     MatrixXd control_input_trajectory;
@@ -25,33 +23,27 @@ struct DroneResult {
     VectorXd spline_coeffs;
 };
 
-struct SolveOptions {
+struct DroneSolveArgs {
+    double current_time = 0.0;
     bool waypoint_position_constraints = true;
     bool waypoint_velocity_constraints = true;
     bool waypoint_acceleration_constraints = false;
     bool input_continuity_constraints = true;
-    bool input_dot_continuity_constraints = true;
-    bool input_ddot_continuity_constraints = true;
     int max_iters = 1000;
     double rho_init = 1.3;
-    double eq_threshold = 0.01;
-    double pos_threshold = 0.01;
-    double waypoint_position_threshold = 0.01;
-    double waypoint_velocity_threshold = 0.05;
-    double waypoint_acceleration_threshold = 0.01;
-    double input_continuity_threshold = 0.01;
-    double input_dot_continuity_threshold = 0.01;
-    double input_ddot_continuity_threshold = 0.01;
+    int num_obstacles = 0;
+    std::vector<SparseMatrix<double>> obstacle_envelopes = {};
+    std::vector<VectorXd> obstacle_positions = {};
+    VectorXd x_0 = VectorXd::Zero(6);
 };
 
 struct MPCWeights {
-    double w_goal_pos = 7000;
-    double w_goal_vel = 1000;
-    double w_smoothness = 100;
-    double w_input_smoothness = 1000;
-    double w_input_continuity = 100;
-    double w_input_dot_continuity = 100;
-    double w_input_ddot_continuity = 100;
+    double waypoints_pos = 7000;
+    double waypoints_vel = 1000;
+    double waypoints_acc = 100;
+    double smoothness = 100;
+    double input_smoothness = 1000;
+    double input_continuity = 100;
 
     MPCWeights() {}
     MPCWeights(double goal_pos, double goal_vel, double smoothness, double input_smoothness, 
@@ -91,11 +83,10 @@ struct SparseDynamics {
     : A(A), B(B), A_prime(A_prime), B_prime(B_prime) {}
 };
 
-
-class Drone : public AMSolver<DroneResult, DroneArgs>{
+class Drone : public AMSolver<DroneResult, DroneSolveArgs>{
     public:
         // Constructors
-        Drone(MatrixXd waypoints, // necessary input
+        Drone(MatrixXd waypoints,
                 MPCConfig config,
                 MPCWeights weights,
                 PhysicalLimits limits,
@@ -103,8 +94,7 @@ class Drone : public AMSolver<DroneResult, DroneArgs>{
                 VectorXd initial_pos);
 
         // Public methods
-        void preSolve(const DroneArgs& args) override;
-        DroneResult postSolve(const VectorXd& zeta, const DroneArgs& args) override;
+        
         
         // Getters
         VectorXd getInitialPosition();
@@ -113,12 +103,12 @@ class Drone : public AMSolver<DroneResult, DroneArgs>{
         float getDeltaT();
         int getK();
 
-    private:
-        // Private struct definitions 
-        struct ConstSelectionMatrices {
+    protected:
+        // Protected struct definitions 
+        struct SelectionMatrices {
             SparseMatrix<double> M_p, M_v, M_a; // maybe rename to pos,vel,acc
 
-            ConstSelectionMatrices(int K) {
+            SelectionMatrices(int K) {
                 // Intermediate matrices used in building selection matrices
                 SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
                 SparseMatrix<double> eyeKplus1 = utils::getSparseIdentity(K+1);
@@ -131,65 +121,24 @@ class Drone : public AMSolver<DroneResult, DroneArgs>{
             }
         };
 
-        struct VariableSelectionMatrices {
-            SparseMatrix<double> M_x, M_y, M_z, M_waypoints_position, M_waypoints_velocity; // maybe rename to x,y,z,timestep?
-
-            VariableSelectionMatrices(int K, int j, VectorXd& penalized_steps) {
-                SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
-                SparseMatrix<double> eye6 = utils::getSparseIdentity(6);
-                SparseMatrix<double> eyeK = utils::getSparseIdentity(K);
-                SparseMatrix<double> eyeKplus12j = utils::getSparseIdentity((2 + j) * (K+1));
-                SparseMatrix<double> zeroMat(3, 3);
-                zeroMat.setZero();
-                SparseMatrix<double> x_step(1, 3);
-                x_step.coeffRef(0, 0) = 1.0;
-                SparseMatrix<double> y_step(1, 3);
-                y_step.coeffRef(0, 1) = 1.0;
-                SparseMatrix<double> z_step(1, 3);
-                z_step.coeffRef(0, 2) = 1.0;
-
-                M_x = utils::kroneckerProduct(eyeKplus12j, x_step);
-                M_y = utils::kroneckerProduct(eyeKplus12j, y_step);
-                M_z = utils::kroneckerProduct(eyeKplus12j, z_step);
-
-                M_waypoints_position.resize(3 * penalized_steps.size(), 6 * (K+1));
-                for (int i = 0; i < penalized_steps.size(); ++i) {
-                    utils::replaceSparseBlock(M_waypoints_position, eye3, 3 * i, 6 * (penalized_steps(i))); // CHECK THIS
-                }
-
-                M_waypoints_velocity.resize(3 * penalized_steps.size(), 6 * (K+1));
-                for (int i = 0; i < penalized_steps.size(); ++i) {
-                    utils::replaceSparseBlock(M_waypoints_velocity, eye3, 3 * i, 6 * (penalized_steps(i)) + 3); // CHECK THIS
-                }
-            }
-        };
-
-        
-        // Private variables
+        // Protected variables
         SparseMatrix<double> W, W_dot, W_ddot, W_input;
         SparseMatrix<double> S_x, S_u, S_x_prime, S_u_prime;
         MPCConfig config;
         MPCWeights weights;
         PhysicalLimits limits;
         SparseDynamics dynamics;
-
+        SelectionMatrices selectionMats;
         MatrixXd waypoints;
         VectorXd initial_pos;
         SparseMatrix<double> collision_envelope; // this drone's collision envelope - NOT the other obstacles' collision envelopes
 
-        // Private methods
-        ConstSelectionMatrices constSelectionMatrices;
-
-        MatrixXd extractWaypointsInCurrentHorizon(const double t,
-                                                        const MatrixXd& waypoints);
+        // Protected methods
+        void preSolve(const DroneSolveArgs& args) override;
+        DroneResult postSolve(const VectorXd& zeta, const DroneSolveArgs& args) override;
+        MatrixXd extractWaypointsInCurrentHorizon(double t);
         std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>> initBernsteinMatrices(const MPCConfig& config);
         std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>> initFullHorizonDynamicsMatrices(const SparseDynamics& dynamics);
-
-        DroneResult computeDroneResult(double current_time, VectorXd& zeta_1,VectorXd x_0);
-
-        void printUnsatisfiedResiduals(const Residuals& residuals,
-                                        SolveOptions& opt);
-
 };
 
 #endif
