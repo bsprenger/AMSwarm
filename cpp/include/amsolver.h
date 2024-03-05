@@ -85,11 +85,11 @@ std::pair<bool, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(cons
         updateConstraints(rho, x);
 
         // Check constraints satisfaction
-        bool all_constraints_satisfied = std::all_of(std::execution::par, constConstraints.begin(), constConstraints.end(),
+        bool all_constraints_satisfied = std::all_of(constConstraints.begin(), constConstraints.end(),
                                                      [&x](const std::unique_ptr<Constraint>& constraint) {
                                                          return constraint->isSatisfied(x);
                                                      }) &&
-                                         std::all_of(std::execution::par, nonConstConstraints.begin(), nonConstConstraints.end(),
+                                         std::all_of(nonConstConstraints.begin(), nonConstConstraints.end(),
                                                      [&x](const std::unique_ptr<Constraint>& constraint) {
                                                          return constraint->isSatisfied(x);
                                                      });
@@ -119,13 +119,13 @@ void AMSolver<ResultType, SolverArgsType>::addConstraint(std::unique_ptr<Constra
 template<typename ResultType, typename SolverArgsType>
 void AMSolver<ResultType, SolverArgsType>::updateConstraints(double rho, const VectorXd& x) {
     // Parallel update for constant constraints
-    std::for_each(std::execution::par, constConstraints.begin(), constConstraints.end(),
+    std::for_each(constConstraints.begin(), constConstraints.end(),
                   [rho, &x](const std::unique_ptr<Constraint>& constraint) {
                       constraint->update(rho, x);
                   });
 
     // Parallel update for non-constant constraints
-    std::for_each(std::execution::par, nonConstConstraints.begin(), nonConstConstraints.end(),
+    std::for_each(nonConstConstraints.begin(), nonConstConstraints.end(),
                   [rho, &x](const std::unique_ptr<Constraint>& constraint) {
                       constraint->update(rho, x);
                   });
@@ -133,12 +133,12 @@ void AMSolver<ResultType, SolverArgsType>::updateConstraints(double rho, const V
 
 template<typename ResultType, typename SolverArgsType>
 void AMSolver<ResultType, SolverArgsType>::resetConstraints() {
-    std::for_each(std::execution::par, constConstraints.begin(), constConstraints.end(),
+    std::for_each(constConstraints.begin(), constConstraints.end(),
                   [](const std::unique_ptr<Constraint>& constraint) {
                       constraint->reset();
                   });
 
-    std::for_each(std::execution::par, nonConstConstraints.begin(), nonConstConstraints.end(),
+    std::for_each(nonConstConstraints.begin(), nonConstConstraints.end(),
                   [](const std::unique_ptr<Constraint>& constraint) {
                       constraint->reset();
                   });
