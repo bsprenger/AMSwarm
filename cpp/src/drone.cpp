@@ -28,7 +28,7 @@ Drone::Drone(MatrixXd waypoints, MPCConfig config, MPCWeights weights,
 };
 
 
-Drone::DroneResult Drone::preSolve(const DroneSolveArgs& args) {
+void Drone::preSolve(const DroneSolveArgs& args) {
     // extract waypoints in current horizon
     // first column is the STEP, not the TIME TODO check this and also round on init instead of each time
     // Create a matrix to hold filtered waypoints
@@ -60,7 +60,7 @@ Drone::DroneResult Drone::preSolve(const DroneSolveArgs& args) {
     // Waypoint position cost and/or equality constraint
     SparseMatrix<double>  G_wp = M_waypoints * selectionMats.M_p * S_u * W_input;
     VectorXd h_wp = extracted_waypoints_pos - M_waypoints * selectionMats.M_p * S_x * args.x_0;
-    quadCost += 2 * weights.waypoint_pos * G_wp.transpose() * G_wp;
+    quadCost += 2 * weights.waypoints_pos * G_wp.transpose() * G_wp;
     linearCost += -2 * weights.waypoints_pos * G_wp.transpose() * h_wp;
     std::unique_ptr<Constraint> wpConstraint = std::make_unique<EqualityConstraint>(G_wp, h_wp);
     addConstraint(std::move(wpConstraint), false);
@@ -68,7 +68,7 @@ Drone::DroneResult Drone::preSolve(const DroneSolveArgs& args) {
     // Waypoint velocity cost and/or equality constraint
     SparseMatrix<double>  G_wv = M_waypoints * selectionMats.M_v * S_u * W_input;
     VectorXd h_wv = extracted_waypoints_vel - M_waypoints * selectionMats.M_v * S_x * args.x_0;
-    quadCost += 2 * weights.waypoint_vel * G_wv.transpose() * G_wv;
+    quadCost += 2 * weights.waypoints_vel * G_wv.transpose() * G_wv;
     linearCost += -2 * weights.waypoints_vel * G_wv.transpose() * h_wv;
     std::unique_ptr<Constraint> wvConstraint = std::make_unique<EqualityConstraint>(G_wv, h_wv);
     addConstraint(std::move(wvConstraint), false);
@@ -76,7 +76,7 @@ Drone::DroneResult Drone::preSolve(const DroneSolveArgs& args) {
     // Waypoint acceleration cost and/or equality constraint
     SparseMatrix<double>  G_wa = M_waypoints * selectionMats.M_a * S_u * W_input;
     VectorXd h_wa = extracted_waypoints_acc - M_waypoints * selectionMats.M_a * S_x * args.x_0;
-    quadCost += 2 * weights.waypoint_acc * G_wa.transpose() * G_wa;
+    quadCost += 2 * weights.waypoints_acc * G_wa.transpose() * G_wa;
     linearCost += -2 * weights.waypoints_acc * G_wa.transpose() * h_wa;
     std::unique_ptr<Constraint> waConstraint = std::make_unique<EqualityConstraint>(G_wa, h_wa);
     addConstraint(std::move(waConstraint), false);
@@ -101,13 +101,13 @@ Drone::DroneResult Drone::preSolve(const DroneSolveArgs& args) {
     // Velocity constraint
     SparseMatrix<double> G_v = selectionMats.M_v * S_u * W_input;
     VectorXd c_v = selectionMats.M_v * S_x * args.x_0;
-    std::unique_ptr<Constraint> vConstraint = std::make_unique<PolarInequalityConstraint>(G_v, c_v, -std::numeric_limits<double>::infinity(), limits.v_bar); // FIX CONSTRAINTS NEGATIVE INF
+    std::unique_ptr<Constraint> vConstraint = std::make_unique<PolarInequalityConstraint>(G_v, c_v, -std::numeric_limits<double>::infinity(), limits.v_bar);
     addConstraint(std::move(vConstraint), false);
 
     // Acceleration constraint
     SparseMatrix<double> G_a = selectionMats.M_a * S_u_prime * W_input;
     VectorXd c_a = selectionMats.M_a * S_x_prime * args.x_0;
-    std::unique_ptr<Constraint> aConstraint = std::make_unique<PolarInequalityConstraint>(G_a, c_a, -std::numeric_limits<double>::infinity(), limits.a_bar); // FIX CONSTRAINTS NEGATIVE INF
+    std::unique_ptr<Constraint> aConstraint = std::make_unique<PolarInequalityConstraint>(G_a, c_a, -std::numeric_limits<double>::infinity(), limits.a_bar);
     addConstraint(std::move(aConstraint), false);
 
     // Collision constraints
@@ -117,6 +117,27 @@ Drone::DroneResult Drone::preSolve(const DroneSolveArgs& args) {
         std::unique_ptr<Constraint> cConstraint = std::make_unique<PolarInequalityConstraint>(G_c, c_c, 1.0, std::numeric_limits<double>::infinity(), config.bf_gamma);
         addConstraint(std::move(cConstraint), false);
     }
+};
+
+DroneResult Drone::postSolve(const VectorXd& zeta, const DroneSolveArgs& args) {
+    DroneResult drone_result;
+
+    // input trajectory
+    drone_result.control_input_trajectory_vector = W_input * zeta;
+    drone_result.control_input_trajectory = Map<MatrixXd>(drone_result.control_input_trajectory_vector.data(), 6, config.K).transpose(); // TODO automatically resize based on num inputs
+
+    // state trajectory
+    drone_result.state_trajectory_vector = S_x * args.x_0 + S_u * drone_result.control_input_trajectory_vector;
+    drone_result.state_trajectory = Map<MatrixXd>(drone_result.state_trajectory_vector.data(), 6, (config.K+1)).transpose();
+
+    // position trajectory
+    drone_result.position_trajectory_vector = selectionMats.M_p * drone_result.state_trajectory_vector;
+    drone_result.position_trajectory = Map<MatrixXd>(drone_result.position_trajectory_vector.data(), 3, (config.K+1)).transpose();
+
+    // Spline
+    drone_result.spline_coeffs = zeta;
+
+    return drone_result;
 };
 
 
@@ -284,38 +305,6 @@ std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,Sparse
     return std::make_tuple(S_x, S_u, S_x_prime, S_u_prime);
 };
 
-
-Drone::DroneResult Drone::computeDroneResult(double current_time, VectorXd& zeta_1, VectorXd x_0) {
-    DroneResult drone_result;
-    
-    // input trajectory
-    drone_result.control_input_trajectory_vector = W_input * zeta_1;
-    drone_result.control_input_trajectory = Map<MatrixXd>(drone_result.control_input_trajectory_vector.data(), 6, config.K).transpose(); // TODO automatically resize based on num inputs
-
-    // state trajectory
-    drone_result.state_trajectory_vector = S_x * x_0 + S_u * drone_result.control_input_trajectory_vector;
-    drone_result.state_trajectory = Map<MatrixXd>(drone_result.state_trajectory_vector.data(), 6, (config.K+1)).transpose();
-
-    // position trajectory
-    drone_result.position_trajectory_vector = constSelectionMatrices.M_p * drone_result.state_trajectory_vector;
-    drone_result.position_trajectory = Map<MatrixXd>(drone_result.position_trajectory_vector.data(), 3, (config.K+1)).transpose();
-
-    // Time stamps for position and state trajectories
-    drone_result.position_state_time_stamps.resize(config.K+1);
-    for (int i = 0; i < config.K+1; ++i) {
-        drone_result.position_state_time_stamps(i) = current_time + (i) * config.delta_t;
-    }
-
-    // Time stamps for control input trajectory
-    drone_result.control_input_time_stamps.resize(config.K);
-    for (int i = 0; i < config.K; ++i) {
-        drone_result.control_input_time_stamps(i) = current_time + i * config.delta_t;
-    }
-
-    drone_result.spline_coeffs = zeta_1;
-
-    return drone_result;
-}
 
 
 VectorXd Drone::getInitialPosition() {
