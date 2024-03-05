@@ -24,27 +24,30 @@ PYBIND11_MODULE(amswarm, m)
         .def_readwrite("num_obstacles", &DroneSolveArgs::num_obstacles)
         .def_readwrite("obstacle_envelopes", &DroneSolveArgs::obstacle_envelopes)
         .def_readwrite("obstacle_positions", &DroneSolveArgs::obstacle_positions)
-        .def_readwrite("x_0", &DroneSolveArgs::x_0);
+        .def_readwrite("x_0", &DroneSolveArgs::x_0)
+        .def_readwrite("u_0", &DroneSolveArgs::u_0)
+        .def_readwrite("u_dot_0", &DroneSolveArgs::u_dot_0)
+        .def_readwrite("u_ddot_0", &DroneSolveArgs::u_ddot_0);
 
     py::class_<Drone::MPCWeights>(m, "MPCWeights")
-        .def(py::init<double, double, double, double, double, double, double>(), 
-            py::arg("waypoint_pos") = 7000, 
-            py::arg("waypoint_vel") = 1000,
-            py::arg("waypoint_acc") = 100, 
+        .def(py::init<double, double, double, double, double, double>(), 
+            py::arg("waypoints_pos") = 7000, 
+            py::arg("waypoints_vel") = 1000,
+            py::arg("waypoints_acc") = 100, 
             py::arg("smoothness") = 100, 
             py::arg("input_smoothness") = 1000, 
             py::arg("input_continuity") = 100)
         .def(py::init<>())
-        .def_readwrite("waypoint_pos", &Drone::MPCWeights::waypoint_pos)
-        .def_readwrite("waypoint_vel", &Drone::MPCWeights::waypoint_vel)
-        .def_readwrite("waypoint_acc", &Drone::MPCWeights::waypoint_acc)
+        .def_readwrite("waypoints_pos", &Drone::MPCWeights::waypoints_pos)
+        .def_readwrite("waypoints_vel", &Drone::MPCWeights::waypoints_vel)
+        .def_readwrite("waypoints_acc", &Drone::MPCWeights::waypoints_acc)
         .def_readwrite("smoothness", &Drone::MPCWeights::smoothness)
         .def_readwrite("input_smoothness", &Drone::MPCWeights::input_smoothness)
         .def_readwrite("input_continuity", &Drone::MPCWeights::input_continuity)
         .def(py::pickle(
             [](const Drone::MPCWeights &w) { // __getstate__
                 /* Return a tuple that fully encodes the state of the object */
-                return py::make_tuple(w.waypoint_pos, w.waypoint_vel, w.waypoint_acc, w.smoothness, w.input_smoothness, w.input_continuity);
+                return py::make_tuple(w.waypoints_pos, w.waypoints_vel, w.waypoints_acc, w.smoothness, w.input_smoothness, w.input_continuity);
             },
             [](py::tuple t) { // __setstate__
                 if (t.size() != 6)
@@ -52,9 +55,9 @@ PYBIND11_MODULE(amswarm, m)
 
                 /* Create a new C++ instance */
                 Drone::MPCWeights w;
-                w.waypoint_pos = t[0].cast<double>();
-                w.waypoint_vel = t[1].cast<double>();
-                w.waypoint_acc = t[2].cast<double>();
+                w.waypoints_pos = t[0].cast<double>();
+                w.waypoints_vel = t[1].cast<double>();
+                w.waypoints_acc = t[2].cast<double>();
                 w.smoothness = t[3].cast<double>();
                 w.input_smoothness = t[4].cast<double>();
                 w.input_continuity = t[5].cast<double>();
@@ -146,69 +149,23 @@ PYBIND11_MODULE(amswarm, m)
                 return d;
             })); 
 
-    py::class_<Drone>(m, "Drone")
+    py::class_<Drone, std::shared_ptr<Drone>>(m, "Drone")
         .def(py::init<Eigen::MatrixXd, Drone::MPCConfig, Drone::MPCWeights, Drone::PhysicalLimits, Drone::SparseDynamics, Eigen::VectorXd>(),
             py::arg("waypoints"), py::arg("config"), py::arg("weights"), py::arg("limits"), py::arg("dynamics"), py::arg("initial_pos"))
         .def("solve", &Drone::solve, py::arg("args"));
     
     py::class_<Swarm>(m, "Swarm")
-        .def(py::init<std::vector<Drone>>())
-        .def(py::init([](py::list drone_list) {
-            std::vector<Drone> drones;
-            for (auto item : drone_list) {
-                drones.push_back(item.cast<Drone>());
+        .def(py::init([](py::list drones_py) {
+            std::vector<std::unique_ptr<Drone>> drones;
+            for (py::handle drone_py : drones_py) {
+                Drone* drone = drone_py.cast<Drone*>();
+                drones.push_back(std::unique_ptr<Drone>(drone));
             }
-
-            return new Swarm(drones);
+            return new Swarm(std::move(drones));
         }))
-        .def("solve", [](Swarm &instance, double current_time, py::list x_0_vector_py,
-                        py::list prev_trajectories_py, py::list prev_inputs_py) {
-            
-            std::vector<Eigen::VectorXd> prev_inputs;
-            if (!prev_inputs_py.empty()) {
-                for (auto item : prev_inputs_py) {
-                    py::array_t<double> array = item.cast<py::array_t<double>>();
-                    auto buffer = array.request();
-                    Eigen::VectorXd prev_input(buffer.shape[0]);
-
-                    for (ssize_t i = 0; i < array.size(); ++i) {
-                        prev_input(i) = array.at(i);
-                    }
-                    prev_inputs.push_back(prev_input);
-                }
-            }
-            std::vector<Eigen::VectorXd> prev_trajectories;
-            for (auto item : prev_trajectories_py) {
-                py::array_t<double> array = item.cast<py::array_t<double>>();
-                auto buffer = array.request();
-                Eigen::VectorXd prev_trajectory(buffer.shape[0]);
-
-                for (ssize_t i = 0; i < array.size(); ++i) {
-                    prev_trajectory(i) = array.at(i);
-                }
-
-                // Eigen::VectorXd prev_trajectory = Eigen::Map<Eigen::VectorXd>(static_cast<double *>(buffer.ptr), buffer.shape[0]);
-                prev_trajectories.push_back(prev_trajectory);
-            }
-            std::vector<Eigen::VectorXd> x_0_vector;
-            for (auto item : x_0_vector_py) {
-                py::array_t<double> array = item.cast<py::array_t<double>>();
-                auto buffer = array.request();
-                Eigen::VectorXd x_0(buffer.shape[0]);
-
-                // Iterate over the array and copy each element
-                // I tried doing with buffer and there were extremely difficult memory bugs
-                for (ssize_t i = 0; i < array.size(); ++i) {
-                    x_0(i) = array.at(i);
-                }
-                x_0_vector.push_back(x_0);
-            }
-
-            // Call the solve method with or without prev_inputs
-            if (prev_inputs.empty()) {
-                return instance.solve(current_time, x_0_vector, prev_trajectories, opt);
-            } else {
-                return instance.solve(current_time, x_0_vector, prev_trajectories, opt, prev_inputs);
-            }
-        }, py::arg("current_time"), py::arg("x_0_vector"), py::arg("prev_trajectories"), py::arg("prev_inputs") = py::list());
+        .def("solve", &Swarm::solve, 
+            py::arg("current_time"), 
+            py::arg("x_0_vector"), 
+            py::arg("prev_trajectories"), 
+            py::arg("prev_inputs") = py::list());
 }

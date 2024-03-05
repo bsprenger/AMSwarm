@@ -6,20 +6,20 @@
 using namespace Eigen;
 
 
-Swarm::Swarm(std::vector<Drone> drones)
-    : drones(drones)
+Swarm::Swarm(std::vector<std::unique_ptr<Drone>>&& drones)
+    : drones(std::move(drones)), num_drones(this->drones.size())
 {
-    // get length of drones vector
-    num_drones = drones.size();
-    int K = drones[0].getK();
+    if (!this->drones.empty()) {
+        int K = this->drones[0]->getK();
 
-    // create collision matrices
-    for (int i = 0; i < num_drones; ++i) {
-        // create vector defining collision envelope for each drone across all time steps
-        // at each time step, each drone will take the relevant thetas from this vector
+        // create collision matrices
         SparseMatrix<double> eyeKp1 = SparseMatrix<double>(K+1,K+1);
         eyeKp1.setIdentity();
-        all_obstacle_envelopes.push_back(utils::kroneckerProduct(eyeKp1, drones[i].getCollisionEnvelope())); // contains collision envelope for all drones for all time steps
+        for (int i = 0; i < num_drones; ++i) {
+            // create vector defining collision envelope for each drone across all time steps
+            // at each time step, each drone will take the relevant thetas from this vector
+            all_obstacle_envelopes.push_back(utils::kroneckerProduct(eyeKp1, this->drones[i]->getCollisionEnvelope())); // contains collision envelope for all drones for all time steps
+        }
     }
 };
 
@@ -28,7 +28,7 @@ std::pair<std::vector<bool>,std::vector<DroneResult>> Swarm::solve(const double 
                                                                             std::vector<VectorXd> x_0_vector,
                                                                             std::vector<VectorXd> prev_trajectories,
                                                                             std::vector<VectorXd> prev_inputs) {
-    int K = drones[0].getK();
+    int K = drones[0]->getK();
 
     // initialize results
     std::vector<bool> is_success(num_drones);
@@ -61,7 +61,7 @@ std::pair<std::vector<bool>,std::vector<DroneResult>> Swarm::solve(const double 
         args.obstacle_envelopes = obstacle_envelopes;
         args.x_0 = x_0_vector[i];
         
-        std::pair<bool, DroneResult> result = drones[i].solve(args);
+        std::pair<bool, DroneResult> result = drones[i]->solve(args);
         
         // use a critical section to update shared vectors
         # pragma omp critical

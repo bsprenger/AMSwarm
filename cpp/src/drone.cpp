@@ -83,7 +83,12 @@ void Drone::preSolve(const DroneSolveArgs& args) {
 
     // Input continuity cost and/or equality constraint
     SparseMatrix<double> G_u(9,3*(config.n+1));
-    G_u << W.block(0,0,3,3*(config.n+1)), W_dot.block(0,0,3,3*(config.n+1)), W_ddot.block(0,0,3,3*(config.n+1));
+    SparseMatrix<double> W_block = W.block(0,0,3,3*(config.n+1)); // necessary to explicitly make this a sparse matrix to avoid ambiguous call to replaceSparseBlock. TODO fix later
+    SparseMatrix<double> W_dot_block = W_dot.block(0,0,3,3*(config.n+1));
+    SparseMatrix<double> W_ddot_block = W_ddot.block(0,0,3,3*(config.n+1));
+    utils::replaceSparseBlock(G_u, W_block, 0, 0);
+    utils::replaceSparseBlock(G_u, W_dot_block, 3, 0);
+    utils::replaceSparseBlock(G_u, W_ddot_block, 6, 0);
     VectorXd h_u(9);
     h_u << args.u_0, args.u_dot_0, args.u_ddot_0;
     quadCost += 2 * weights.input_continuity * G_u.transpose() * G_u;
@@ -92,10 +97,13 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     addConstraint(std::move(uConstraint), false);
 
     // Position constraint
-    SparseMatrix<double> G_p(6 * (K + 1), 3 * (config.n + 1));
-    G_p << selectionMats.M_p * S_u * W_input, -selectionMats.M_p * S_u * W_input;
-    VectorXd h_p(6 * (K + 1));
-    h_p << p_max.replicate(config.K + 1, 1) - selectionMats.M_p * S_x * args.x_0, -p_min.replicate(config.K + 1, 1) + selectionMats.M_p * S_x * args.x_0;
+    SparseMatrix<double> G_p(6 * (config.K + 1), 3 * (config.n + 1));
+    SparseMatrix<double> G_p_block1 = selectionMats.M_p * S_u * W_input;
+    SparseMatrix<double> G_p_block2 = -selectionMats.M_p * S_u * W_input;
+    utils::replaceSparseBlock(G_p, G_p_block1, 0, 0);
+    utils::replaceSparseBlock(G_p, G_p_block2, 3 * (config.K + 1), 0);
+    VectorXd h_p(6 * (config.K + 1));
+    h_p << limits.p_max.replicate(config.K + 1, 1) - selectionMats.M_p * S_x * args.x_0, -limits.p_min.replicate(config.K + 1, 1) + selectionMats.M_p * S_x * args.x_0;
     std::unique_ptr<Constraint> pConstraint = std::make_unique<InequalityConstraint>(G_p, h_p);
 
     // Velocity constraint

@@ -30,6 +30,9 @@ struct DroneSolveArgs {
     std::vector<SparseMatrix<double>> obstacle_envelopes = {};
     std::vector<VectorXd> obstacle_positions = {};
     VectorXd x_0 = VectorXd::Zero(6);
+    VectorXd u_0 = VectorXd::Zero(6);
+    VectorXd u_dot_0 = VectorXd::Zero(6);
+    VectorXd u_ddot_0 = VectorXd::Zero(6);
 };
 
 class Drone : public AMSolver<DroneResult, DroneSolveArgs>{
@@ -127,7 +130,7 @@ protected:
     // Protected methods
     void preSolve(const DroneSolveArgs& args) override;
     DroneResult postSolve(const VectorXd& zeta, const DroneSolveArgs& args) override;
-    MatrixXd extractWaypointsInCurrentHorizon(double t);
+    Matrix<double, Dynamic, Dynamic, RowMajor> extractWaypointsInCurrentHorizon(double t);
     std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>> initBernsteinMatrices(const MPCConfig& config);
     std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>> initFullHorizonDynamicsMatrices(const SparseDynamics& dynamics);
 };
