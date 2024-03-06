@@ -10,6 +10,7 @@ def load_yaml_file(file_path: str) -> dict:
         return yaml.safe_load(f)
 
 def main():
+    np.set_printoptions(precision=3, suppress=True, linewidth=100)
     settings = load_yaml_file("../../cpp/params/model_params.yaml")
     settings['MPCConfig']['delta_t'] = 1 / settings['MPCConfig']['mpc_freq']
     del settings['MPCConfig']['mpc_freq']
@@ -19,8 +20,8 @@ def main():
                               [3.00, 0.00, -1.00, 1.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00]]),
                  1: np.array([[0.00, 1.00, 0.00, 1.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00],
                               [3.00, -1.00, 0.00, 1.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00]])}
-    
-    num_drones = len(waypoints)
+
+    drone_results = [amswarm.DroneResult.generateInitialDroneResult(initial_positions[k], settings['MPCConfig']['K']) for k in waypoints]
     amswarm_kwargs = {
         "config": amswarm.MPCConfig(**settings['MPCConfig']),
         "weights": amswarm.MPCWeights(**settings['MPCWeights']),
@@ -29,20 +30,32 @@ def main():
     }
     drones = [
         amswarm.Drone(waypoints=waypoints[key],
-                      initial_pos=initial_positions[key],
                       **amswarm_kwargs) for key in waypoints
     ]
     swarm = amswarm.Swarm(drones)
     initial_states = [np.array([0,1,1,0,0,0]), np.array([1,0,1,0,0,0])]
-    prev_trajectories = [np.tile(initial_positions[0], settings["MPCConfig"]["K"]+1), np.tile(initial_positions[1], settings["MPCConfig"]["K"]+1)]
-    prev_inputs = [np.zeros(6 * settings['MPCConfig']['K']), np.zeros(6 * settings['MPCConfig']['K'])] # TODO
-    a,b = swarm.solve(0, initial_states, prev_trajectories, prev_inputs)    
-    prev_trajectories = [b[0].position_trajectory_vector, b[1].position_trajectory_vector]
-    a,b = swarm.solve(0.0, initial_states, prev_trajectories, prev_inputs)
-    print(a)
-    np.set_printoptions(precision=2, suppress=True, linewidth=100)
-    print(b[0].state_trajectory)
-    print(b[1].state_trajectory)
+    
+    solve_status, drone_results = swarm.solve(0, initial_states, drone_results, True)
+    print("Initial guess means drones have no idea where the other drones are going")
+    print(drone_results[0].input_position_trajectory)
+    print(drone_results[1].input_position_trajectory)
+    
+    solve_status, drone_results = swarm.solve(0, initial_states, drone_results, True)
+    print("Now the drones have a better idea of where the other drones are going")
+    print(drone_results[0].input_position_trajectory)
+    print(drone_results[1].input_position_trajectory)
+    
+    solve_status, drone_results = swarm.solve(0, initial_states, drone_results, True)
+    print(solve_status)
+    print("But now it won't consider a collision, as the previous trajectories are not colliding...")
+    print(drone_results[0].input_position_trajectory)
+    print(drone_results[1].input_position_trajectory)
+    
+    solve_status, drone_results = swarm.solve(0, initial_states, drone_results, True)
+    print(solve_status)
+    print("But now it will again.")
+    print(drone_results[0].input_position_trajectory)
+    print(drone_results[1].input_position_trajectory)
     
     
 if __name__ == "__main__":

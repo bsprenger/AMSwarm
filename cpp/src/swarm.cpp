@@ -24,18 +24,16 @@ Swarm::Swarm(std::vector<std::shared_ptr<Drone>> drones)
 };
 
 
-std::pair<std::vector<bool>,std::vector<DroneResult>> Swarm::solve(const double current_time,
-                                                                            std::vector<VectorXd> x_0_vector,
-                                                                            std::vector<VectorXd> prev_trajectories,
-                                                                            std::vector<VectorXd> prev_inputs) {
-    if (x_0_vector.size() != num_drones ||
-        prev_trajectories.size() != num_drones ||
-        prev_inputs.size() != num_drones) {
+std::pair<std::vector<bool>,std::vector<DroneResult>> Swarm::solve(double current_time,
+                                                                    const std::vector<VectorXd>& initial_states,
+                                                                    const std::vector<DroneResult>& previous_results,
+                                                                    bool is_initial_solve) {
+    if (initial_states.size() != num_drones ||
+        previous_results.size() != num_drones) {
         throw std::invalid_argument("Input vectors must all have the same length as the number of drones in the swarm.");
     }
 
     int K = drones[0]->getK();
-
 
     // initialize results
     std::vector<bool> is_success(num_drones);
@@ -44,18 +42,31 @@ std::pair<std::vector<bool>,std::vector<DroneResult>> Swarm::solve(const double 
     SparseMatrix<double> eyeKp1 = SparseMatrix<double>(K+1,K+1);
     eyeKp1.setIdentity();
     SparseMatrix<double> buffer(3,3);
-    buffer.insert(0,0) = 5; buffer.insert(1,1) = 5; buffer.insert(2,2) = 5;
+    buffer.insert(0,0) = -0.5; buffer.insert(1,1) = -0.5; buffer.insert(2,2) = -0.5;
     SparseMatrix<double> theta_intersection_buffer = utils::kroneckerProduct(eyeKp1, buffer);
     
     # pragma omp parallel for
     for (int i = 0; i < drones.size(); ++i) {
+        VectorXd drone_trajectory;
+        if (is_initial_solve) {
+            drone_trajectory = previous_results[i].position_trajectory_vector;
+        } else {
+            drone_trajectory = Drone::updateAndExtrapolateTrajectory(previous_results[i].position_trajectory_vector);
+        }
+
         std::vector<VectorXd> obstacle_positions;
         std::vector<SparseMatrix<double>> obstacle_envelopes;
         int num_obstacles = 0;
 
         for (int drone = 0; drone < drones.size(); ++drone) {
-            if (drone < i && Swarm::checkIntersection(prev_trajectories[i], prev_trajectories[drone], all_obstacle_envelopes[drone] + theta_intersection_buffer)) {
-                obstacle_positions.push_back(prev_trajectories[drone]);
+            VectorXd other_drone_trajectory;
+            if (is_initial_solve) {
+                other_drone_trajectory = previous_results[drone].position_trajectory_vector;
+            } else {
+                other_drone_trajectory = Drone::updateAndExtrapolateTrajectory(previous_results[drone].position_trajectory_vector);
+            }
+            if (drone < i && Swarm::checkIntersection(drone_trajectory, other_drone_trajectory, all_obstacle_envelopes[drone] + theta_intersection_buffer)) {
+                obstacle_positions.push_back(other_drone_trajectory);
                 obstacle_envelopes.push_back(all_obstacle_envelopes[drone]);
                 num_obstacles++;
             }
@@ -66,11 +77,11 @@ std::pair<std::vector<bool>,std::vector<DroneResult>> Swarm::solve(const double 
         args.num_obstacles = num_obstacles;
         args.obstacle_positions = obstacle_positions;
         args.obstacle_envelopes = obstacle_envelopes;
-        args.x_0 = x_0_vector[i];
-
-        args.u_0 = VectorXd::Zero(3); // TODO fix this
-        args.u_dot_0 = VectorXd::Zero(3);
-        args.u_ddot_0 = VectorXd::Zero(3);
+        args.x_0 = initial_states[i];
+        int row_index = is_initial_solve ? 0 : 1; // if it's the initial solve, use the first row of the trajectory i.e. do not advance the guess, otherwise use the second row
+        args.u_0 = previous_results[i].input_position_trajectory.row(row_index);
+        args.u_dot_0 = previous_results[i].input_velocity_trajectory.row(row_index);
+        args.u_ddot_0 = previous_results[i].input_acceleration_trajectory.row(row_index);
 
         std::pair<bool, DroneResult> result = drones[i]->solve(args);
         

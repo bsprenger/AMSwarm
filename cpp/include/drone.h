@@ -16,12 +16,18 @@ using namespace Eigen;
 
 struct DroneResult {
     MatrixXd position_trajectory;
-    MatrixXd state_trajectory;
-    MatrixXd control_input_trajectory;
     VectorXd position_trajectory_vector;
+    MatrixXd state_trajectory;
     VectorXd state_trajectory_vector;
-    VectorXd control_input_trajectory_vector;
+    MatrixXd input_position_trajectory;
+    VectorXd input_position_trajectory_vector;
+    MatrixXd input_velocity_trajectory;
+    VectorXd input_velocity_trajectory_vector;
+    MatrixXd input_acceleration_trajectory;
+    VectorXd input_acceleration_trajectory_vector;
     VectorXd spline_coeffs;
+
+    static DroneResult generateInitialDroneResult(const VectorXd& initial_position, int K);
 };
 
 struct DroneSolveArgs {
@@ -33,6 +39,10 @@ struct DroneSolveArgs {
     VectorXd u_0 = VectorXd::Zero(3);
     VectorXd u_dot_0 = VectorXd::Zero(3);
     VectorXd u_ddot_0 = VectorXd::Zero(3);
+    bool enable_waypoints_pos_constraint = true;
+    bool enable_waypoints_vel_constraint = true;
+    bool enable_waypoints_acc_constraint = true;
+    bool enable_input_continuity_constraint = true;
 };
 
 class Drone : public AMSolver<DroneResult, DroneSolveArgs>{
@@ -87,11 +97,12 @@ public:
             MPCConfig config,
             MPCWeights weights,
             PhysicalLimits limits,
-            SparseDynamics dynamics,
-            VectorXd initial_pos);
+            SparseDynamics dynamics);
+
+    // Public methods
+    static VectorXd updateAndExtrapolateTrajectory(const VectorXd& previous_trajectory);
     
     // Getters TODO check if these are necessary
-    VectorXd getInitialPosition();
     SparseMatrix<double> getCollisionEnvelope();
     MatrixXd getWaypoints();
     float getDeltaT();
@@ -124,7 +135,6 @@ protected:
     SparseDynamics dynamics;
     SelectionMatrices selectionMats;
     MatrixXd waypoints;
-    VectorXd initial_pos;
     SparseMatrix<double> collision_envelope; // this drone's collision envelope - NOT the other obstacles' collision envelopes
 
     // Protected methods

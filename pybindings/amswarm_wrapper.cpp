@@ -10,13 +10,19 @@ PYBIND11_MODULE(amswarm, m)
 {
     py::class_<DroneResult>(m, "DroneResult")
         .def(py::init<>())
-        .def_readwrite("control_input_trajectory_vector", &DroneResult::control_input_trajectory_vector)
         .def_readwrite("state_trajectory_vector", &DroneResult::state_trajectory_vector)
         .def_readwrite("position_trajectory_vector", &DroneResult::position_trajectory_vector)
-        .def_readwrite("control_input_trajectory", &DroneResult::control_input_trajectory)
         .def_readwrite("state_trajectory", &DroneResult::state_trajectory)
         .def_readwrite("position_trajectory", &DroneResult::position_trajectory)
-        .def_readwrite("spline_coeffs", &DroneResult::spline_coeffs);
+        .def_readwrite("input_position_trajectory_vector", &DroneResult::input_position_trajectory_vector)
+        .def_readwrite("input_velocity_trajectory_vector", &DroneResult::input_velocity_trajectory_vector)
+        .def_readwrite("input_acceleration_trajectory_vector", &DroneResult::input_acceleration_trajectory_vector)
+        .def_readwrite("input_position_trajectory", &DroneResult::input_position_trajectory)
+        .def_readwrite("input_velocity_trajectory", &DroneResult::input_velocity_trajectory)
+        .def_readwrite("input_acceleration_trajectory", &DroneResult::input_acceleration_trajectory)
+        .def_readwrite("spline_coeffs", &DroneResult::spline_coeffs)
+        .def_static("generateInitialDroneResult", &DroneResult::generateInitialDroneResult, 
+                    py::arg("initial_position"), py::arg("K"));
 
     py::class_<DroneSolveArgs>(m, "DroneSolveArgs")
         .def(py::init<>())
@@ -150,8 +156,8 @@ PYBIND11_MODULE(amswarm, m)
             })); 
 
     py::class_<Drone, std::shared_ptr<Drone>>(m, "Drone")
-        .def(py::init<Eigen::MatrixXd, Drone::MPCConfig, Drone::MPCWeights, Drone::PhysicalLimits, Drone::SparseDynamics, Eigen::VectorXd>(),
-            py::arg("waypoints"), py::arg("config"), py::arg("weights"), py::arg("limits"), py::arg("dynamics"), py::arg("initial_pos"))
+        .def(py::init<Eigen::MatrixXd, Drone::MPCConfig, Drone::MPCWeights, Drone::PhysicalLimits, Drone::SparseDynamics>(),
+            py::arg("waypoints"), py::arg("config"), py::arg("weights"), py::arg("limits"), py::arg("dynamics"))
         .def("solve", &Drone::solve, py::arg("args"));
     
     py::class_<Swarm>(m, "Swarm")
@@ -161,7 +167,7 @@ PYBIND11_MODULE(amswarm, m)
         }))
         .def("solve", &Swarm::solve, 
             py::arg("current_time"), 
-            py::arg("x_0_vector"), 
-            py::arg("prev_trajectories"), 
-            py::arg("prev_inputs") = py::list());
+            py::arg("initial_states"),
+            py::arg("previous_results"),
+            py::arg("is_initial_solve"));
 }

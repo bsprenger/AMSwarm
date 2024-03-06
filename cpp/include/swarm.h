@@ -11,10 +11,10 @@ class Swarm {
     public:
         Swarm(std::vector<std::shared_ptr<Drone>> drones);
 
-        std::pair<std::vector<bool>, std::vector<DroneResult>> solve(const double current_time,
-                            std::vector<VectorXd> x_0_vector, // rename these
-                            std::vector<VectorXd> prev_trajectories,
-                            std::vector<VectorXd> prev_inputs = std::vector<VectorXd>());
+        std::pair<std::vector<bool>, std::vector<DroneResult>> solve(double current_time,
+                            const std::vector<VectorXd>& initial_states,
+                            const std::vector<DroneResult>& previous_results,
+                            bool is_initial_solve);
 
     private:
         int num_drones;

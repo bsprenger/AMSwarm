@@ -10,9 +10,8 @@ using namespace Eigen;
 
 
 Drone::Drone(MatrixXd waypoints, MPCConfig config, MPCWeights weights,
-            PhysicalLimits limits, SparseDynamics dynamics, 
-            VectorXd initial_pos)
-    : waypoints(waypoints), initial_pos(initial_pos), config(config),
+            PhysicalLimits limits, SparseDynamics dynamics)
+    : waypoints(waypoints), config(config),
     weights(weights), limits(limits), dynamics(dynamics),
     collision_envelope(3,3), selectionMats(config.K)
 {   
@@ -62,39 +61,47 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     VectorXd h_wp = extracted_waypoints_pos - M_waypoints * selectionMats.M_p * S_x * args.x_0;
     quadCost += 2 * weights.waypoints_pos * G_wp.transpose() * G_wp;
     linearCost += -2 * weights.waypoints_pos * G_wp.transpose() * h_wp;
-    std::unique_ptr<Constraint> wpConstraint = std::make_unique<EqualityConstraint>(G_wp, h_wp);
-    addConstraint(std::move(wpConstraint), false);
+    if (args.enable_waypoints_pos_constraint) {
+        std::unique_ptr<Constraint> wpConstraint = std::make_unique<EqualityConstraint>(G_wp, h_wp);
+        addConstraint(std::move(wpConstraint), false);
+    }
 
     // Waypoint velocity cost and/or equality constraint
     SparseMatrix<double>  G_wv = M_waypoints * selectionMats.M_v * S_u * W_input;
     VectorXd h_wv = extracted_waypoints_vel - M_waypoints * selectionMats.M_v * S_x * args.x_0;
     quadCost += 2 * weights.waypoints_vel * G_wv.transpose() * G_wv;
     linearCost += -2 * weights.waypoints_vel * G_wv.transpose() * h_wv;
-    std::unique_ptr<Constraint> wvConstraint = std::make_unique<EqualityConstraint>(G_wv, h_wv);
-    addConstraint(std::move(wvConstraint), false);
+    if (args.enable_waypoints_vel_constraint) {
+        std::unique_ptr<Constraint> wvConstraint = std::make_unique<EqualityConstraint>(G_wv, h_wv);
+        addConstraint(std::move(wvConstraint), false);
+    }
 
     // Waypoint acceleration cost and/or equality constraint
     SparseMatrix<double>  G_wa = M_waypoints * selectionMats.M_a * S_u_prime * W_input;
     VectorXd h_wa = extracted_waypoints_acc - M_waypoints * selectionMats.M_a * S_x_prime * args.x_0;
     quadCost += 2 * weights.waypoints_acc * G_wa.transpose() * G_wa;
     linearCost += -2 * weights.waypoints_acc * G_wa.transpose() * h_wa;
-    std::unique_ptr<Constraint> waConstraint = std::make_unique<EqualityConstraint>(G_wa, h_wa);
-    addConstraint(std::move(waConstraint), false);
+    if (args.enable_waypoints_acc_constraint) {
+        std::unique_ptr<Constraint> waConstraint = std::make_unique<EqualityConstraint>(G_wa, h_wa);
+        addConstraint(std::move(waConstraint), false);
+    }
 
     // Input continuity cost and/or equality constraint
-    // SparseMatrix<double> G_u(9,3*(config.n+1));
-    // SparseMatrix<double> W_block = W.block(0,0,3,3*(config.n+1)); // necessary to explicitly make this a sparse matrix to avoid ambiguous call to replaceSparseBlock. TODO fix later
-    // SparseMatrix<double> W_dot_block = W_dot.block(0,0,3,3*(config.n+1));
-    // SparseMatrix<double> W_ddot_block = W_ddot.block(0,0,3,3*(config.n+1));
-    // utils::replaceSparseBlock(G_u, W_block, 0, 0);
-    // utils::replaceSparseBlock(G_u, W_dot_block, 3, 0);
-    // utils::replaceSparseBlock(G_u, W_ddot_block, 6, 0);
-    // VectorXd h_u(9);
-    // h_u << args.u_0, args.u_dot_0, args.u_ddot_0;
-    // quadCost += 2 * weights.input_continuity * G_u.transpose() * G_u;
-    // linearCost += -2 * weights.input_continuity * G_u.transpose() * h_u;
-    // std::unique_ptr<Constraint> uConstraint = std::make_unique<EqualityConstraint>(G_u, h_u);
-    // addConstraint(std::move(uConstraint), false);
+    SparseMatrix<double> G_u(9,3*(config.n+1));
+    SparseMatrix<double> W_block = W.block(0,0,3,3*(config.n+1)); // necessary to explicitly make this a sparse matrix to avoid ambiguous call to replaceSparseBlock. TODO fix later
+    SparseMatrix<double> W_dot_block = W_dot.block(0,0,3,3*(config.n+1));
+    SparseMatrix<double> W_ddot_block = W_ddot.block(0,0,3,3*(config.n+1));
+    utils::replaceSparseBlock(G_u, W_block, 0, 0);
+    utils::replaceSparseBlock(G_u, W_dot_block, 3, 0);
+    utils::replaceSparseBlock(G_u, W_ddot_block, 6, 0);
+    VectorXd h_u(9);
+    h_u << args.u_0, args.u_dot_0, args.u_ddot_0;
+    quadCost += 2 * weights.input_continuity * G_u.transpose() * G_u;
+    linearCost += -2 * weights.input_continuity * G_u.transpose() * h_u;
+    if (args.enable_input_continuity_constraint) {
+        std::unique_ptr<Constraint> uConstraint = std::make_unique<EqualityConstraint>(G_u, h_u);
+        addConstraint(std::move(uConstraint), false);
+    }
 
     // Position constraint
     SparseMatrix<double> G_p(6 * (config.K + 1), 3 * (config.n + 1));
@@ -131,17 +138,25 @@ void Drone::preSolve(const DroneSolveArgs& args) {
 DroneResult Drone::postSolve(const VectorXd& zeta, const DroneSolveArgs& args) {
     DroneResult drone_result;
 
-    // input trajectory
-    drone_result.control_input_trajectory_vector = W_input * zeta;
-    drone_result.control_input_trajectory = Map<MatrixXd>(drone_result.control_input_trajectory_vector.data(), 6, config.K).transpose(); // TODO automatically resize based on num inputs
-
     // state trajectory
-    drone_result.state_trajectory_vector = S_x * args.x_0 + S_u * drone_result.control_input_trajectory_vector;
+    drone_result.state_trajectory_vector = S_x * args.x_0 + S_u * W_input * zeta;
     drone_result.state_trajectory = Map<MatrixXd>(drone_result.state_trajectory_vector.data(), 6, (config.K+1)).transpose();
 
     // position trajectory
     drone_result.position_trajectory_vector = selectionMats.M_p * drone_result.state_trajectory_vector;
     drone_result.position_trajectory = Map<MatrixXd>(drone_result.position_trajectory_vector.data(), 3, (config.K+1)).transpose();
+
+    // input position trajectory
+    drone_result.input_position_trajectory_vector = W * zeta;
+    drone_result.input_position_trajectory = Map<MatrixXd>(drone_result.input_position_trajectory_vector.data(), 3, (config.K)).transpose();
+
+    // input velocity trajectory
+    drone_result.input_velocity_trajectory_vector = W_dot * zeta;
+    drone_result.input_velocity_trajectory = Map<MatrixXd>(drone_result.input_velocity_trajectory_vector.data(), 3, (config.K)).transpose();
+
+    // input acceleration trajectory
+    drone_result.input_acceleration_trajectory_vector = W_ddot * zeta;
+    drone_result.input_acceleration_trajectory = Map<MatrixXd>(drone_result.input_acceleration_trajectory_vector.data(), 3, (config.K)).transpose();
 
     // Spline
     drone_result.spline_coeffs = zeta;
@@ -314,12 +329,51 @@ std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,Sparse
     return std::make_tuple(S_x, S_u, S_x_prime, S_u_prime);
 };
 
+VectorXd Drone::updateAndExtrapolateTrajectory(const VectorXd& previous_trajectory) {
+    int size = previous_trajectory.size();
+    VectorXd updated_trajectory(size);
 
+    // Remove the first 3 elements
+    updated_trajectory.head(size - 3) = previous_trajectory.segment(3, size - 3);
 
-VectorXd Drone::getInitialPosition() {
-    return initial_pos;
+    // Extrapolate new positions
+    Vector3d last_position = previous_trajectory.tail(3);
+    Vector3d second_last_position = previous_trajectory.segment(size - 6, 3);
+    Vector3d extrapolated_position = last_position + (last_position - second_last_position);
+
+    // Append the extrapolated positions
+    updated_trajectory.tail(3) = extrapolated_position;
+
+    return updated_trajectory;
 }
 
+DroneResult DroneResult::generateInitialDroneResult(const VectorXd& initial_position, int K) {
+    DroneResult drone_result;
+
+    // generate state trajectory by appending zero velocity to initial position and replicating
+    VectorXd initial_state = VectorXd::Zero(6);
+    initial_state.head(3) = initial_position;
+    drone_result.state_trajectory_vector = initial_state.replicate(K+1,1);
+    drone_result.state_trajectory = Map<MatrixXd>(drone_result.state_trajectory_vector.data(), 6, (K+1)).transpose();
+
+    // generate position trajectory by replicating initial position
+    drone_result.position_trajectory_vector = initial_position.replicate(K+1,1);
+    drone_result.position_trajectory = Map<MatrixXd>(drone_result.position_trajectory_vector.data(), 3, (K+1)).transpose();
+
+    // generate input position trajectory by replicating initial position K times
+    drone_result.input_position_trajectory_vector = initial_position.replicate(K,1);
+    drone_result.input_position_trajectory = Map<MatrixXd>(drone_result.input_position_trajectory_vector.data(), 3, (K)).transpose();
+
+    // generate input velocity trajectory by replicating zero K times
+    drone_result.input_velocity_trajectory_vector = VectorXd::Zero(3*K);
+    drone_result.input_velocity_trajectory = Map<MatrixXd>(drone_result.input_velocity_trajectory_vector.data(), 3, (K)).transpose();
+
+    // generate input acceleration trajectory by replicating zero K times
+    drone_result.input_acceleration_trajectory_vector = VectorXd::Zero(3*K);
+    drone_result.input_acceleration_trajectory = Map<MatrixXd>(drone_result.input_acceleration_trajectory_vector.data(), 3, (K)).transpose();
+
+    return drone_result;
+}
 
 SparseMatrix<double> Drone::getCollisionEnvelope() {
     return collision_envelope;
