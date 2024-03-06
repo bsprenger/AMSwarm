@@ -3,25 +3,24 @@ simulation_frequency: 240.0  # Gym simulation freq.
 mellinger_frequency: 80.0  # Mellinger freq. in gym (Hz) - real world determined by cflie firmware
 
 MPCConfig:
-  K: 50  # Number of timesteps in the optimization horizon
+  K: 25  # Number of timesteps in the optimization horizon
   n: 10  # Spline order for AMSwarm trajectories
   mpc_freq: 8  # MPC control frequency of AMSwarm in Hz
-  bf_gamma: 0.5  # Barrier function gamma [0, 1.0] -> 1.0 is most aggressive
+  bf_gamma: 1.0  # Barrier function gamma [0, 1.0] -> 1.0 is most aggressive
 
 MPCWeights:
-  w_goal_pos: 7000.  # Weight of the position tracking objective in the cost
-  w_goal_vel: 1000.  # Weight of the velocity tracking objective in the cost
-  w_smoothness: 100.  # Weight of the smoothness objective in the cost
-  w_input_smoothness: 1000.  # Weight of the input smoothness objective in the cost
-  w_input_continuity: 100.  # Weight of the input continuity objective in the cost
-  w_input_dot_continuity: 100. # Weight of input velocity continuity objective in the cost
-  w_input_ddot_continuity: 100. # Weight of input acceleration continuity objective in the cost
+  waypoints_pos: 7000.  # Weight of the position tracking objective in the cost
+  waypoints_vel: 1000.  # Weight of the velocity tracking objective in the cost
+  waypoints_acc: 100.  # Weight of the acceleration tracking objective in the cost
+  smoothness: 100.  # Weight of the smoothness objective in the cost
+  input_smoothness: 1000.  # Weight of the input smoothness objective in the cost
+  input_continuity: 100.  # Weight of the input continuity objective in the cost
   
 PhysicalLimits:
   p_min: [-10, -10, 0.1]  # Minimum position of the AMSwarm drones
   p_max: [10, 10, 10]  # Maximum position of the AMSwarm drones
   v_bar: 1.73  # Maximum velocity of the AMSwarm drones
-  f_bar: 7.3575  # Maximum force of the AMSwarm drones (0.75 gs)
+  a_bar: 7.3575  # Maximum force of the AMSwarm drones (0.75 gs)
 
 Dynamics:
   # --- 8Hz pos + vel input model, with >=80Hz Mellinger controller --- #

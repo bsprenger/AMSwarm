@@ -120,7 +120,7 @@ void PolarInequalityConstraint::update(double rho, const VectorXd& x) {
         double constraint_z = constraint_vec(i * 3 + 2);
 
         alpha(i) = std::atan2(constraint_y, constraint_x);
-        beta(i) = std::atan2(constraint_x / std::cos(alpha(i)), constraint_z);
+        beta(i) = std::atan2(std::sqrt(constraint_x*constraint_x + constraint_y*constraint_y), constraint_z);
     }
 
     // update d
@@ -152,7 +152,7 @@ void PolarInequalityConstraint::update(double rho, const VectorXd& x) {
 }
 
 bool PolarInequalityConstraint::isSatisfied(const VectorXd& x) const {
-    return ((G * x + c).array() - calculateOmega().array() * replicateVector(d, 3).array()).maxCoeff() < tolerance;
+    return ((G * x + c).array() - calculateOmega().array() * replicateVector(d, 3).array()).cwiseAbs().maxCoeff() < tolerance;
 }
 
 void PolarInequalityConstraint::reset() {

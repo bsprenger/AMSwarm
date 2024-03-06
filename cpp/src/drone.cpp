@@ -36,7 +36,7 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     VectorXd extracted_waypoints_pos = VectorXd::Map(extracted_waypoints.block(0, 1, extracted_waypoints.rows(), 3).data(), extracted_waypoints.rows() * 3);
     VectorXd extracted_waypoints_vel = VectorXd::Map(extracted_waypoints.block(0, 4, extracted_waypoints.rows(), 3).data(), extracted_waypoints.rows() * 3);
     VectorXd extracted_waypoints_acc = VectorXd::Map(extracted_waypoints.block(0, 7, extracted_waypoints.rows(), 3).data(), extracted_waypoints.rows() * 3);
-    
+
     // extract the penalized steps from the first column of extracted_waypoints
     // note that the first possible penalized step is 1, NOT 0 TODO check this
     VectorXd penalized_steps;
@@ -74,27 +74,27 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     addConstraint(std::move(wvConstraint), false);
 
     // Waypoint acceleration cost and/or equality constraint
-    SparseMatrix<double>  G_wa = M_waypoints * selectionMats.M_a * S_u * W_input;
-    VectorXd h_wa = extracted_waypoints_acc - M_waypoints * selectionMats.M_a * S_x * args.x_0;
+    SparseMatrix<double>  G_wa = M_waypoints * selectionMats.M_a * S_u_prime * W_input;
+    VectorXd h_wa = extracted_waypoints_acc - M_waypoints * selectionMats.M_a * S_x_prime * args.x_0;
     quadCost += 2 * weights.waypoints_acc * G_wa.transpose() * G_wa;
     linearCost += -2 * weights.waypoints_acc * G_wa.transpose() * h_wa;
     std::unique_ptr<Constraint> waConstraint = std::make_unique<EqualityConstraint>(G_wa, h_wa);
     addConstraint(std::move(waConstraint), false);
 
     // Input continuity cost and/or equality constraint
-    SparseMatrix<double> G_u(9,3*(config.n+1));
-    SparseMatrix<double> W_block = W.block(0,0,3,3*(config.n+1)); // necessary to explicitly make this a sparse matrix to avoid ambiguous call to replaceSparseBlock. TODO fix later
-    SparseMatrix<double> W_dot_block = W_dot.block(0,0,3,3*(config.n+1));
-    SparseMatrix<double> W_ddot_block = W_ddot.block(0,0,3,3*(config.n+1));
-    utils::replaceSparseBlock(G_u, W_block, 0, 0);
-    utils::replaceSparseBlock(G_u, W_dot_block, 3, 0);
-    utils::replaceSparseBlock(G_u, W_ddot_block, 6, 0);
-    VectorXd h_u(9);
-    h_u << args.u_0, args.u_dot_0, args.u_ddot_0;
-    quadCost += 2 * weights.input_continuity * G_u.transpose() * G_u;
-    linearCost += -2 * weights.input_continuity * G_u.transpose() * h_u;
-    std::unique_ptr<Constraint> uConstraint = std::make_unique<EqualityConstraint>(G_u, h_u);
-    addConstraint(std::move(uConstraint), false);
+    // SparseMatrix<double> G_u(9,3*(config.n+1));
+    // SparseMatrix<double> W_block = W.block(0,0,3,3*(config.n+1)); // necessary to explicitly make this a sparse matrix to avoid ambiguous call to replaceSparseBlock. TODO fix later
+    // SparseMatrix<double> W_dot_block = W_dot.block(0,0,3,3*(config.n+1));
+    // SparseMatrix<double> W_ddot_block = W_ddot.block(0,0,3,3*(config.n+1));
+    // utils::replaceSparseBlock(G_u, W_block, 0, 0);
+    // utils::replaceSparseBlock(G_u, W_dot_block, 3, 0);
+    // utils::replaceSparseBlock(G_u, W_ddot_block, 6, 0);
+    // VectorXd h_u(9);
+    // h_u << args.u_0, args.u_dot_0, args.u_ddot_0;
+    // quadCost += 2 * weights.input_continuity * G_u.transpose() * G_u;
+    // linearCost += -2 * weights.input_continuity * G_u.transpose() * h_u;
+    // std::unique_ptr<Constraint> uConstraint = std::make_unique<EqualityConstraint>(G_u, h_u);
+    // addConstraint(std::move(uConstraint), false);
 
     // Position constraint
     SparseMatrix<double> G_p(6 * (config.K + 1), 3 * (config.n + 1));
@@ -105,6 +105,7 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     VectorXd h_p(6 * (config.K + 1));
     h_p << limits.p_max.replicate(config.K + 1, 1) - selectionMats.M_p * S_x * args.x_0, -limits.p_min.replicate(config.K + 1, 1) + selectionMats.M_p * S_x * args.x_0;
     std::unique_ptr<Constraint> pConstraint = std::make_unique<InequalityConstraint>(G_p, h_p);
+    addConstraint(std::move(pConstraint), false);
 
     // Velocity constraint
     SparseMatrix<double> G_v = selectionMats.M_v * S_u * W_input;

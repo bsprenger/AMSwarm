@@ -30,9 +30,9 @@ struct DroneSolveArgs {
     std::vector<SparseMatrix<double>> obstacle_envelopes = {};
     std::vector<VectorXd> obstacle_positions = {};
     VectorXd x_0 = VectorXd::Zero(6);
-    VectorXd u_0 = VectorXd::Zero(6);
-    VectorXd u_dot_0 = VectorXd::Zero(6);
-    VectorXd u_ddot_0 = VectorXd::Zero(6);
+    VectorXd u_0 = VectorXd::Zero(3);
+    VectorXd u_dot_0 = VectorXd::Zero(3);
+    VectorXd u_ddot_0 = VectorXd::Zero(3);
 };
 
 class Drone : public AMSolver<DroneResult, DroneSolveArgs>{

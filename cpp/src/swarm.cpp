@@ -1,17 +1,17 @@
 #include <swarm.h>
 #include <utils.h>
-#include <iostream>
+#include <stdexcept>
 
 
 using namespace Eigen;
 
 
-Swarm::Swarm(std::vector<std::unique_ptr<Drone>>&& drones)
-    : drones(std::move(drones)), num_drones(this->drones.size())
-{
+Swarm::Swarm(std::vector<std::shared_ptr<Drone>> drones)
+    : drones(std::move(drones))
+{   
+    num_drones = this->drones.size();
     if (!this->drones.empty()) {
         int K = this->drones[0]->getK();
-
         // create collision matrices
         SparseMatrix<double> eyeKp1 = SparseMatrix<double>(K+1,K+1);
         eyeKp1.setIdentity();
@@ -28,7 +28,14 @@ std::pair<std::vector<bool>,std::vector<DroneResult>> Swarm::solve(const double 
                                                                             std::vector<VectorXd> x_0_vector,
                                                                             std::vector<VectorXd> prev_trajectories,
                                                                             std::vector<VectorXd> prev_inputs) {
+    if (x_0_vector.size() != num_drones ||
+        prev_trajectories.size() != num_drones ||
+        prev_inputs.size() != num_drones) {
+        throw std::invalid_argument("Input vectors must all have the same length as the number of drones in the swarm.");
+    }
+
     int K = drones[0]->getK();
+
 
     // initialize results
     std::vector<bool> is_success(num_drones);
@@ -60,7 +67,11 @@ std::pair<std::vector<bool>,std::vector<DroneResult>> Swarm::solve(const double 
         args.obstacle_positions = obstacle_positions;
         args.obstacle_envelopes = obstacle_envelopes;
         args.x_0 = x_0_vector[i];
-        
+
+        args.u_0 = VectorXd::Zero(3); // TODO fix this
+        args.u_dot_0 = VectorXd::Zero(3);
+        args.u_ddot_0 = VectorXd::Zero(3);
+
         std::pair<bool, DroneResult> result = drones[i]->solve(args);
         
         // use a critical section to update shared vectors

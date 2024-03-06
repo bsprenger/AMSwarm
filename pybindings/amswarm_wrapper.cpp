@@ -155,13 +155,9 @@ PYBIND11_MODULE(amswarm, m)
         .def("solve", &Drone::solve, py::arg("args"));
     
     py::class_<Swarm>(m, "Swarm")
-        .def(py::init([](py::list drones_py) {
-            std::vector<std::unique_ptr<Drone>> drones;
-            for (py::handle drone_py : drones_py) {
-                Drone* drone = drone_py.cast<Drone*>();
-                drones.push_back(std::unique_ptr<Drone>(drone));
-            }
-            return new Swarm(std::move(drones));
+        .def(py::init([](const std::vector<std::shared_ptr<Drone>>& drones) {
+            // Directly use the shared_ptr vector without manual casting
+            return std::make_unique<Swarm>(drones);
         }))
         .def("solve", &Swarm::solve, 
             py::arg("current_time"), 
