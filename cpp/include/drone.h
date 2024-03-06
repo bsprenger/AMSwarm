@@ -27,6 +27,7 @@ struct DroneResult {
     VectorXd input_acceleration_trajectory_vector;
     VectorXd spline_coeffs;
 
+    void advanceForNextSolveStep();
     static DroneResult generateInitialDroneResult(const VectorXd& initial_position, int K);
 };
 
@@ -65,11 +66,11 @@ public:
     struct MPCConfig {
         int K = 25;
         int n = 10;
-        double delta_t = 1.0/8.0;
+        double mpc_freq = 8.0;
         double bf_gamma = 1.0;
 
         MPCConfig() {}
-        MPCConfig(int K, int n, double delta_t, double bf_gamma) : K(K), n(n), delta_t(delta_t), bf_gamma(bf_gamma) {}
+        MPCConfig(int K, int n, double mpc_freq, double bf_gamma) : K(K), n(n), mpc_freq(mpc_freq), bf_gamma(bf_gamma) {}
     };
 
     struct PhysicalLimits {
@@ -98,14 +99,10 @@ public:
             MPCWeights weights,
             PhysicalLimits limits,
             SparseDynamics dynamics);
-
-    // Public methods
-    static VectorXd updateAndExtrapolateTrajectory(const VectorXd& previous_trajectory);
     
     // Getters TODO check if these are necessary
     SparseMatrix<double> getCollisionEnvelope();
     MatrixXd getWaypoints();
-    float getDeltaT();
     int getK();
 
 protected:

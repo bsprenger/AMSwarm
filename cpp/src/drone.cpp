@@ -169,7 +169,7 @@ Matrix<double, Dynamic, Dynamic, RowMajor> Drone::extractWaypointsInCurrentHoriz
     // round all the waypoints to the nearest time step. 
     // negative time steps are allowed -- we will filter them out later
     Matrix<double, Dynamic, Dynamic, RowMajor> rounded_waypoints = waypoints;
-    rounded_waypoints.col(0) = ((rounded_waypoints.col(0).array() - t) / config.delta_t).round();
+    rounded_waypoints.col(0) = ((rounded_waypoints.col(0).array() - t) / (1 / config.mpc_freq)).round();
     // filter out waypoints that are outside the current horizon
     std::vector<int> rows_in_horizon;
     for (int i = 0; i < rounded_waypoints.rows(); ++i) {
@@ -201,14 +201,14 @@ std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,Sparse
     SparseMatrix<double> W_ddot(3*config.K,3*(config.n+1));
     SparseMatrix<double> W_input(6*config.K,3*(config.n+1));
 
-    double t_f = config.delta_t*(config.K-1);
+    double t_f = (1 / config.mpc_freq)*(config.K-1);
     float t;
     float val;
     float dot_val;
     float dotdot_val;
 
     for (int k=0;k < config.K;k++) { 
-        t  = k*config.delta_t;
+        t  = k*(1 / config.mpc_freq);
         float t_f_minus_t = t_f - t;
         float t_pow_n = pow(t_f,config.n);
         for (int m=0;m<config.n+1;m++) {
@@ -329,22 +329,22 @@ std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,Sparse
     return std::make_tuple(S_x, S_u, S_x_prime, S_u_prime);
 };
 
-VectorXd Drone::updateAndExtrapolateTrajectory(const VectorXd& previous_trajectory) {
-    int size = previous_trajectory.size();
-    VectorXd updated_trajectory(size);
+void DroneResult::advanceForNextSolveStep() {
+    // Shift everything up by 3 elements and then extrapolate the new last position
+    int size = position_trajectory_vector.size();
+    position_trajectory_vector.segment(0, size - 3) = position_trajectory_vector.segment(3, size - 3);
+    Vector3d extrapolated_position = position_trajectory_vector.tail(3) + (position_trajectory_vector.tail(3) - position_trajectory_vector.segment(size - 6, 3));
+    position_trajectory_vector.tail(3) = extrapolated_position;
+    position_trajectory = Map<MatrixXd>(position_trajectory_vector.data(), 3, position_trajectory_vector.size() / 3).transpose();
 
-    // Remove the first 3 elements
-    updated_trajectory.head(size - 3) = previous_trajectory.segment(3, size - 3);
-
-    // Extrapolate new positions
-    Vector3d last_position = previous_trajectory.tail(3);
-    Vector3d second_last_position = previous_trajectory.segment(size - 6, 3);
-    Vector3d extrapolated_position = last_position + (last_position - second_last_position);
-
-    // Append the extrapolated positions
-    updated_trajectory.tail(3) = extrapolated_position;
-
-    return updated_trajectory;
+    // Advance the input trajectories - no need to extrapolate as we only check the first row TODO add extrapolate for future just in case
+    int inputSize = input_position_trajectory_vector.size();
+    input_position_trajectory_vector.segment(0, inputSize - 3) = input_position_trajectory_vector.segment(3, inputSize - 3);
+    input_velocity_trajectory_vector.segment(0, inputSize - 3) = input_velocity_trajectory_vector.segment(3, inputSize - 3);
+    input_acceleration_trajectory_vector.segment(0, inputSize - 3) = input_acceleration_trajectory_vector.segment(3, inputSize - 3);
+    input_position_trajectory = Map<MatrixXd>(input_position_trajectory_vector.data(), 3, (input_position_trajectory_vector.size()/3)).transpose();
+    input_velocity_trajectory = Map<MatrixXd>(input_velocity_trajectory_vector.data(), 3, (input_velocity_trajectory_vector.size()/3)).transpose();
+    input_acceleration_trajectory = Map<MatrixXd>(input_acceleration_trajectory_vector.data(), 3, (input_acceleration_trajectory_vector.size()/3)).transpose();
 }
 
 DroneResult DroneResult::generateInitialDroneResult(const VectorXd& initial_position, int K) {
@@ -382,11 +382,6 @@ SparseMatrix<double> Drone::getCollisionEnvelope() {
 
 MatrixXd Drone::getWaypoints() {
     return waypoints;
-}
-
-
-float Drone::getDeltaT() {
-    return config.delta_t;
 }
 
 

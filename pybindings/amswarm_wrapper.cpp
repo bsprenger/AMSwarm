@@ -22,7 +22,8 @@ PYBIND11_MODULE(amswarm, m)
         .def_readwrite("input_acceleration_trajectory", &DroneResult::input_acceleration_trajectory)
         .def_readwrite("spline_coeffs", &DroneResult::spline_coeffs)
         .def_static("generateInitialDroneResult", &DroneResult::generateInitialDroneResult, 
-                    py::arg("initial_position"), py::arg("K"));
+                    py::arg("initial_position"), py::arg("K"))
+        .def("advanceForNextSolveStep", &DroneResult::advanceForNextSolveStep);
 
     py::class_<DroneSolveArgs>(m, "DroneSolveArgs")
         .def(py::init<>())
@@ -74,17 +75,17 @@ PYBIND11_MODULE(amswarm, m)
         .def(py::init<int, int, double, double>(), 
             py::arg("K") = 25, 
             py::arg("n") = 10, 
-            py::arg("delta_t") = 1.0 / 8.0,
+            py::arg("mpc_freq") = 8.0,
             py::arg("bf_gamma") = 1.0)
         .def(py::init<>())
         .def_readwrite("K", &Drone::MPCConfig::K)
         .def_readwrite("n", &Drone::MPCConfig::n)
-        .def_readwrite("delta_t", &Drone::MPCConfig::delta_t)
+        .def_readwrite("mpc_freq", &Drone::MPCConfig::mpc_freq)
         .def_readwrite("bf_gamma", &Drone::MPCConfig::bf_gamma)
         .def(py::pickle(
             [](const Drone::MPCConfig &c) { // __getstate__
                 /* Return a tuple that fully encodes the state of the object */
-                return py::make_tuple(c.K, c.n, c.delta_t, c.bf_gamma);
+                return py::make_tuple(c.K, c.n, c.mpc_freq, c.bf_gamma);
             },
             [](py::tuple t) { // __setstate__
                 if (t.size() != 4)
@@ -94,7 +95,7 @@ PYBIND11_MODULE(amswarm, m)
                 Drone::MPCConfig c;
                 c.K = t[0].cast<int>();
                 c.n = t[1].cast<int>();
-                c.delta_t = t[2].cast<double>();
+                c.mpc_freq = t[2].cast<double>();
                 c.bf_gamma = t[3].cast<double>();
                 return c;
             }));
@@ -168,6 +169,5 @@ PYBIND11_MODULE(amswarm, m)
         .def("solve", &Swarm::solve, 
             py::arg("current_time"), 
             py::arg("initial_states"),
-            py::arg("previous_results"),
-            py::arg("is_initial_solve"));
+            py::arg("previous_results"));
 }
