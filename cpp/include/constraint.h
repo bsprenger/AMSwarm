@@ -26,7 +26,7 @@ private:
     double tolerance;
 
 public:
-    EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-3);
+    EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-2);
     SparseMatrix<double> getQuadCost(double rho) const override;
     VectorXd getLinearCost(double rho) const override;
     void update(double rho, const VectorXd& x) override;
@@ -44,7 +44,7 @@ private:
     double tolerance;
 
 public:
-    InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-3);
+    InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-2);
     SparseMatrix<double> getQuadCost(double rho) const override;
     VectorXd getLinearCost(double rho) const override;
     void update(double rho, const VectorXd& x) override;
@@ -70,7 +70,7 @@ private:
     VectorXd replicateVector(const VectorXd& vec, int times) const;
 
 public:
-    PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound, double upr_bound, double bf_gamma = 1.0, double tolerance = 1e-3);
+    PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound, double upr_bound, double bf_gamma = 1.0, double tolerance = 1e-2);
     SparseMatrix<double> getQuadCost(double rho) const override;
     VectorXd getLinearCost(double rho) const override;
     void update(double rho, const VectorXd& x) override;

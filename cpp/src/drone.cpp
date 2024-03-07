@@ -32,10 +32,19 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     // first column is the STEP, not the TIME TODO check this and also round on init instead of each time
     // Create a matrix to hold filtered waypoints
     Matrix<double, Dynamic, Dynamic, RowMajor> extracted_waypoints = extractWaypointsInCurrentHorizon(args.current_time);
-    VectorXd extracted_waypoints_pos = VectorXd::Map(extracted_waypoints.block(0, 1, extracted_waypoints.rows(), 3).data(), extracted_waypoints.rows() * 3);
-    VectorXd extracted_waypoints_vel = VectorXd::Map(extracted_waypoints.block(0, 4, extracted_waypoints.rows(), 3).data(), extracted_waypoints.rows() * 3);
-    VectorXd extracted_waypoints_acc = VectorXd::Map(extracted_waypoints.block(0, 7, extracted_waypoints.rows(), 3).data(), extracted_waypoints.rows() * 3);
 
+    int n = extracted_waypoints.rows();
+    VectorXd extracted_waypoints_pos(3 * n);
+    VectorXd extracted_waypoints_vel(3 * n);
+    VectorXd extracted_waypoints_acc(3 * n);
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            extracted_waypoints_pos(i * 3 + j) = extracted_waypoints(i, 1 + j);
+            extracted_waypoints_vel(i * 3 + j) = extracted_waypoints(i, 4 + j);
+            extracted_waypoints_acc(i * 3 + j) = extracted_waypoints(i, 7 + j);
+        }
+    }
+    
     // extract the penalized steps from the first column of extracted_waypoints
     // note that the first possible penalized step is 1, NOT 0 TODO check this
     VectorXd penalized_steps;

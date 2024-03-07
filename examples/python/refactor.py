@@ -44,7 +44,7 @@ def main():
     print("So, we plan initial paths:")
     solve_status, drone_results = swarm.solve(0, initial_states, drone_results, constraint_configs)
     print(f"Solve status: {solve_status}")
-    print(f"Drone 1 position:\n{drone_results[0].state_trajectory}")
+    print(f"Drone 1 position:\n{drone_results[0].input_position_trajectory}")
     print(f"Drone 2 position:\n{drone_results[1].state_trajectory}")
     print("Notice how these paths intersect. This is because the drones are not aware of each other's paths.")
     
