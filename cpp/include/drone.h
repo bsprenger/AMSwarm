@@ -31,6 +31,19 @@ struct DroneResult {
     static DroneResult generateInitialDroneResult(const VectorXd& initial_position, int K);
 };
 
+struct ConstraintConfig {
+    bool enable_waypoints_pos_constraint = true;
+    bool enable_waypoints_vel_constraint = true;
+    bool enable_waypoints_acc_constraint = true;
+    bool enable_input_continuity_constraint = true;
+
+    void setWaypointsConstraints(bool pos, bool vel, bool acc) {
+        enable_waypoints_pos_constraint = pos;
+        enable_waypoints_vel_constraint = vel;
+        enable_waypoints_acc_constraint = acc;
+    }
+};
+
 struct DroneSolveArgs {
     double current_time = 0.0;
     int num_obstacles = 0;
@@ -40,10 +53,7 @@ struct DroneSolveArgs {
     VectorXd u_0 = VectorXd::Zero(3);
     VectorXd u_dot_0 = VectorXd::Zero(3);
     VectorXd u_ddot_0 = VectorXd::Zero(3);
-    bool enable_waypoints_pos_constraint = true;
-    bool enable_waypoints_vel_constraint = true;
-    bool enable_waypoints_acc_constraint = true;
-    bool enable_input_continuity_constraint = true;
+    ConstraintConfig constraintConfig;
 };
 
 class Drone : public AMSolver<DroneResult, DroneSolveArgs>{

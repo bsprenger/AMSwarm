@@ -26,9 +26,11 @@ Swarm::Swarm(std::vector<std::shared_ptr<Drone>> drones)
 
 std::pair<std::vector<bool>,std::vector<DroneResult>> Swarm::solve(double current_time,
                                                                     const std::vector<VectorXd>& initial_states,
-                                                                    const std::vector<DroneResult>& previous_results) {
+                                                                    const std::vector<DroneResult>& previous_results,
+                                                                    const std::vector<ConstraintConfig>& constraint_configs) {
     if (initial_states.size() != num_drones ||
-        previous_results.size() != num_drones) {
+        previous_results.size() != num_drones ||
+        constraint_configs.size() != num_drones) {
         throw std::invalid_argument("Input vectors must all have the same length as the number of drones in the swarm.");
     }
 
@@ -61,6 +63,7 @@ std::pair<std::vector<bool>,std::vector<DroneResult>> Swarm::solve(double curren
         args.u_0 = previous_results[i].input_position_trajectory.row(0);
         args.u_dot_0 = previous_results[i].input_velocity_trajectory.row(0);
         args.u_ddot_0 = previous_results[i].input_acceleration_trajectory.row(0);
+        args.constraintConfig = constraint_configs[i];
 
         std::pair<bool, DroneResult> result = drones[i]->solve(args);
         

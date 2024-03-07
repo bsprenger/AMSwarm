@@ -25,6 +25,15 @@ PYBIND11_MODULE(amswarm, m)
                     py::arg("initial_position"), py::arg("K"))
         .def("advanceForNextSolveStep", &DroneResult::advanceForNextSolveStep);
 
+    py::class_<ConstraintConfig>(m, "ConstraintConfig")
+        .def(py::init<>())
+        .def_readwrite("enable_waypoints_pos_constraint", &ConstraintConfig::enable_waypoints_pos_constraint)
+        .def_readwrite("enable_waypoints_vel_constraint", &ConstraintConfig::enable_waypoints_vel_constraint)
+        .def_readwrite("enable_waypoints_acc_constraint", &ConstraintConfig::enable_waypoints_acc_constraint)
+        .def_readwrite("enable_input_continuity_constraint", &ConstraintConfig::enable_input_continuity_constraint)
+        .def("setWaypointsConstraints", &ConstraintConfig::setWaypointsConstraints, 
+            py::arg("pos"), py::arg("vel"), py::arg("acc"));
+
     py::class_<DroneSolveArgs>(m, "DroneSolveArgs")
         .def(py::init<>())
         .def_readwrite("current_time", &DroneSolveArgs::current_time)
@@ -34,7 +43,8 @@ PYBIND11_MODULE(amswarm, m)
         .def_readwrite("x_0", &DroneSolveArgs::x_0)
         .def_readwrite("u_0", &DroneSolveArgs::u_0)
         .def_readwrite("u_dot_0", &DroneSolveArgs::u_dot_0)
-        .def_readwrite("u_ddot_0", &DroneSolveArgs::u_ddot_0);
+        .def_readwrite("u_ddot_0", &DroneSolveArgs::u_ddot_0)
+        .def_readwrite("constraintConfig", &DroneSolveArgs::constraintConfig);
 
     py::class_<Drone::MPCWeights>(m, "MPCWeights")
         .def(py::init<double, double, double, double, double, double>(), 
@@ -169,5 +179,6 @@ PYBIND11_MODULE(amswarm, m)
         .def("solve", &Swarm::solve, 
             py::arg("current_time"), 
             py::arg("initial_states"),
-            py::arg("previous_results"));
+            py::arg("previous_results"),
+            py::arg("constraint_configs"));
 }

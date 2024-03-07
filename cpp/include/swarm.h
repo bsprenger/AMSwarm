@@ -13,7 +13,8 @@ class Swarm {
 
         std::pair<std::vector<bool>, std::vector<DroneResult>> solve(double current_time,
                             const std::vector<VectorXd>& initial_states,
-                            const std::vector<DroneResult>& previous_results);
+                            const std::vector<DroneResult>& previous_results,
+                            const std::vector<ConstraintConfig>& constraint_configs);
 
     private:
         int num_drones;

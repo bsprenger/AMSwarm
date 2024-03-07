@@ -61,7 +61,7 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     VectorXd h_wp = extracted_waypoints_pos - M_waypoints * selectionMats.M_p * S_x * args.x_0;
     quadCost += 2 * weights.waypoints_pos * G_wp.transpose() * G_wp;
     linearCost += -2 * weights.waypoints_pos * G_wp.transpose() * h_wp;
-    if (args.enable_waypoints_pos_constraint) {
+    if (args.constraintConfig.enable_waypoints_pos_constraint) {
         std::unique_ptr<Constraint> wpConstraint = std::make_unique<EqualityConstraint>(G_wp, h_wp);
         addConstraint(std::move(wpConstraint), false);
     }
@@ -71,7 +71,7 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     VectorXd h_wv = extracted_waypoints_vel - M_waypoints * selectionMats.M_v * S_x * args.x_0;
     quadCost += 2 * weights.waypoints_vel * G_wv.transpose() * G_wv;
     linearCost += -2 * weights.waypoints_vel * G_wv.transpose() * h_wv;
-    if (args.enable_waypoints_vel_constraint) {
+    if (args.constraintConfig.enable_waypoints_vel_constraint) {
         std::unique_ptr<Constraint> wvConstraint = std::make_unique<EqualityConstraint>(G_wv, h_wv);
         addConstraint(std::move(wvConstraint), false);
     }
@@ -81,7 +81,7 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     VectorXd h_wa = extracted_waypoints_acc - M_waypoints * selectionMats.M_a * S_x_prime * args.x_0;
     quadCost += 2 * weights.waypoints_acc * G_wa.transpose() * G_wa;
     linearCost += -2 * weights.waypoints_acc * G_wa.transpose() * h_wa;
-    if (args.enable_waypoints_acc_constraint) {
+    if (args.constraintConfig.enable_waypoints_acc_constraint) {
         std::unique_ptr<Constraint> waConstraint = std::make_unique<EqualityConstraint>(G_wa, h_wa);
         addConstraint(std::move(waConstraint), false);
     }
@@ -98,7 +98,7 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     h_u << args.u_0, args.u_dot_0, args.u_ddot_0;
     quadCost += 2 * weights.input_continuity * G_u.transpose() * G_u;
     linearCost += -2 * weights.input_continuity * G_u.transpose() * h_u;
-    if (args.enable_input_continuity_constraint) {
+    if (args.constraintConfig.enable_input_continuity_constraint) {
         std::unique_ptr<Constraint> uConstraint = std::make_unique<EqualityConstraint>(G_u, h_u);
         addConstraint(std::move(uConstraint), false);
     }
