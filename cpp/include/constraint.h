@@ -8,8 +8,14 @@ using namespace Eigen;
 
 // Base class for constraints
 class Constraint {
+protected:
+    bool useLagrange;
+
 public:
+    Constraint() {}
     virtual ~Constraint() {}
+
+    void setUseLagrange(bool flag) { useLagrange = flag; }
     virtual SparseMatrix<double> getQuadCost(double rho) const = 0;
     virtual VectorXd getLinearCost(double rho) const = 0;
     virtual void update(double rho, const VectorXd& x) = 0;

@@ -14,12 +14,18 @@
 
 using namespace Eigen;
 
+enum class UpdateMethod {
+    Lagrange,
+    Bregman
+};
+
 // Abstract class for solver
 template<typename ResultType, typename SolverArgsType>
 class AMSolver {
 protected:
     std::vector<std::unique_ptr<Constraint>> constConstraints;
     std::vector<std::unique_ptr<Constraint>> nonConstConstraints;
+    UpdateMethod updateMethod;
 
     // cost of the form 0.5 * x^T * quadCost * x + x^T * linearCost
     SparseMatrix<double> quadCost;
@@ -30,7 +36,7 @@ protected:
     std::pair<bool, VectorXd> actualSolve(const SolverArgsType& args);
 
 public:
-    AMSolver() = default;
+    AMSolver(UpdateMethod method) : updateMethod(method) {};
     virtual ~AMSolver() = default;
 
     void addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant);
@@ -109,6 +115,12 @@ std::pair<bool, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(cons
 
 template<typename ResultType, typename SolverArgsType>
 void AMSolver<ResultType, SolverArgsType>::addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant) {
+    // Determine whether to use Lagrange based on the solver's update method
+    bool useLagrange = (updateMethod == UpdateMethod::Lagrange);
+    
+    // Inform the constraint of the update method
+    constraint->setUseLagrange(useLagrange);
+
     if (isConstant) {
         constConstraints.push_back(std::move(constraint));
     } else {

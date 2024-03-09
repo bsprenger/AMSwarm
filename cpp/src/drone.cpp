@@ -9,10 +9,10 @@
 using namespace Eigen;
 
 
-Drone::Drone(MatrixXd waypoints, MPCConfig config, MPCWeights weights,
+Drone::Drone(UpdateMethod method, MatrixXd waypoints, MPCConfig config, MPCWeights weights,
             PhysicalLimits limits, SparseDynamics dynamics)
-    : waypoints(waypoints), config(config),
-    weights(weights), limits(limits), dynamics(dynamics),
+    : AMSolver<DroneResult, DroneSolveArgs>(method), waypoints(waypoints),
+    config(config), weights(weights), limits(limits), dynamics(dynamics),
     collision_envelope(3,3), selectionMats(config.K)
 {   
     std::tie(W, W_dot, W_ddot, W_input) = initBernsteinMatrices(config); // move to struct and constructor 
@@ -126,13 +126,13 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     // Velocity constraint
     SparseMatrix<double> G_v = selectionMats.M_v * S_u * W_input;
     VectorXd c_v = selectionMats.M_v * S_x * args.x_0;
-    std::unique_ptr<Constraint> vConstraint = std::make_unique<PolarInequalityConstraint>(G_v, c_v, -std::numeric_limits<double>::infinity(), limits.v_bar);
+    std::unique_ptr<Constraint> vConstraint = std::make_unique<PolarInequalityConstraint>(G_v, c_v, -std::numeric_limits<double>::infinity(), limits.v_bar, 1.0);
     addConstraint(std::move(vConstraint), false);
 
     // Acceleration constraint
     SparseMatrix<double> G_a = selectionMats.M_a * S_u_prime * W_input;
     VectorXd c_a = selectionMats.M_a * S_x_prime * args.x_0;
-    std::unique_ptr<Constraint> aConstraint = std::make_unique<PolarInequalityConstraint>(G_a, c_a, -std::numeric_limits<double>::infinity(), limits.a_bar);
+    std::unique_ptr<Constraint> aConstraint = std::make_unique<PolarInequalityConstraint>(G_a, c_a, -std::numeric_limits<double>::infinity(), limits.a_bar, 1.0);
     addConstraint(std::move(aConstraint), false);
 
     // Collision constraints

@@ -128,6 +128,7 @@ def main():
     drone_results = [amswarm.DroneResult.generateInitialDroneResult(initial_positions[k], settings['MPCConfig']['K']) for k in waypoints]
     print(drone_results[0].input_position_trajectory)
     amswarm_kwargs = {
+        "method": amswarm.UpdateMethod.Lagrange,
         "config": amswarm.MPCConfig(**settings['MPCConfig']),
         "weights": amswarm.MPCWeights(**settings['MPCWeights']),
         "limits": amswarm.PhysicalLimits(**settings['PhysicalLimits']),

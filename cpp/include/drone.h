@@ -104,7 +104,8 @@ public:
     };
 
     // Constructors
-    Drone(MatrixXd waypoints,
+    Drone(UpdateMethod method,
+            MatrixXd waypoints,
             MPCConfig config,
             MPCWeights weights,
             PhysicalLimits limits,

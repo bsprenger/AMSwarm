@@ -164,11 +164,16 @@ PYBIND11_MODULE(amswarm, m)
                 d.A_prime = t[2].cast<Eigen::SparseMatrix<double>>();
                 d.B_prime = t[3].cast<Eigen::SparseMatrix<double>>();
                 return d;
-            })); 
+            }));
+
+    py::enum_<UpdateMethod>(m, "UpdateMethod")
+        .value("Lagrange", UpdateMethod::Lagrange)
+        .value("Bregman", UpdateMethod::Bregman)
+        .export_values();
 
     py::class_<Drone, std::shared_ptr<Drone>>(m, "Drone")
-        .def(py::init<Eigen::MatrixXd, Drone::MPCConfig, Drone::MPCWeights, Drone::PhysicalLimits, Drone::SparseDynamics>(),
-            py::arg("waypoints"), py::arg("config"), py::arg("weights"), py::arg("limits"), py::arg("dynamics"))
+        .def(py::init<UpdateMethod, Eigen::MatrixXd, Drone::MPCConfig, Drone::MPCWeights, Drone::PhysicalLimits, Drone::SparseDynamics>(),
+            py::arg("method"), py::arg("waypoints"), py::arg("config"), py::arg("weights"), py::arg("limits"), py::arg("dynamics"))
         .def("solve", &Drone::solve, py::arg("args"));
     
     py::class_<Swarm>(m, "Swarm")
