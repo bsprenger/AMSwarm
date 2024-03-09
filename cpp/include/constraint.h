@@ -18,6 +18,7 @@ public:
     void setUseLagrange(bool flag) { useLagrange = flag; }
     virtual SparseMatrix<double> getQuadCost(double rho) const = 0;
     virtual VectorXd getLinearCost(double rho) const = 0;
+    virtual VectorXd getBregmanUpdate(double rho, const VectorXd& x) const = 0;
     virtual void update(double rho, const VectorXd& x) = 0;
     virtual bool isSatisfied(const VectorXd& x) const = 0;
     virtual void reset() = 0;
@@ -35,6 +36,7 @@ public:
     EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-2);
     SparseMatrix<double> getQuadCost(double rho) const override;
     VectorXd getLinearCost(double rho) const override;
+    VectorXd getBregmanUpdate(double rho, const VectorXd& x) const override;
     void update(double rho, const VectorXd& x) override;
     bool isSatisfied(const VectorXd& x) const override;
     void reset() override;
@@ -53,6 +55,7 @@ public:
     InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-2);
     SparseMatrix<double> getQuadCost(double rho) const override;
     VectorXd getLinearCost(double rho) const override;
+    VectorXd getBregmanUpdate(double rho, const VectorXd& x) const override;
     void update(double rho, const VectorXd& x) override;
     bool isSatisfied(const VectorXd& x) const override;
     void reset() override;
@@ -79,6 +82,7 @@ public:
     PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound, double upr_bound, double bf_gamma = 1.0, double tolerance = 1e-2);
     SparseMatrix<double> getQuadCost(double rho) const override;
     VectorXd getLinearCost(double rho) const override;
+    VectorXd getBregmanUpdate(double rho, const VectorXd& x) const override;
     void update(double rho, const VectorXd& x) override;
     bool isSatisfied(const VectorXd& x) const override;
     void reset() override;

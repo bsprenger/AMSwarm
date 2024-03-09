@@ -128,7 +128,7 @@ def main():
     drone_results = [amswarm.DroneResult.generateInitialDroneResult(initial_positions[k], settings['MPCConfig']['K']) for k in waypoints]
     print(drone_results[0].input_position_trajectory)
     amswarm_kwargs = {
-        "method": amswarm.UpdateMethod.Lagrange,
+        "method": amswarm.UpdateMethod.Bregman,
         "config": amswarm.MPCConfig(**settings['MPCConfig']),
         "weights": amswarm.MPCWeights(**settings['MPCWeights']),
         "limits": amswarm.PhysicalLimits(**settings['PhysicalLimits']),
@@ -144,7 +144,7 @@ def main():
     [cfg.setWaypointsConstraints(True, False, False) for cfg in constraint_configs]
     solve_status, drone_results = swarm.solve(0, initial_states, drone_results, constraint_configs)
     print(solve_status)
-    print(drone_results[0].input_position_trajectory)
+    print(drone_results[2].input_position_trajectory)
     # print(f"Solve status: {solve_status}")
     # print(f"Drone 1 position:\n{drone_results[0].state_trajectory}")
     # print(f"Drone 2 position:\n{drone_results[1].state_trajectory}")

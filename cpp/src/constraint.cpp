@@ -20,6 +20,11 @@ VectorXd EqualityConstraint::getLinearCost(double rho) const {
     return -rho * G.transpose() * (h - lagrangeMult / rho);
 }
 
+VectorXd EqualityConstraint::getBregmanUpdate(double rho, const VectorXd& x) const {
+    if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
+    return rho / 2 * G.transpose() * (G * x - h);
+}
+
 void EqualityConstraint::update(double rho, const VectorXd& x) {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
     if (useLagrange) {
@@ -49,6 +54,11 @@ SparseMatrix<double> InequalityConstraint::getQuadCost(double rho) const {
 
 VectorXd InequalityConstraint::getLinearCost(double rho) const {
     return -rho * G.transpose() * (h - slack - lagrangeMult / rho);
+}
+
+VectorXd InequalityConstraint::getBregmanUpdate(double rho, const VectorXd& x) const {
+    if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
+    return rho / 2 * G.transpose() * (G * x - h + slack);
 }
 
 void InequalityConstraint::update(double rho, const VectorXd& x) {
@@ -113,6 +123,14 @@ VectorXd PolarInequalityConstraint::getLinearCost(double rho) const {
     VectorXd d_replicated = replicateVector(d, 3);
     VectorXd h = d_replicated.array() * omega.array() - c.array();
     return -rho * G.transpose() * (h - lagrangeMult / rho);
+}
+
+VectorXd PolarInequalityConstraint::getBregmanUpdate(double rho, const VectorXd& x) const {
+    if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
+    VectorXd omega = calculateOmega();
+    VectorXd d_replicated = replicateVector(d, 3);
+    VectorXd h = d_replicated.array() * omega.array() - c.array();
+    return rho / 2 * G.transpose() * (G * x - h);
 }
 
 void PolarInequalityConstraint::update(double rho, const VectorXd& x) {

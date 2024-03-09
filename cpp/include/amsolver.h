@@ -62,7 +62,8 @@ std::pair<bool, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(cons
 
     SparseMatrix<double> Q;
     VectorXd q;
-    VectorXd x;
+    VectorXd x = VectorXd::Zero(quadCost.rows());
+    VectorXd bregmanMult = VectorXd::Zero(quadCost.rows());
 
     while (iters < max_iters) {
         // Reset Q and q to the base cost
@@ -78,6 +79,8 @@ std::pair<bool, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(cons
             Q += constraint->getQuadCost(rho);
             q += constraint->getLinearCost(rho);
         }
+
+        q -= bregmanMult;
 
         // Solve the linear system
         if (!solver_initialized) {
@@ -105,6 +108,14 @@ std::pair<bool, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(cons
         }
 
         // Update the penalty parameter and iters
+        if (updateMethod == UpdateMethod::Bregman) {
+            for (auto& constraint : constConstraints) {
+                bregmanMult -= constraint->getBregmanUpdate(rho, x);
+            }
+            for (auto& constraint : nonConstConstraints) {
+                bregmanMult -= constraint->getBregmanUpdate(rho, x);
+            }
+        }
         rho *= rho_init;
         rho = std::min(rho, 5.0e5);
         iters++;
