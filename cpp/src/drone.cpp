@@ -71,7 +71,7 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     quadCost += 2 * weights.waypoints_pos * G_wp.transpose() * G_wp;
     linearCost += -2 * weights.waypoints_pos * G_wp.transpose() * h_wp;
     if (args.constraintConfig.enable_waypoints_pos_constraint) {
-        std::unique_ptr<Constraint> wpConstraint = std::make_unique<EqualityConstraint>(G_wp, h_wp);
+        std::unique_ptr<Constraint> wpConstraint = std::make_unique<EqualityConstraint>(G_wp, h_wp, config.waypoints_pos_tol);
         addConstraint(std::move(wpConstraint), false);
     }
 
@@ -81,7 +81,7 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     quadCost += 2 * weights.waypoints_vel * G_wv.transpose() * G_wv;
     linearCost += -2 * weights.waypoints_vel * G_wv.transpose() * h_wv;
     if (args.constraintConfig.enable_waypoints_vel_constraint) {
-        std::unique_ptr<Constraint> wvConstraint = std::make_unique<EqualityConstraint>(G_wv, h_wv);
+        std::unique_ptr<Constraint> wvConstraint = std::make_unique<EqualityConstraint>(G_wv, h_wv, config.waypoints_vel_tol);
         addConstraint(std::move(wvConstraint), false);
     }
 
@@ -91,7 +91,7 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     quadCost += 2 * weights.waypoints_acc * G_wa.transpose() * G_wa;
     linearCost += -2 * weights.waypoints_acc * G_wa.transpose() * h_wa;
     if (args.constraintConfig.enable_waypoints_acc_constraint) {
-        std::unique_ptr<Constraint> waConstraint = std::make_unique<EqualityConstraint>(G_wa, h_wa);
+        std::unique_ptr<Constraint> waConstraint = std::make_unique<EqualityConstraint>(G_wa, h_wa, config.waypoints_acc_tol);
         addConstraint(std::move(waConstraint), false);
     }
 
@@ -108,7 +108,7 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     quadCost += 2 * weights.input_continuity * G_u.transpose() * G_u;
     linearCost += -2 * weights.input_continuity * G_u.transpose() * h_u;
     if (args.constraintConfig.enable_input_continuity_constraint) {
-        std::unique_ptr<Constraint> uConstraint = std::make_unique<EqualityConstraint>(G_u, h_u);
+        std::unique_ptr<Constraint> uConstraint = std::make_unique<EqualityConstraint>(G_u, h_u, config.input_continuity_tol);
         addConstraint(std::move(uConstraint), false);
     }
 
@@ -120,26 +120,26 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     utils::replaceSparseBlock(G_p, G_p_block2, 3 * (config.K + 1), 0);
     VectorXd h_p(6 * (config.K + 1));
     h_p << limits.p_max.replicate(config.K + 1, 1) - selectionMats.M_p * S_x * args.x_0, -limits.p_min.replicate(config.K + 1, 1) + selectionMats.M_p * S_x * args.x_0;
-    std::unique_ptr<Constraint> pConstraint = std::make_unique<InequalityConstraint>(G_p, h_p);
+    std::unique_ptr<Constraint> pConstraint = std::make_unique<InequalityConstraint>(G_p, h_p, config.pos_tol);
     addConstraint(std::move(pConstraint), false);
 
     // Velocity constraint
     SparseMatrix<double> G_v = selectionMats.M_v * S_u * W_input;
     VectorXd c_v = selectionMats.M_v * S_x * args.x_0;
-    std::unique_ptr<Constraint> vConstraint = std::make_unique<PolarInequalityConstraint>(G_v, c_v, -std::numeric_limits<double>::infinity(), limits.v_bar, 1.0);
+    std::unique_ptr<Constraint> vConstraint = std::make_unique<PolarInequalityConstraint>(G_v, c_v, -std::numeric_limits<double>::infinity(), limits.v_bar, 1.0, config.vel_tol);
     addConstraint(std::move(vConstraint), false);
 
     // Acceleration constraint
     SparseMatrix<double> G_a = selectionMats.M_a * S_u_prime * W_input;
     VectorXd c_a = selectionMats.M_a * S_x_prime * args.x_0;
-    std::unique_ptr<Constraint> aConstraint = std::make_unique<PolarInequalityConstraint>(G_a, c_a, -std::numeric_limits<double>::infinity(), limits.a_bar, 1.0);
+    std::unique_ptr<Constraint> aConstraint = std::make_unique<PolarInequalityConstraint>(G_a, c_a, -std::numeric_limits<double>::infinity(), limits.a_bar, 1.0, config.acc_tol);
     addConstraint(std::move(aConstraint), false);
 
     // Collision constraints
     for (int i = 0; i < args.num_obstacles; ++i) {
         SparseMatrix<double> G_c = args.obstacle_envelopes[i] * selectionMats.M_p * S_u * W_input;
         VectorXd c_c = args.obstacle_envelopes[i] * (selectionMats.M_p * S_x * args.x_0 - args.obstacle_positions[i]);
-        std::unique_ptr<Constraint> cConstraint = std::make_unique<PolarInequalityConstraint>(G_c, c_c, 1.0, std::numeric_limits<double>::infinity(), config.bf_gamma);
+        std::unique_ptr<Constraint> cConstraint = std::make_unique<PolarInequalityConstraint>(G_c, c_c, 1.0, std::numeric_limits<double>::infinity(), config.bf_gamma, config.collision_tol);
         addConstraint(std::move(cConstraint), false);
     }
 };

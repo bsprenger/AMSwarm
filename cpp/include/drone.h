@@ -78,9 +78,23 @@ public:
         int n = 10;
         double mpc_freq = 8.0;
         double bf_gamma = 1.0;
+        double waypoints_pos_tol = 1e-2;
+        double waypoints_vel_tol = 1e-2;
+        double waypoints_acc_tol = 1e-2;
+        double input_continuity_tol = 1e-2;
+        double pos_tol = 1e-2;
+        double vel_tol = 1e-2;
+        double acc_tol = 1e-2;
+        double collision_tol = 1e-2;
 
         MPCConfig() {}
-        MPCConfig(int K, int n, double mpc_freq, double bf_gamma) : K(K), n(n), mpc_freq(mpc_freq), bf_gamma(bf_gamma) {}
+        MPCConfig(int K, int n, double mpc_freq, double bf_gamma, double waypoints_pos_tol,
+                  double waypoints_vel_tol, double waypoints_acc_tol, double input_continuity_tol,
+                  double pos_tol, double vel_tol, double acc_tol, double collision_tol)
+                  : K(K), n(n), mpc_freq(mpc_freq), bf_gamma(bf_gamma),
+                    waypoints_pos_tol(waypoints_pos_tol), waypoints_vel_tol(waypoints_vel_tol),
+                    waypoints_acc_tol(waypoints_acc_tol), input_continuity_tol(input_continuity_tol),
+                    pos_tol(pos_tol), vel_tol(vel_tol), acc_tol(acc_tol), collision_tol(collision_tol) {}
     };
 
     struct PhysicalLimits {

@@ -82,23 +82,39 @@ PYBIND11_MODULE(amswarm, m)
             }));
 
     py::class_<Drone::MPCConfig>(m, "MPCConfig")
-        .def(py::init<int, int, double, double>(), 
+        .def(py::init<int, int, double, double, double, double, double, double, double, double, double, double>(), 
             py::arg("K") = 25, 
             py::arg("n") = 10, 
             py::arg("mpc_freq") = 8.0,
-            py::arg("bf_gamma") = 1.0)
+            py::arg("bf_gamma") = 1.0,
+            py::arg("waypoints_pos_tol") = 1e-2,
+            py::arg("waypoints_vel_tol") = 1e-2,
+            py::arg("waypoints_acc_tol") = 1e-2,
+            py::arg("input_continuity_tol") = 1e-2,
+            py::arg("pos_tol") = 1e-2,
+            py::arg("vel_tol") = 1e-2,
+            py::arg("acc_tol") = 1e-2,
+            py::arg("collision_tol") = 1e-2)
         .def(py::init<>())
         .def_readwrite("K", &Drone::MPCConfig::K)
         .def_readwrite("n", &Drone::MPCConfig::n)
         .def_readwrite("mpc_freq", &Drone::MPCConfig::mpc_freq)
         .def_readwrite("bf_gamma", &Drone::MPCConfig::bf_gamma)
+        .def_readwrite("waypoints_pos_tol", &Drone::MPCConfig::waypoints_pos_tol)
+        .def_readwrite("waypoints_vel_tol", &Drone::MPCConfig::waypoints_vel_tol)
+        .def_readwrite("waypoints_acc_tol", &Drone::MPCConfig::waypoints_acc_tol)
+        .def_readwrite("input_continuity_tol", &Drone::MPCConfig::input_continuity_tol)
+        .def_readwrite("pos_tol", &Drone::MPCConfig::pos_tol)
+        .def_readwrite("vel_tol", &Drone::MPCConfig::vel_tol)
+        .def_readwrite("acc_tol", &Drone::MPCConfig::acc_tol)
+        .def_readwrite("collision_tol", &Drone::MPCConfig::collision_tol)
         .def(py::pickle(
             [](const Drone::MPCConfig &c) { // __getstate__
                 /* Return a tuple that fully encodes the state of the object */
-                return py::make_tuple(c.K, c.n, c.mpc_freq, c.bf_gamma);
+                return py::make_tuple(c.K, c.n, c.mpc_freq, c.bf_gamma, c.waypoints_pos_tol, c.waypoints_vel_tol, c.waypoints_acc_tol, c.input_continuity_tol, c.pos_tol, c.vel_tol, c.acc_tol, c.collision_tol);
             },
             [](py::tuple t) { // __setstate__
-                if (t.size() != 4)
+                if (t.size() != 12)
                     throw std::runtime_error("Invalid state!");
 
                 /* Create a new C++ instance */
@@ -107,6 +123,14 @@ PYBIND11_MODULE(amswarm, m)
                 c.n = t[1].cast<int>();
                 c.mpc_freq = t[2].cast<double>();
                 c.bf_gamma = t[3].cast<double>();
+                c.waypoints_pos_tol = t[4].cast<double>();
+                c.waypoints_vel_tol = t[5].cast<double>();
+                c.waypoints_acc_tol = t[6].cast<double>();
+                c.input_continuity_tol = t[7].cast<double>();
+                c.pos_tol = t[8].cast<double>();
+                c.vel_tol = t[9].cast<double>();
+                c.acc_tol = t[10].cast<double>();
+                c.collision_tol = t[11].cast<double>();
                 return c;
             }));
 

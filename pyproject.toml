@@ -28,4 +28,4 @@ classifiers = [
 ]
 keywords = ["drones", "control", "swarm", "path planning"]
 dependencies = []
-requires-python = ">=3.10"
+requires-python = ">=3.8"

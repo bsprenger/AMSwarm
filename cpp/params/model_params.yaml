@@ -7,6 +7,15 @@ MPCConfig:
   n: 10  # Spline order for AMSwarm trajectories
   mpc_freq: 8  # MPC control frequency of AMSwarm in Hz
   bf_gamma: 1.0  # Barrier function gamma [0, 1.0] -> 1.0 is most aggressive
+  waypoints_pos_tol: 0.5  # Tolerance for the waypoints position constraint
+  waypoints_vel_tol: 0.01  # Tolerance for the waypoints velocity constraint
+  waypoints_acc_tol: 0.01  # Tolerance for the waypoints acceleration
+  pos_tol: 0.01  # Tolerance for the input position constraint
+  vel_tol: 0.01  # Tolerance for the input velocity constraint
+  acc_tol: 0.01  # Tolerance for the input acceleration
+  input_continuity_tol: 0.01  # Tolerance for the input continuity constraint
+  collision_tol: 0.01  # Tolerance for the collision avoidance constraint
+
 
 MPCWeights:
   waypoints_pos: 7000.  # Weight of the position tracking objective in the cost
@@ -24,39 +33,6 @@ PhysicalLimits:
 
 Dynamics:
   # --- 8Hz pos + vel input model, with >=80Hz Mellinger controller --- #
-  # A:
-  #   - [1,0,0,0.125,0,0]
-  #   - [0,1,0,0,0.125,0]
-  #   - [0,0,1,0,0,0.125]
-  #   - [-0.469716696685181,0,0,0.149713435888023,0,0]
-  #   - [0,-0.48124215435221,0,0,0.291956687630812,0]
-  #   - [0,0,-0.397325602722636,0,0,0.171250881110332]
-
-  # B:
-  #   - [7.9606175428763e-06,0,0,0.00150944895427476,0,0]
-  #   - [0,2.68260765976552e-05,0,0,0.00257775071220164,0]
-  #   - [0,0,4.76396361611788e-05,0,0,0.010812192313681]
-  #   - [0.466088247600246,0,0,0.808977631441999,0,0]
-  #   - [0,0.479023933002852,0,0,0.665406928836958,0]
-  #   - [0,0,0.396304015071527,0,0,0.728802890854867]
-
-  # A_prime:
-  #   - [-0.3546, 0, 0, 0.3765, 0, 0]
-  #   - [0, -0.3264, 0, 0, 0.5357, 0]
-  #   - [0, 0, -0.2959, 0, 0, 0.3979]
-  #   - [-1.4146, 0, 0, -2.9154, 0, 0]
-  #   - [0, -2.0623, 0, 0, -3.3606, 0]
-  #   - [0, 0, -1.2648, 0, 0, -2.9341]
-
-  # B_prime:
-  #   - [0.3519, 0.0000, 0.0000, 0.6230, 0.0000, 0.0000]
-  #   - [0.0000, 0.3251, 0.0000, 0.0000, 0.4723, 0.0000]
-  #   - [0.0000, 0.0000, 0.2956, 0.0000, 0.0000, 0.6306]
-  #   - [1.4037, 0.0000, 0.0000, 2.4321, 0.0000, 0.0000]
-  #   - [0.0000, 2.0527, 0.0000, 0.0000, 2.8447, 0.0000]
-  #   - [0.0000, 0.0000, 1.2615, 0.0000, 0.0000, 2.2944]
-
-  # symmetric version
   A:
     - [1,0,0,0.125,0,0]
     - [0,1,0,0,0.125,0]
