@@ -19,13 +19,24 @@ enum class UpdateMethod {
     Bregman
 };
 
+struct AMSolverConfig {
+    UpdateMethod updateMethod;
+    double rho_init;
+    double max_rho;
+    int max_iters;
+
+    AMSolverConfig () {};
+    AMSolverConfig(UpdateMethod method, double rho_init, double max_rho, int max_iters)
+        : updateMethod(method), rho_init(rho_init), max_rho(max_rho), max_iters(max_iters) {};
+};
+
 // Abstract class for solver
 template<typename ResultType, typename SolverArgsType>
 class AMSolver {
 protected:
     std::vector<std::unique_ptr<Constraint>> constConstraints;
     std::vector<std::unique_ptr<Constraint>> nonConstConstraints;
-    UpdateMethod updateMethod;
+    AMSolverConfig solverConfig;
 
     // cost of the form 0.5 * x^T * quadCost * x + x^T * linearCost
     SparseMatrix<double> quadCost;
@@ -36,7 +47,7 @@ protected:
     std::pair<bool, VectorXd> actualSolve(const SolverArgsType& args);
 
 public:
-    AMSolver(UpdateMethod method) : updateMethod(method) {};
+    AMSolver(AMSolverConfig config) : solverConfig(config) {};
     virtual ~AMSolver() = default;
 
     void addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant);
@@ -55,9 +66,7 @@ std::pair<bool, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(cons
     SimplicialLDLT<SparseMatrix<double>> linearSolver;
 
     int iters  = 0;
-    double rho_init = 1.3;
-    double rho = rho_init;
-    int max_iters = 1000;
+    double rho = solverConfig.rho_init;
     bool solver_initialized = false;
 
     SparseMatrix<double> Q;
@@ -65,7 +74,7 @@ std::pair<bool, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(cons
     VectorXd x = VectorXd::Zero(quadCost.rows());
     VectorXd bregmanMult = VectorXd::Zero(quadCost.rows());
 
-    while (iters < max_iters) {
+    while (iters < solverConfig.max_iters) {
         // Reset Q and q to the base cost
         Q = quadCost;
         q = linearCost;
@@ -108,7 +117,7 @@ std::pair<bool, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(cons
         }
 
         // Update the penalty parameter and iters
-        if (updateMethod == UpdateMethod::Bregman) {
+        if (solverConfig.updateMethod == UpdateMethod::Bregman) {
             for (auto& constraint : constConstraints) {
                 bregmanMult -= constraint->getBregmanUpdate(rho, x);
             }
@@ -116,8 +125,8 @@ std::pair<bool, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(cons
                 bregmanMult -= constraint->getBregmanUpdate(rho, x);
             }
         }
-        rho *= rho_init;
-        rho = std::min(rho, 5.0e5);
+        rho *= solverConfig.rho_init;
+        rho = std::min(rho, solverConfig.max_rho);
         iters++;
     }
 
@@ -127,7 +136,7 @@ std::pair<bool, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(cons
 template<typename ResultType, typename SolverArgsType>
 void AMSolver<ResultType, SolverArgsType>::addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant) {
     // Determine whether to use Lagrange based on the solver's update method
-    bool useLagrange = (updateMethod == UpdateMethod::Lagrange);
+    bool useLagrange = (solverConfig.updateMethod == UpdateMethod::Lagrange);
     
     // Inform the constraint of the update method
     constraint->setUseLagrange(useLagrange);

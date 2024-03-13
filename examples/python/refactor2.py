@@ -16,6 +16,14 @@ def extract_next_state_from_result(result: amswarm.DroneResult) -> np.ndarray:
 def main():
     np.set_printoptions(precision=3, suppress=True, linewidth=100)
     settings = load_yaml_file("../../cpp/params/model_params.yaml")
+    # Convert the updateMethod string to the corresponding enum value
+    update_method_str = settings['AMSolverConfig']['updateMethod']
+    update_method_enum = getattr(amswarm.UpdateMethod, update_method_str)
+
+    # Create a copy of the AMSolverConfig settings to modify
+    amsolver_config_settings = settings['AMSolverConfig'].copy()
+    # Replace the string updateMethod with its enum value
+    amsolver_config_settings['updateMethod'] = update_method_enum
     
     initial_positions = {1: np.array([1,1,1]), 2: np.array([-1,1,1]), 3: np.array([0,-1,1])}
     waypoints = {1: np.array([[ 0.        ,  1.        ,  1.        ,  1.        ,  0.        ,
@@ -128,8 +136,8 @@ def main():
     drone_results = [amswarm.DroneResult.generateInitialDroneResult(initial_positions[k], settings['MPCConfig']['K']) for k in waypoints]
     print(drone_results[0].input_position_trajectory)
     amswarm_kwargs = {
-        "method": amswarm.UpdateMethod.Bregman,
-        "config": amswarm.MPCConfig(**settings['MPCConfig']),
+        "solverConfig": amswarm.AMSolverConfig(**amsolver_config_settings),
+        "mpcConfig": amswarm.MPCConfig(**settings['MPCConfig']),
         "weights": amswarm.MPCWeights(**settings['MPCWeights']),
         "limits": amswarm.PhysicalLimits(**settings['PhysicalLimits']),
         "dynamics": amswarm.SparseDynamics(**settings['Dynamics']),

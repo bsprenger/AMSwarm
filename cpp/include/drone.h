@@ -118,9 +118,9 @@ public:
     };
 
     // Constructors
-    Drone(UpdateMethod method,
+    Drone(AMSolverConfig solverConfig,
             MatrixXd waypoints,
-            MPCConfig config,
+            MPCConfig mpcConfig,
             MPCWeights weights,
             PhysicalLimits limits,
             SparseDynamics dynamics);
@@ -151,7 +151,7 @@ protected:
     // Protected variables
     SparseMatrix<double> W, W_dot, W_ddot, W_input;
     SparseMatrix<double> S_x, S_u, S_x_prime, S_u_prime;
-    MPCConfig config;
+    MPCConfig mpcConfig;
     MPCWeights weights;
     PhysicalLimits limits;
     SparseDynamics dynamics;
@@ -163,7 +163,7 @@ protected:
     void preSolve(const DroneSolveArgs& args) override;
     DroneResult postSolve(const VectorXd& zeta, const DroneSolveArgs& args) override;
     Matrix<double, Dynamic, Dynamic, RowMajor> extractWaypointsInCurrentHorizon(double t);
-    std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>> initBernsteinMatrices(const MPCConfig& config);
+    std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>> initBernsteinMatrices(const MPCConfig& mpcConfig);
     std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>> initFullHorizonDynamicsMatrices(const SparseDynamics& dynamics);
 };
 
