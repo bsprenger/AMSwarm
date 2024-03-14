@@ -11,7 +11,7 @@ class Swarm {
     public:
         Swarm(std::vector<std::shared_ptr<Drone>> drones);
 
-        std::pair<std::vector<bool>, std::vector<DroneResult>> solve(double current_time,
+        std::tuple<std::vector<bool>, std::vector<int>, std::vector<DroneResult>> solve(double current_time,
                             const std::vector<VectorXd>& initial_states,
                             const std::vector<DroneResult>& previous_results,
                             const std::vector<ConstraintConfig>& constraint_configs);

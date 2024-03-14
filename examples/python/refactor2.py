@@ -150,8 +150,9 @@ def main():
     initial_states = [np.array([1,1,1,0,0,0]), np.array([-1,1,1,0,0,0]), np.array([0,-1,1,0,0,0])]
     constraint_configs = [amswarm.ConstraintConfig() for k in waypoints]
     [cfg.setWaypointsConstraints(True, False, False) for cfg in constraint_configs]
-    solve_status, drone_results = swarm.solve(0, initial_states, drone_results, constraint_configs)
+    solve_status, iters, drone_results = swarm.solve(0, initial_states, drone_results, constraint_configs)
     print(solve_status)
+    print(iters)
     print(drone_results[2].input_position_trajectory)
     # print(f"Solve status: {solve_status}")
     # print(f"Drone 1 position:\n{drone_results[0].state_trajectory}")

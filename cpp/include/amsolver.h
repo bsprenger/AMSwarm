@@ -44,7 +44,7 @@ protected:
 
     virtual void preSolve(const SolverArgsType& args) = 0;
     virtual ResultType postSolve(const VectorXd& x, const SolverArgsType& args) = 0;
-    std::pair<bool, VectorXd> actualSolve(const SolverArgsType& args);
+    std::tuple<bool, int, VectorXd> actualSolve(const SolverArgsType& args);
 
 public:
     AMSolver(AMSolverConfig config) : solverConfig(config) {};
@@ -53,14 +53,14 @@ public:
     void addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant);
     void updateConstraints(double rho, const VectorXd& x);
     void resetConstraints();
-    std::pair<bool, ResultType> solve(const SolverArgsType& args);
+    std::tuple<bool, int, ResultType> solve(const SolverArgsType& args);
 };
 
 
 // -------------------------- IMPLEMENTATION -------------------------- //
 
 template<typename ResultType, typename SolverArgsType>
-std::pair<bool, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(const SolverArgsType& args) {
+std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(const SolverArgsType& args) {
     resetConstraints();
 
     SimplicialLDLT<SparseMatrix<double>> linearSolver;
@@ -113,7 +113,7 @@ std::pair<bool, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(cons
                                                      });
 
         if (all_constraints_satisfied) {
-            return {true, x}; // Exit the loop, indicate success with the bool
+            return std::make_tuple(true, iters, x); // Exit the loop, indicate success with the bool
         }
 
         // Update the penalty parameter and iters
@@ -130,7 +130,7 @@ std::pair<bool, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(cons
         iters++;
     }
 
-    return {false, x}; // Indicate failure with the bool. Still return the vector anyways
+    return std::make_tuple(false, iters, x); // Indicate failure with the bool. Still return the vector anyways
 }
 
 template<typename ResultType, typename SolverArgsType>
@@ -177,11 +177,11 @@ void AMSolver<ResultType, SolverArgsType>::resetConstraints() {
 }
 
 template<typename ResultType, typename SolverArgsType>
-std::pair<bool, ResultType> AMSolver<ResultType, SolverArgsType>::solve(const SolverArgsType& args) {
+std::tuple<bool, int, ResultType> AMSolver<ResultType, SolverArgsType>::solve(const SolverArgsType& args) {
     nonConstConstraints.clear();
     preSolve(args); // builds new non-const. constraints
-    auto [success, result] = actualSolve(args); // TODO make explicit
-    return {success, postSolve(result, args)};
+    auto [success, iters, result] = actualSolve(args); // TODO make explicit
+    return std::make_tuple(success, iters, postSolve(result, args));
 }
 
 #endif // AMSOLVER_H

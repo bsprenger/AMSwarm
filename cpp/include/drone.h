@@ -127,7 +127,6 @@ public:
     
     // Getters TODO check if these are necessary
     SparseMatrix<double> getCollisionEnvelope();
-    MatrixXd getWaypoints();
     int getK();
 
 protected:

@@ -389,11 +389,6 @@ SparseMatrix<double> Drone::getCollisionEnvelope() {
 }
 
 
-MatrixXd Drone::getWaypoints() {
-    return waypoints;
-}
-
-
 int Drone::getK() {
     return mpcConfig.K;
 }

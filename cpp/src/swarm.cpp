@@ -24,7 +24,7 @@ Swarm::Swarm(std::vector<std::shared_ptr<Drone>> drones)
 };
 
 
-std::pair<std::vector<bool>,std::vector<DroneResult>> Swarm::solve(double current_time,
+std::tuple<std::vector<bool>,std::vector<int>,std::vector<DroneResult>> Swarm::solve(double current_time,
                                                                     const std::vector<VectorXd>& initial_states,
                                                                     const std::vector<DroneResult>& previous_results,
                                                                     const std::vector<ConstraintConfig>& constraint_configs) {
@@ -38,6 +38,7 @@ std::pair<std::vector<bool>,std::vector<DroneResult>> Swarm::solve(double curren
 
     // initialize results
     std::vector<bool> is_success(num_drones);
+    std::vector<int> iters(num_drones);
     std::vector<DroneResult> results(num_drones);
     
     # pragma omp parallel for
@@ -65,17 +66,18 @@ std::pair<std::vector<bool>,std::vector<DroneResult>> Swarm::solve(double curren
         args.u_ddot_0 = previous_results[i].input_acceleration_trajectory.row(0);
         args.constraintConfig = constraint_configs[i];
 
-        std::pair<bool, DroneResult> result = drones[i]->solve(args);
+        std::tuple<bool, int, DroneResult> result = drones[i]->solve(args);
         
         // use a critical section to update shared vectors
         # pragma omp critical
         {
-            is_success[i] = result.first;
-            results[i] = result.second;
+            is_success[i] = std::get<0>(result);
+            iters[i] = std::get<1>(result);
+            results[i] = std::get<2>(result);
         }
     }
     
-    return {is_success, results};
+    return std::make_tuple(is_success, iters, results);
 }
 
 bool Swarm::checkIntersection(const VectorXd& traj1, const VectorXd& traj2, const SparseMatrix<double>& theta) {
