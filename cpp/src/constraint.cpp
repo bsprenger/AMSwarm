@@ -3,8 +3,52 @@
 #include <stdexcept>
 #include <cmath>
 #include <limits>
+#include <iostream>
 
 using namespace Eigen;
+
+double atan_approximation(double x) {
+  constexpr double a1  =  0.9999993329;
+  constexpr double a3  = -0.3332985605;
+  constexpr double a5  =  0.1994653599;
+  constexpr double a7  = -0.1390853351;
+  constexpr double a9  =  0.0964200441;
+  constexpr double a11 = -0.0559098861;
+  constexpr double a13 =  0.0218612288;
+  constexpr double a15 = -0.0040540580;
+
+  double x_sq = x*x;
+  return
+    x * (a1 + x_sq * (a3 + x_sq * (a5 + x_sq * (a7 + x_sq * (a9 + x_sq * (a11 + x_sq * (a13 + x_sq * a15)))))));
+}
+
+Eigen::VectorXd atan2_eigen(const Eigen::VectorXd& y, const Eigen::VectorXd& x) {
+    // Assuming y and x are the same size
+    Eigen::VectorXd result(y.size());
+
+    // Custom unary operation, SIMD optimized
+    auto atan2_op = [](const double y, const double x) -> double {
+        if(x == 0.0 && y == 0.0) return 0.0;
+
+        bool swap = std::fabs(x) < std::fabs(y);
+        double atan_input = (swap ? x : y) / (swap ? y : x);
+
+        double res = atan_approximation(atan_input);
+        res = swap ? (atan_input >= 0.0 ? M_PI_2 : -M_PI_2) - res : res;
+
+        if (x < 0.0f) {
+            res = (y >= 0.0f ? M_PI : -M_PI) + res;
+        }
+
+        return res;
+    };
+
+    for (int i = 0; i < y.size(); ++i) {
+        result(i) = atan2_op(y(i), x(i));
+    }
+
+    return result;
+}
 
 EqualityConstraint::EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance)
     : G(G), h(h), tolerance(tolerance) {
@@ -138,14 +182,27 @@ void PolarInequalityConstraint::update(double rho, const VectorXd& x) {
     
     // update alpha, beta, and d
     VectorXd constraint_vec = G * x + c + lagrangeMult / rho;
-    for (int i = 0; i < alpha.size(); ++i) {
+    // Prepare inputs for alpha and beta calculations
+    int num_constraints = alpha.size(); // Assuming alpha and beta have the same size
+    Eigen::VectorXd x_inputs_alpha(num_constraints);
+    Eigen::VectorXd y_inputs_alpha(num_constraints);
+    Eigen::VectorXd x_inputs_beta(num_constraints);
+    Eigen::VectorXd y_inputs_beta(num_constraints);
+
+    for (int i = 0; i < num_constraints; ++i) {
         double constraint_x = constraint_vec(i * 3);
         double constraint_y = constraint_vec(i * 3 + 1);
         double constraint_z = constraint_vec(i * 3 + 2);
 
-        alpha(i) = std::atan2(constraint_y, constraint_x);
-        beta(i) = std::atan2(std::sqrt(constraint_x*constraint_x + constraint_y*constraint_y), constraint_z);
+        x_inputs_alpha(i) = constraint_x;
+        y_inputs_alpha(i) = constraint_y;
+        x_inputs_beta(i) = std::sqrt(constraint_x * constraint_x + constraint_y * constraint_y);
+        y_inputs_beta(i) = constraint_z;
     }
+
+    // Calculate alpha and beta using the atan2_eigen function
+    alpha = atan2_eigen(y_inputs_alpha, x_inputs_alpha);
+    beta = atan2_eigen(x_inputs_beta, y_inputs_beta);
 
     // update d
     VectorXd omega = calculateOmega();
