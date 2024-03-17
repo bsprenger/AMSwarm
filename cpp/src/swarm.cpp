@@ -34,7 +34,24 @@ std::tuple<std::vector<bool>,std::vector<int>,std::vector<DroneResult>> Swarm::s
         throw std::invalid_argument("Input vectors must all have the same length as the number of drones in the swarm.");
     }
 
-    int K = drones[0]->getK();
+    // Initialize avoidance responsibility counters for each drone
+    std::vector<int> avoidance_counts(num_drones, 0);
+    // Map each drone to a list of drones it should avoid
+    std::unordered_map<int, std::vector<int>> avoidance_map;
+
+    // Determine avoidance responsibilities before the loop
+    for (int i = 0; i < num_drones; ++i) {
+        for (int j = i + 1; j < num_drones; ++j) {
+            // Decide which drone should avoid the other
+            if (avoidance_counts[i] <= avoidance_counts[j]) {
+                avoidance_map[i].push_back(j);
+                avoidance_counts[i]++;
+            } else {
+                avoidance_map[j].push_back(i);
+                avoidance_counts[j]++;
+            }
+        }
+    }
 
     // initialize results
     std::vector<bool> is_success(num_drones);
@@ -47,10 +64,10 @@ std::tuple<std::vector<bool>,std::vector<int>,std::vector<DroneResult>> Swarm::s
         std::vector<SparseMatrix<double>> obstacle_envelopes;
         int num_obstacles = 0;
 
-        for (int drone = 0; drone < drones.size(); ++drone) {
-            if (drone < i && Swarm::checkIntersection(previous_results[i].position_trajectory_vector, previous_results[drone].position_trajectory_vector, 0.75*all_obstacle_envelopes[drone])) { // TODO change magic number
-                obstacle_positions.push_back(previous_results[drone].position_trajectory_vector);
-                obstacle_envelopes.push_back(all_obstacle_envelopes[drone]);
+        for (const int& avoid_drone : avoidance_map[i]) {
+            if (Swarm::checkIntersection(previous_results[i].position_trajectory_vector, previous_results[avoid_drone].position_trajectory_vector, 0.75*all_obstacle_envelopes[avoid_drone])) { // TODO change magic number
+                obstacle_positions.push_back(previous_results[avoid_drone].position_trajectory_vector);
+                obstacle_envelopes.push_back(all_obstacle_envelopes[avoid_drone]);
                 num_obstacles++;
             }
         }

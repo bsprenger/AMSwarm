@@ -20,6 +20,7 @@ class Swarm {
         int num_drones;
         std::vector<std::shared_ptr<Drone>> drones;
         std::vector<SparseMatrix<double>> all_obstacle_envelopes; // to do more elegant solution 
+        // std::unordered_map<int, std::vector<int>> avoidance_map;
 
         bool checkIntersection(const VectorXd& traj1, const VectorXd& traj2, const SparseMatrix<double>& theta_tmp);
 };

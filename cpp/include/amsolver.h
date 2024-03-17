@@ -76,29 +76,23 @@ std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolv
 
     while (iters < solverConfig.max_iters) {
         // Reset Q and q to the base cost
-        Q = quadCost;
+        Q = quadCost / rho;
         q = linearCost;
 
         // Construct the quadratic and linear cost matrices
         for (auto& constraint : constConstraints) {
-            Q += constraint->getQuadCost(rho);
+            Q += constraint->getQuadCost();
             q += constraint->getLinearCost(rho);
         }
         for (auto& constraint : nonConstConstraints) {
-            Q += constraint->getQuadCost(rho);
+            Q += constraint->getQuadCost();
             q += constraint->getLinearCost(rho);
         }
-
         q -= bregmanMult;
 
-        // Solve the linear system
-        if (!solver_initialized) {
-            linearSolver.analyzePattern(Q);
-            solver_initialized = true;
-        }
-        linearSolver.factorize(Q);
-        x = linearSolver.solve(-q);
-        
+        linearSolver.compute(Q);
+        x = linearSolver.solve(-q / rho);
+
         // Update the constraints
         updateConstraints(rho, x);
 

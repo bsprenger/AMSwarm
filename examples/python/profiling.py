@@ -74,6 +74,7 @@ def main():
     for i in range(1, 16):
         drone_results = solve_swarm(swarm, 0.125*i, initial_states, drone_results, constraint_configs)
         initial_states = [extract_next_state_from_result(result) for result in drone_results]
+        print(initial_states)
     
     
 if __name__ == "__main__":
