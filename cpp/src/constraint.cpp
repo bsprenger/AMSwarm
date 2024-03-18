@@ -57,17 +57,17 @@ EqualityConstraint::EqualityConstraint(const SparseMatrix<double>& G, const Vect
     G_T_h = G_T * h;
 }
 
-SparseMatrix<double> EqualityConstraint::getQuadCost() const {
+SparseMatrix<double> EqualityConstraint::getQuadraticTerm() const {
     return G_T_G;
 }
 
-VectorXd EqualityConstraint::getLinearCost() const {
+VectorXd EqualityConstraint::getLinearTerm() const {
     return - G_T_h;
 }
 
 VectorXd EqualityConstraint::getBregmanUpdate(const VectorXd& x) const {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
-    return 0.5 * G_T_G * x - 0.5*G_T_h;
+    return G_T_G * x - G_T_h;
 }
 
 void EqualityConstraint::update(double rho, const VectorXd& x) {
@@ -89,17 +89,17 @@ InequalityConstraint::InequalityConstraint(const SparseMatrix<double>& G, const 
     G_T_h = G_T * h;
 }
 
-SparseMatrix<double> InequalityConstraint::getQuadCost() const {
+SparseMatrix<double> InequalityConstraint::getQuadraticTerm() const {
     return G_T_G;
 }
 
-VectorXd InequalityConstraint::getLinearCost() const {
+VectorXd InequalityConstraint::getLinearTerm() const {
     return - G_T_h + G_T * slack;
 }
 
 VectorXd InequalityConstraint::getBregmanUpdate(const VectorXd& x) const {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
-    return 0.5 * G_T_G * x - 0.5*G_T_h + 0.5*G_T*slack;
+    return G_T_G * x - G_T_h + G_T*slack;
 }
 
 void InequalityConstraint::update(double rho, const VectorXd& x) {
@@ -149,17 +149,17 @@ PolarInequalityConstraint::PolarInequalityConstraint(const SparseMatrix<double>&
     G_T_G = G_T * G;
 }
 
-SparseMatrix<double> PolarInequalityConstraint::getQuadCost() const {
+SparseMatrix<double> PolarInequalityConstraint::getQuadraticTerm() const {
     return G_T_G;
 }
 
-VectorXd PolarInequalityConstraint::getLinearCost() const {
+VectorXd PolarInequalityConstraint::getLinearTerm() const {
     return - G_T * h;
 }
 
 VectorXd PolarInequalityConstraint::getBregmanUpdate(const VectorXd& x) const {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
-    return 0.5 * G_T_G * x - 0.5*G_T*h;
+    return G_T_G * x - G_T*h;
 }
 
 void PolarInequalityConstraint::update(double rho, const VectorXd& x) {

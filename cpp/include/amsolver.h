@@ -68,29 +68,25 @@ std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolv
     VectorXd x = VectorXd::Zero(quadCost.rows());
     VectorXd bregmanMult = VectorXd::Zero(quadCost.rows());
 
-    SparseMatrix<double> quadCostConstraintTerms(quadCost.rows(), quadCost.cols());
-    VectorXd linearCostConstraintTerms = VectorXd::Zero(linearCost.rows());
+    SparseMatrix<double> quadConstraintTerms(quadCost.rows(), quadCost.cols());
+    VectorXd linearConstraintTerms = VectorXd::Zero(linearCost.rows());
     for (auto& constraint : constConstraints) {
-        quadCostConstraintTerms += constraint->getQuadCost();
+        quadConstraintTerms += constraint->getQuadraticTerm();
+        linearConstraintTerms += constraint->getLinearTerm();
     }
     for (auto& constraint : nonConstConstraints) {
-        quadCostConstraintTerms += constraint->getQuadCost();
+        quadConstraintTerms += constraint->getQuadraticTerm();
+        linearConstraintTerms += constraint->getLinearTerm();
     }
 
     while (iters < solverConfig.max_iters) {
-        Q = quadCost + rho * quadCostConstraintTerms;
+        Q = quadCost + rho * quadConstraintTerms;
         
         // Construct the linear cost matrices
-        linearCostConstraintTerms.setZero();
-        for (auto& constraint : constConstraints) {
-            linearCostConstraintTerms += constraint->getLinearCost();
-        }
-        for (auto& constraint : nonConstConstraints) {
-            linearCostConstraintTerms += constraint->getLinearCost();
-        }
-        linearCostConstraintTerms -= bregmanMult;
-        q = linearCost + rho * linearCostConstraintTerms;
+        linearConstraintTerms -= bregmanMult;
+        q = linearCost + rho * linearConstraintTerms;
         
+        // Solve the QP
         linearSolver.compute(Q);
         x = linearSolver.solve(-q);
 
@@ -112,12 +108,15 @@ std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolv
         }
 
         // Update the penalty parameter and iters
+        linearConstraintTerms.setZero();
         for (auto& constraint : constConstraints) {
-            bregmanMult -= constraint->getBregmanUpdate(x);
+            linearConstraintTerms += constraint->getLinearTerm();
         }
         for (auto& constraint : nonConstConstraints) {
-            bregmanMult -= constraint->getBregmanUpdate(x);
+            linearConstraintTerms += constraint->getLinearTerm();
         }
+        VectorXd bregmanUpdate = 0.5 * (quadConstraintTerms * x + linearConstraintTerms);
+        bregmanMult -= bregmanUpdate; // TODO check the direction
         
         rho *= solverConfig.rho_init;
         rho = std::min(rho, solverConfig.max_rho);

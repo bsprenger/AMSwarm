@@ -12,8 +12,8 @@ public:
     Constraint() {}
     virtual ~Constraint() {}
 
-    virtual SparseMatrix<double> getQuadCost() const = 0;
-    virtual VectorXd getLinearCost() const = 0;
+    virtual SparseMatrix<double> getQuadraticTerm() const = 0;
+    virtual VectorXd getLinearTerm() const = 0;
     virtual VectorXd getBregmanUpdate(const VectorXd& x) const = 0;
     virtual void update(double rho, const VectorXd& x) = 0;
     virtual bool isSatisfied(const VectorXd& x) const = 0;
@@ -32,8 +32,8 @@ private:
 
 public:
     EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-2);
-    SparseMatrix<double> getQuadCost() const override;
-    VectorXd getLinearCost() const override;
+    SparseMatrix<double> getQuadraticTerm() const override;
+    VectorXd getLinearTerm() const override;
     VectorXd getBregmanUpdate(const VectorXd& x) const override;
     void update(double rho, const VectorXd& x) override;
     bool isSatisfied(const VectorXd& x) const override;
@@ -53,8 +53,8 @@ private:
 
 public:
     InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-2);
-    SparseMatrix<double> getQuadCost() const override;
-    VectorXd getLinearCost() const override;
+    SparseMatrix<double> getQuadraticTerm() const override;
+    VectorXd getLinearTerm() const override;
     VectorXd getBregmanUpdate(const VectorXd& x) const override;
     void update(double rho, const VectorXd& x) override;
     bool isSatisfied(const VectorXd& x) const override;
@@ -79,8 +79,8 @@ private:
 
 public:
     PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound, double upr_bound, double bf_gamma = 1.0, double tolerance = 1e-2);
-    SparseMatrix<double> getQuadCost() const override;
-    VectorXd getLinearCost() const override;
+    SparseMatrix<double> getQuadraticTerm() const override;
+    VectorXd getLinearTerm() const override;
     VectorXd getBregmanUpdate(const VectorXd& x) const override;
     void update(double rho, const VectorXd& x) override;
     bool isSatisfied(const VectorXd& x) const override;
