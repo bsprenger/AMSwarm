@@ -63,8 +63,8 @@ std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolv
     double rho = solverConfig.rho_init;
     bool solver_initialized = false;
 
-    SparseMatrix<double> Q;
-    VectorXd q;
+    SparseMatrix<double> Q(quadCost.rows(), quadCost.cols());
+    VectorXd q = VectorXd::Zero(quadCost.rows());
     VectorXd x = VectorXd::Zero(quadCost.rows());
     VectorXd bregmanMult = VectorXd::Zero(quadCost.rows());
 
@@ -79,9 +79,9 @@ std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolv
 
     while (iters < solverConfig.max_iters) {
         Q = quadCost + rho * quadCostConstraintTerms;
-        linearCostConstraintTerms.setZero();
         
         // Construct the linear cost matrices
+        linearCostConstraintTerms.setZero();
         for (auto& constraint : constConstraints) {
             linearCostConstraintTerms += constraint->getLinearCost();
         }

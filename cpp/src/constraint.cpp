@@ -67,7 +67,7 @@ VectorXd EqualityConstraint::getLinearCost() const {
 
 VectorXd EqualityConstraint::getBregmanUpdate(const VectorXd& x) const {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
-    return 0.5 * G_T * (G * x - h);
+    return 0.5 * G_T_G * x - 0.5*G_T_h;
 }
 
 void EqualityConstraint::update(double rho, const VectorXd& x) {
@@ -99,7 +99,7 @@ VectorXd InequalityConstraint::getLinearCost() const {
 
 VectorXd InequalityConstraint::getBregmanUpdate(const VectorXd& x) const {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
-    return 0.5 * G_T * (G * x - h + slack);
+    return 0.5 * G_T_G * x - 0.5*G_T_h + 0.5*G_T*slack;
 }
 
 void InequalityConstraint::update(double rho, const VectorXd& x) {
@@ -116,7 +116,7 @@ void InequalityConstraint::reset() {
     slack.setZero();
 }
 
-VectorXd PolarInequalityConstraint::calculateOmega() const {
+VectorXd PolarInequalityConstraint::calculateOmega(const VectorXd& alpha, const VectorXd& beta) const {
     VectorXd cos_alpha = alpha.array().cos();
     VectorXd sin_alpha = alpha.array().sin();
     VectorXd cos_beta = beta.array().cos();
@@ -145,9 +145,7 @@ PolarInequalityConstraint::PolarInequalityConstraint(const SparseMatrix<double>&
     if (lwr_bound >= upr_bound) throw std::invalid_argument("lwr_bound must be strictly less than upr_bound");
 
     int n = c.size() / 3;
-    alpha = VectorXd::Zero(n);
-    beta = VectorXd::Zero(n);
-    d = VectorXd::Zero(n);
+    h = -c;
     G_T_G = G_T * G;
 }
 
@@ -156,18 +154,12 @@ SparseMatrix<double> PolarInequalityConstraint::getQuadCost() const {
 }
 
 VectorXd PolarInequalityConstraint::getLinearCost() const {
-    VectorXd omega = calculateOmega();
-    VectorXd d_replicated = replicateVector(d, 3);
-    VectorXd h = d_replicated.array() * omega.array() - c.array();
     return - G_T * h;
 }
 
 VectorXd PolarInequalityConstraint::getBregmanUpdate(const VectorXd& x) const {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
-    VectorXd omega = calculateOmega();
-    VectorXd d_replicated = replicateVector(d, 3);
-    VectorXd h = d_replicated.array() * omega.array() - c.array();
-    return 0.5 * G_T * (G * x - h);
+    return 0.5 * G_T_G * x - 0.5*G_T*h;
 }
 
 void PolarInequalityConstraint::update(double rho, const VectorXd& x) {
@@ -176,11 +168,11 @@ void PolarInequalityConstraint::update(double rho, const VectorXd& x) {
     // update alpha, beta, and d
     VectorXd constraint_vec = G * x + c;
     // Prepare inputs for alpha and beta calculations
-    int num_constraints = alpha.size(); // Assuming alpha and beta have the same size
-    Eigen::VectorXd x_inputs_alpha(num_constraints);
-    Eigen::VectorXd y_inputs_alpha(num_constraints);
-    Eigen::VectorXd x_inputs_beta(num_constraints);
-    Eigen::VectorXd y_inputs_beta(num_constraints);
+    int num_constraints = c.size() / 3; // Assuming alpha and beta have the same size
+    VectorXd x_inputs_alpha(num_constraints);
+    VectorXd y_inputs_alpha(num_constraints);
+    VectorXd x_inputs_beta(num_constraints);
+    VectorXd y_inputs_beta(num_constraints);
 
     for (int i = 0; i < num_constraints; ++i) {
         double constraint_x = constraint_vec(i * 3);
@@ -194,15 +186,16 @@ void PolarInequalityConstraint::update(double rho, const VectorXd& x) {
     }
 
     // Calculate alpha and beta using the atan2_eigen function
-    alpha = atan2_eigen(y_inputs_alpha, x_inputs_alpha);
-    beta = atan2_eigen(x_inputs_beta, y_inputs_beta);
+    VectorXd alpha = atan2_eigen(y_inputs_alpha, x_inputs_alpha);
+    VectorXd beta = atan2_eigen(x_inputs_beta, y_inputs_beta);
 
     // update d
-    VectorXd omega = calculateOmega();
+    VectorXd omega = calculateOmega(alpha, beta);
 
     // Precompute adjustments based on bounds
     bool apply_upr_bound = !std::isinf(upr_bound);
     bool apply_lwr_bound = !std::isinf(lwr_bound); // isinf returns true for negative infinity too
+    VectorXd d = VectorXd::Zero(num_constraints);
     for (int i = 0; i < d.size(); ++i) {
         d(i) = constraint_vec.segment(i * 3, 3).dot(omega.segment(i * 3, 3));
         if (i > 0) {
@@ -221,14 +214,13 @@ void PolarInequalityConstraint::update(double rho, const VectorXd& x) {
             }
         }
     }
+    h = replicateVector(d, 3).array() * omega.array() - c.array();
 }
 
 bool PolarInequalityConstraint::isSatisfied(const VectorXd& x) const {
-    return ((G * x + c).array() - calculateOmega().array() * replicateVector(d, 3).array()).cwiseAbs().maxCoeff() < tolerance;
+    return (G * x - h).cwiseAbs().maxCoeff() < tolerance;
 }
 
 void PolarInequalityConstraint::reset() {
-    alpha.setZero();
-    beta.setZero();
-    d.setZero();
+    h = -c;
 }

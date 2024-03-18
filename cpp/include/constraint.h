@@ -68,15 +68,13 @@ private:
     SparseMatrix<double> G_T;
     SparseMatrix<double> G_T_G;
     VectorXd c;
-    VectorXd alpha;
-    VectorXd beta;
-    VectorXd d;
+    VectorXd h;
     double lwr_bound; // can be -inf for unbounded
     double upr_bound; // can be +inf for unbounded
     double bf_gamma;
     double tolerance;
 
-    VectorXd calculateOmega() const;
+    VectorXd calculateOmega(const VectorXd& alpha, const VectorXd& beta) const;
     VectorXd replicateVector(const VectorXd& vec, int times) const;
 
 public:
