@@ -190,37 +190,29 @@ PYBIND11_MODULE(amswarm, m)
                 return d;
             }));
 
-    py::enum_<UpdateMethod>(m, "UpdateMethod")
-        .value("Lagrange", UpdateMethod::Lagrange)
-        .value("Bregman", UpdateMethod::Bregman)
-        .export_values();
-
     py::class_<AMSolverConfig>(m, "AMSolverConfig")
-        .def(py::init<UpdateMethod, double, double, int>(), 
-            py::arg("updateMethod") = UpdateMethod::Lagrange, 
+        .def(py::init<double, double, int>(),
             py::arg("rho_init") = 1.3, 
             py::arg("max_rho") = 5.0e5, 
             py::arg("max_iters") = 1000)
         .def(py::init<>())
-        .def_readwrite("updateMethod", &AMSolverConfig::updateMethod)
         .def_readwrite("rho_init", &AMSolverConfig::rho_init)
         .def_readwrite("max_rho", &AMSolverConfig::max_rho)
         .def_readwrite("max_iters", &AMSolverConfig::max_iters)
         .def(py::pickle(
             [](const AMSolverConfig &c) { // __getstate__
                 /* Return a tuple that fully encodes the state of the object */
-                return py::make_tuple(c.updateMethod, c.rho_init, c.max_rho, c.max_iters);
+                return py::make_tuple(c.rho_init, c.max_rho, c.max_iters);
             },
             [](py::tuple t) { // __setstate__
-                if (t.size() != 4)
+                if (t.size() != 3)
                     throw std::runtime_error("Invalid state!");
 
                 /* Create a new C++ instance */
                 AMSolverConfig c;
-                c.updateMethod = t[0].cast<UpdateMethod>();
-                c.rho_init = t[1].cast<double>();
-                c.max_rho = t[2].cast<double>();
-                c.max_iters = t[3].cast<int>();
+                c.rho_init = t[0].cast<double>();
+                c.max_rho = t[1].cast<double>();
+                c.max_iters = t[2].cast<int>();
                 return c;
             }));
 

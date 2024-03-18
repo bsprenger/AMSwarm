@@ -53,29 +53,25 @@ VectorXd atan2_eigen(const VectorXd& y, const VectorXd& x) {
 EqualityConstraint::EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance)
     : G(G), G_T(G.transpose()), h(h), tolerance(tolerance) {
     if (G.rows() != h.size()) throw std::invalid_argument("G and h are not compatible sizes");
-    lagrangeMult = VectorXd::Zero(h.size());
     G_T_G = G_T * G;
+    G_T_h = G_T * h;
 }
 
 SparseMatrix<double> EqualityConstraint::getQuadCost() const {
     return G_T_G;
 }
 
-VectorXd EqualityConstraint::getLinearCost(double rho) const {
-    return -rho * G_T * (h - lagrangeMult / rho);
+VectorXd EqualityConstraint::getLinearCost() const {
+    return - G_T_h;
 }
 
-VectorXd EqualityConstraint::getBregmanUpdate(double rho, const VectorXd& x) const {
+VectorXd EqualityConstraint::getBregmanUpdate(const VectorXd& x) const {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
-    return rho / 2 * G_T * (G * x - h);
+    return 0.5 * G_T * (G * x - h);
 }
 
 void EqualityConstraint::update(double rho, const VectorXd& x) {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
-    if (useLagrange) {
-        lagrangeMult += rho * (G * x - h);
-    }
-    // Note: For Bregman updates, AMSolver contains the multipliers
 }
 
 bool EqualityConstraint::isSatisfied(const VectorXd& x) const {
@@ -83,38 +79,33 @@ bool EqualityConstraint::isSatisfied(const VectorXd& x) const {
 }
 
 void EqualityConstraint::reset() {
-    lagrangeMult.setZero();
 }
 
 InequalityConstraint::InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance)
     : G(G), G_T(G.transpose()), h(h), tolerance(tolerance) {
     if (G.rows() != h.size()) throw std::invalid_argument("G and h are not compatible sizes");
     slack = VectorXd::Zero(h.size());
-    lagrangeMult = VectorXd::Zero(h.size());
     G_T_G = G_T * G;
+    G_T_h = G_T * h;
 }
 
 SparseMatrix<double> InequalityConstraint::getQuadCost() const {
     return G_T_G;
 }
 
-VectorXd InequalityConstraint::getLinearCost(double rho) const {
-    return -rho * G_T * (h - slack - lagrangeMult / rho);
+VectorXd InequalityConstraint::getLinearCost() const {
+    return - G_T_h + G_T * slack;
 }
 
-VectorXd InequalityConstraint::getBregmanUpdate(double rho, const VectorXd& x) const {
+VectorXd InequalityConstraint::getBregmanUpdate(const VectorXd& x) const {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
-    return rho / 2 * G_T * (G * x - h + slack);
+    return 0.5 * G_T * (G * x - h + slack);
 }
 
 void InequalityConstraint::update(double rho, const VectorXd& x) {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
     VectorXd Gx_minus_h = G * x - h;
-    slack = (- Gx_minus_h - lagrangeMult / rho).cwiseMax(0);
-    if (useLagrange) {
-        lagrangeMult += rho * (Gx_minus_h + slack);
-    }
-    // Note: For Bregman updates, AMSolver contains the multipliers
+    slack = (- Gx_minus_h).cwiseMax(0);
 }
 
 bool InequalityConstraint::isSatisfied(const VectorXd& x) const {
@@ -123,7 +114,6 @@ bool InequalityConstraint::isSatisfied(const VectorXd& x) const {
 
 void InequalityConstraint::reset() {
     slack.setZero();
-    lagrangeMult.setZero();
 }
 
 VectorXd PolarInequalityConstraint::calculateOmega() const {
@@ -158,7 +148,6 @@ PolarInequalityConstraint::PolarInequalityConstraint(const SparseMatrix<double>&
     alpha = VectorXd::Zero(n);
     beta = VectorXd::Zero(n);
     d = VectorXd::Zero(n);
-    lagrangeMult = VectorXd::Zero(c.size());
     G_T_G = G_T * G;
 }
 
@@ -166,26 +155,26 @@ SparseMatrix<double> PolarInequalityConstraint::getQuadCost() const {
     return G_T_G;
 }
 
-VectorXd PolarInequalityConstraint::getLinearCost(double rho) const {
+VectorXd PolarInequalityConstraint::getLinearCost() const {
     VectorXd omega = calculateOmega();
     VectorXd d_replicated = replicateVector(d, 3);
     VectorXd h = d_replicated.array() * omega.array() - c.array();
-    return -rho * G_T * (h - lagrangeMult / rho);
+    return - G_T * h;
 }
 
-VectorXd PolarInequalityConstraint::getBregmanUpdate(double rho, const VectorXd& x) const {
+VectorXd PolarInequalityConstraint::getBregmanUpdate(const VectorXd& x) const {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
     VectorXd omega = calculateOmega();
     VectorXd d_replicated = replicateVector(d, 3);
     VectorXd h = d_replicated.array() * omega.array() - c.array();
-    return rho / 2 * G_T * (G * x - h);
+    return 0.5 * G_T * (G * x - h);
 }
 
 void PolarInequalityConstraint::update(double rho, const VectorXd& x) {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
     
     // update alpha, beta, and d
-    VectorXd constraint_vec = G * x + c + lagrangeMult / rho;
+    VectorXd constraint_vec = G * x + c;
     // Prepare inputs for alpha and beta calculations
     int num_constraints = alpha.size(); // Assuming alpha and beta have the same size
     Eigen::VectorXd x_inputs_alpha(num_constraints);
@@ -232,10 +221,6 @@ void PolarInequalityConstraint::update(double rho, const VectorXd& x) {
             }
         }
     }
-    if (useLagrange) {
-        lagrangeMult += (rho * ((G * x + c).array() - omega.array() * replicateVector(d, 3).array())).matrix();
-    }
-    // Note: For Bregman updates, AMSolver contains the multipliers
 }
 
 bool PolarInequalityConstraint::isSatisfied(const VectorXd& x) const {
@@ -246,5 +231,4 @@ void PolarInequalityConstraint::reset() {
     alpha.setZero();
     beta.setZero();
     d.setZero();
-    lagrangeMult.setZero();
 }

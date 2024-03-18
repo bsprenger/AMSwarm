@@ -3,7 +3,6 @@ simulation_frequency: 240.0  # Gym simulation freq.
 mellinger_frequency: 80.0  # Mellinger freq. in gym (Hz) - real world determined by cflie firmware
 
 AMSolverConfig:
-  updateMethod: Lagrange # Solver update method (Lagrange or Bregman only)
   rho_init: 1.3 # Initial value of the penalty parameter
   max_rho: 5000000.0 # Maximum value of the penalty parameter
   max_iters: 1000 # Maximum number of iterations

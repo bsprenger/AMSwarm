@@ -14,20 +14,14 @@
 
 using namespace Eigen;
 
-enum class UpdateMethod {
-    Lagrange,
-    Bregman
-};
-
 struct AMSolverConfig {
-    UpdateMethod updateMethod;
     double rho_init;
     double max_rho;
     int max_iters;
 
     AMSolverConfig () {};
-    AMSolverConfig(UpdateMethod method, double rho_init, double max_rho, int max_iters)
-        : updateMethod(method), rho_init(rho_init), max_rho(max_rho), max_iters(max_iters) {};
+    AMSolverConfig(double rho_init, double max_rho, int max_iters)
+        : rho_init(rho_init), max_rho(max_rho), max_iters(max_iters) {};
 };
 
 // Abstract class for solver
@@ -74,24 +68,31 @@ std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolv
     VectorXd x = VectorXd::Zero(quadCost.rows());
     VectorXd bregmanMult = VectorXd::Zero(quadCost.rows());
 
-    while (iters < solverConfig.max_iters) {
-        // Reset Q and q to the base cost
-        Q = quadCost / rho;
-        q = linearCost;
+    SparseMatrix<double> quadCostConstraintTerms(quadCost.rows(), quadCost.cols());
+    VectorXd linearCostConstraintTerms = VectorXd::Zero(linearCost.rows());
+    for (auto& constraint : constConstraints) {
+        quadCostConstraintTerms += constraint->getQuadCost();
+    }
+    for (auto& constraint : nonConstConstraints) {
+        quadCostConstraintTerms += constraint->getQuadCost();
+    }
 
-        // Construct the quadratic and linear cost matrices
+    while (iters < solverConfig.max_iters) {
+        Q = quadCost + rho * quadCostConstraintTerms;
+        linearCostConstraintTerms.setZero();
+        
+        // Construct the linear cost matrices
         for (auto& constraint : constConstraints) {
-            Q += constraint->getQuadCost();
-            q += constraint->getLinearCost(rho);
+            linearCostConstraintTerms += constraint->getLinearCost();
         }
         for (auto& constraint : nonConstConstraints) {
-            Q += constraint->getQuadCost();
-            q += constraint->getLinearCost(rho);
+            linearCostConstraintTerms += constraint->getLinearCost();
         }
-        q -= bregmanMult;
-
+        linearCostConstraintTerms -= bregmanMult;
+        q = linearCost + rho * linearCostConstraintTerms;
+        
         linearSolver.compute(Q);
-        x = linearSolver.solve(-q / rho);
+        x = linearSolver.solve(-q);
 
         // Update the constraints
         updateConstraints(rho, x);
@@ -111,14 +112,13 @@ std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolv
         }
 
         // Update the penalty parameter and iters
-        if (solverConfig.updateMethod == UpdateMethod::Bregman) {
-            for (auto& constraint : constConstraints) {
-                bregmanMult -= constraint->getBregmanUpdate(rho, x);
-            }
-            for (auto& constraint : nonConstConstraints) {
-                bregmanMult -= constraint->getBregmanUpdate(rho, x);
-            }
+        for (auto& constraint : constConstraints) {
+            bregmanMult -= constraint->getBregmanUpdate(x);
         }
+        for (auto& constraint : nonConstConstraints) {
+            bregmanMult -= constraint->getBregmanUpdate(x);
+        }
+        
         rho *= solverConfig.rho_init;
         rho = std::min(rho, solverConfig.max_rho);
         iters++;
@@ -129,12 +129,6 @@ std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolv
 
 template<typename ResultType, typename SolverArgsType>
 void AMSolver<ResultType, SolverArgsType>::addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant) {
-    // Determine whether to use Lagrange based on the solver's update method
-    bool useLagrange = (solverConfig.updateMethod == UpdateMethod::Lagrange);
-    
-    // Inform the constraint of the update method
-    constraint->setUseLagrange(useLagrange);
-
     if (isConstant) {
         constConstraints.push_back(std::move(constraint));
     } else {

@@ -8,17 +8,13 @@ using namespace Eigen;
 
 // Base class for constraints
 class Constraint {
-protected:
-    bool useLagrange;
-
 public:
     Constraint() {}
     virtual ~Constraint() {}
 
-    void setUseLagrange(bool flag) { useLagrange = flag; }
     virtual SparseMatrix<double> getQuadCost() const = 0;
-    virtual VectorXd getLinearCost(double rho) const = 0;
-    virtual VectorXd getBregmanUpdate(double rho, const VectorXd& x) const = 0;
+    virtual VectorXd getLinearCost() const = 0;
+    virtual VectorXd getBregmanUpdate(const VectorXd& x) const = 0;
     virtual void update(double rho, const VectorXd& x) = 0;
     virtual bool isSatisfied(const VectorXd& x) const = 0;
     virtual void reset() = 0;
@@ -28,17 +24,17 @@ public:
 class EqualityConstraint : public Constraint {
 private:
     SparseMatrix<double> G;
+    VectorXd h;
     SparseMatrix<double> G_T;
     SparseMatrix<double> G_T_G;
-    VectorXd h;
-    VectorXd lagrangeMult;
+    VectorXd G_T_h;
     double tolerance;
 
 public:
     EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-2);
     SparseMatrix<double> getQuadCost() const override;
-    VectorXd getLinearCost(double rho) const override;
-    VectorXd getBregmanUpdate(double rho, const VectorXd& x) const override;
+    VectorXd getLinearCost() const override;
+    VectorXd getBregmanUpdate(const VectorXd& x) const override;
     void update(double rho, const VectorXd& x) override;
     bool isSatisfied(const VectorXd& x) const override;
     void reset() override;
@@ -48,18 +44,18 @@ public:
 class InequalityConstraint : public Constraint {
 private:
     SparseMatrix<double> G;
+    VectorXd h;
     SparseMatrix<double> G_T;
     SparseMatrix<double> G_T_G;
-    VectorXd h;
+    VectorXd G_T_h;
     VectorXd slack;
-    VectorXd lagrangeMult;
     double tolerance;
 
 public:
     InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-2);
     SparseMatrix<double> getQuadCost() const override;
-    VectorXd getLinearCost(double rho) const override;
-    VectorXd getBregmanUpdate(double rho, const VectorXd& x) const override;
+    VectorXd getLinearCost() const override;
+    VectorXd getBregmanUpdate(const VectorXd& x) const override;
     void update(double rho, const VectorXd& x) override;
     bool isSatisfied(const VectorXd& x) const override;
     void reset() override;
@@ -75,7 +71,6 @@ private:
     VectorXd alpha;
     VectorXd beta;
     VectorXd d;
-    VectorXd lagrangeMult;
     double lwr_bound; // can be -inf for unbounded
     double upr_bound; // can be +inf for unbounded
     double bf_gamma;
@@ -87,8 +82,8 @@ private:
 public:
     PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound, double upr_bound, double bf_gamma = 1.0, double tolerance = 1e-2);
     SparseMatrix<double> getQuadCost() const override;
-    VectorXd getLinearCost(double rho) const override;
-    VectorXd getBregmanUpdate(double rho, const VectorXd& x) const override;
+    VectorXd getLinearCost() const override;
+    VectorXd getBregmanUpdate(const VectorXd& x) const override;
     void update(double rho, const VectorXd& x) override;
     bool isSatisfied(const VectorXd& x) const override;
     void reset() override;
