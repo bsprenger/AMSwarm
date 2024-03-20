@@ -65,7 +65,7 @@ std::tuple<std::vector<bool>,std::vector<int>,std::vector<DroneResult>> Swarm::s
         int num_obstacles = 0;
 
         for (const int& avoid_drone : avoidance_map[i]) {
-            if (Swarm::checkIntersection(previous_results[i].position_trajectory_vector, previous_results[avoid_drone].position_trajectory_vector, 0.75*all_obstacle_envelopes[avoid_drone])) { // TODO change magic number
+            if (Swarm::checkIntersection(previous_results[i].position_trajectory_vector, previous_results[avoid_drone].position_trajectory_vector, 0.9*all_obstacle_envelopes[avoid_drone])) { // TODO change magic number
                 obstacle_positions.push_back(previous_results[avoid_drone].position_trajectory_vector);
                 obstacle_envelopes.push_back(all_obstacle_envelopes[avoid_drone]);
                 num_obstacles++;

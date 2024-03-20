@@ -17,13 +17,17 @@ Drone::Drone(AMSolverConfig solverConfig, MatrixXd waypoints, MPCConfig mpcConfi
 {   
     std::tie(W, W_dot, W_ddot, W_input) = initBernsteinMatrices(mpcConfig); // move to struct and constructor 
     std::tie(S_x, S_u, S_x_prime, S_u_prime) = initFullHorizonDynamicsMatrices(dynamics); // move to struct and constructor
-    collision_envelope.insert(0,0) = 5.8824; collision_envelope.insert(1,1) = 5.8824; collision_envelope.insert(2,2) = 2.2222; // initialize collision envelope - later move this to a yaml or struct or something
+    collision_envelope.insert(0,0) = 1.0 / limits.x_collision_envelope;
+    collision_envelope.insert(1,1) = 1.0 / limits.y_collision_envelope;
+    collision_envelope.insert(2,2) = 1.0 / limits.z_collision_envelope; // initialize collision envelope - later move this to a yaml or struct or something
 
     // Init cost matrices
-    quadCost = SparseMatrix<double>(3*(mpcConfig.n+1),3*(mpcConfig.n+1));
-    quadCost.setZero();
-    linearCost = VectorXd(3*(mpcConfig.n+1));
-    linearCost.setZero();
+    initialQuadCost = SparseMatrix<double>(3*(mpcConfig.n+1),3*(mpcConfig.n+1));
+    initialQuadCost.setZero();
+    initialLinearCost = VectorXd(3*(mpcConfig.n+1));
+    initialLinearCost.setZero();
+
+    S_u_W_input = S_u * W_input;
 };
 
 
@@ -59,14 +63,14 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     }
 
     // Input smoothness cost
-    quadCost += 2 * weights.input_smoothness * (W_ddot.transpose() * W_ddot); // remaining cost terms must be added at solve time
+    quadCost += 2 * weights.input_smoothness * (W_ddot.transpose() * W_ddot);
 
     // Output smoothness cost
     quadCost += 2 * weights.smoothness * W_input.transpose() * S_u_prime.transpose() * selectionMats.M_a.transpose() * selectionMats.M_a * S_u_prime * W_input;
     linearCost += 2 * weights.smoothness * W_input.transpose() * S_u_prime.transpose() * selectionMats.M_a.transpose() * selectionMats.M_a * S_x_prime * args.x_0;
 
     // Waypoint position cost and/or equality constraint
-    SparseMatrix<double>  G_wp = M_waypoints * selectionMats.M_p * S_u * W_input;
+    SparseMatrix<double>  G_wp = M_waypoints * selectionMats.M_p * S_u_W_input;
     VectorXd h_wp = extracted_waypoints_pos - M_waypoints * selectionMats.M_p * S_x * args.x_0;
     quadCost += 2 * weights.waypoints_pos * G_wp.transpose() * G_wp;
     linearCost += -2 * weights.waypoints_pos * G_wp.transpose() * h_wp;
@@ -76,7 +80,7 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     }
 
     // Waypoint velocity cost and/or equality constraint
-    SparseMatrix<double>  G_wv = M_waypoints * selectionMats.M_v * S_u * W_input;
+    SparseMatrix<double>  G_wv = M_waypoints * selectionMats.M_v * S_u_W_input;
     VectorXd h_wv = extracted_waypoints_vel - M_waypoints * selectionMats.M_v * S_x * args.x_0;
     quadCost += 2 * weights.waypoints_vel * G_wv.transpose() * G_wv;
     linearCost += -2 * weights.waypoints_vel * G_wv.transpose() * h_wv;
@@ -114,8 +118,8 @@ void Drone::preSolve(const DroneSolveArgs& args) {
 
     // Position constraint
     SparseMatrix<double> G_p(6 * (mpcConfig.K + 1), 3 * (mpcConfig.n + 1));
-    SparseMatrix<double> G_p_block1 = selectionMats.M_p * S_u * W_input;
-    SparseMatrix<double> G_p_block2 = -selectionMats.M_p * S_u * W_input;
+    SparseMatrix<double> G_p_block1 = selectionMats.M_p * S_u_W_input;
+    SparseMatrix<double> G_p_block2 = -selectionMats.M_p * S_u_W_input;
     utils::replaceSparseBlock(G_p, G_p_block1, 0, 0);
     utils::replaceSparseBlock(G_p, G_p_block2, 3 * (mpcConfig.K + 1), 0);
     VectorXd h_p(6 * (mpcConfig.K + 1));
@@ -124,7 +128,7 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     addConstraint(std::move(pConstraint), false);
 
     // Velocity constraint
-    SparseMatrix<double> G_v = selectionMats.M_v * S_u * W_input;
+    SparseMatrix<double> G_v = selectionMats.M_v * S_u_W_input;
     VectorXd c_v = selectionMats.M_v * S_x * args.x_0;
     std::unique_ptr<Constraint> vConstraint = std::make_unique<PolarInequalityConstraint>(G_v, c_v, -std::numeric_limits<double>::infinity(), limits.v_bar, 1.0, mpcConfig.vel_tol);
     addConstraint(std::move(vConstraint), false);
@@ -137,7 +141,7 @@ void Drone::preSolve(const DroneSolveArgs& args) {
 
     // Collision constraints
     for (int i = 0; i < args.num_obstacles; ++i) {
-        SparseMatrix<double> G_c = args.obstacle_envelopes[i] * selectionMats.M_p * S_u * W_input;
+        SparseMatrix<double> G_c = args.obstacle_envelopes[i] * selectionMats.M_p * S_u_W_input;
         VectorXd c_c = args.obstacle_envelopes[i] * (selectionMats.M_p * S_x * args.x_0 - args.obstacle_positions[i]);
         std::unique_ptr<Constraint> cConstraint = std::make_unique<PolarInequalityConstraint>(G_c, c_c, 1.0, std::numeric_limits<double>::infinity(), mpcConfig.bf_gamma, mpcConfig.collision_tol);
         addConstraint(std::move(cConstraint), false);
@@ -148,7 +152,7 @@ DroneResult Drone::postSolve(const VectorXd& zeta, const DroneSolveArgs& args) {
     DroneResult drone_result;
 
     // state trajectory
-    drone_result.state_trajectory_vector = S_x * args.x_0 + S_u * W_input * zeta;
+    drone_result.state_trajectory_vector = S_x * args.x_0 + S_u_W_input * zeta;
     drone_result.state_trajectory = Map<MatrixXd>(drone_result.state_trajectory_vector.data(), 6, (mpcConfig.K+1)).transpose();
 
     // position trajectory

@@ -102,10 +102,13 @@ public:
         VectorXd p_max = VectorXd::Constant(3,10);
         double v_bar = 1.73;
         double a_bar = 0.75 * 9.81;
+        double x_collision_envelope = 0.25;
+        double y_collision_envelope = 0.25;
+        double z_collision_envelope = 2.0 /3.0; // larger due to downwash effect
 
         PhysicalLimits() {}
-        PhysicalLimits(const Eigen::VectorXd& p_min, const Eigen::VectorXd& p_max, double v_bar, double a_bar) 
-        : p_min(p_min), p_max(p_max), v_bar(v_bar), a_bar(a_bar) {}
+        PhysicalLimits(const Eigen::VectorXd& p_min, const Eigen::VectorXd& p_max, double v_bar, double a_bar, double x_collision_envelope, double y_collision_envelope, double z_collision_envelope) 
+        : p_min(p_min), p_max(p_max), v_bar(v_bar), a_bar(a_bar), x_collision_envelope(x_collision_envelope), y_collision_envelope(x_collision_envelope), z_collision_envelope(x_collision_envelope) {}
     };
 
     struct SparseDynamics {
@@ -150,6 +153,7 @@ protected:
     // Protected variables
     SparseMatrix<double> W, W_dot, W_ddot, W_input;
     SparseMatrix<double> S_x, S_u, S_x_prime, S_u_prime;
+    SparseMatrix<double> S_u_W_input;
     MPCConfig mpcConfig;
     MPCWeights weights;
     PhysicalLimits limits;

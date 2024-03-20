@@ -33,12 +33,15 @@ protected:
     AMSolverConfig solverConfig;
 
     // cost of the form 0.5 * x^T * quadCost * x + x^T * linearCost
+    SparseMatrix<double> initialQuadCost;
+    VectorXd initialLinearCost;
     SparseMatrix<double> quadCost;
     VectorXd linearCost;
 
     virtual void preSolve(const SolverArgsType& args) = 0;
     virtual ResultType postSolve(const VectorXd& x, const SolverArgsType& args) = 0;
     std::tuple<bool, int, VectorXd> actualSolve(const SolverArgsType& args);
+    void resetCostMatrices();
 
 public:
     AMSolver(AMSolverConfig config) : solverConfig(config) {};
@@ -52,11 +55,14 @@ public:
 
 
 // -------------------------- IMPLEMENTATION -------------------------- //
+template<typename ResultType, typename SolverArgsType>
+void AMSolver<ResultType, SolverArgsType>::resetCostMatrices() {
+    quadCost = initialQuadCost;
+    linearCost = initialLinearCost;
+}
 
 template<typename ResultType, typename SolverArgsType>
 std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(const SolverArgsType& args) {
-    resetConstraints();
-
     SimplicialLDLT<SparseMatrix<double>> linearSolver;
 
     int iters  = 0;
@@ -137,13 +143,11 @@ void AMSolver<ResultType, SolverArgsType>::addConstraint(std::unique_ptr<Constra
 
 template<typename ResultType, typename SolverArgsType>
 void AMSolver<ResultType, SolverArgsType>::updateConstraints(double rho, const VectorXd& x) {
-    // Parallel update for constant constraints
     std::for_each(constConstraints.begin(), constConstraints.end(),
                   [rho, &x](const std::unique_ptr<Constraint>& constraint) {
                       constraint->update(rho, x);
                   });
 
-    // Parallel update for non-constant constraints
     std::for_each(nonConstConstraints.begin(), nonConstConstraints.end(),
                   [rho, &x](const std::unique_ptr<Constraint>& constraint) {
                       constraint->update(rho, x);
@@ -165,9 +169,20 @@ void AMSolver<ResultType, SolverArgsType>::resetConstraints() {
 
 template<typename ResultType, typename SolverArgsType>
 std::tuple<bool, int, ResultType> AMSolver<ResultType, SolverArgsType>::solve(const SolverArgsType& args) {
+    // Reset the cost and get rid of any carryover constraints from previous solves which need to be rebuilt
+    resetCostMatrices();
     nonConstConstraints.clear();
-    preSolve(args); // builds new non-const. constraints
+
+    // Build new constraints and add to the cost matrices
+    preSolve(args);
+
+    // Ensure no carryover updates from previous solve
+    resetConstraints();
+
+    // Solve the problem
     auto [success, iters, result] = actualSolve(args); // TODO make explicit
+
+    // Post-solve operations, e.g. modify the return format
     return std::make_tuple(success, iters, postSolve(result, args));
 }
 

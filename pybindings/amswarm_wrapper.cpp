@@ -135,23 +135,29 @@ PYBIND11_MODULE(amswarm, m)
             }));
 
     py::class_<Drone::PhysicalLimits>(m, "PhysicalLimits")
-        .def(py::init<Eigen::VectorXd, Eigen::VectorXd, double, double>(), 
+        .def(py::init<Eigen::VectorXd, Eigen::VectorXd, double, double, double, double, double>(), 
             py::arg("p_min") = Eigen::VectorXd::Constant(3, -10), 
             py::arg("p_max") = Eigen::VectorXd::Constant(3, 10), 
             py::arg("v_bar") = 1.73, 
-            py::arg("a_bar") = 0.75 * 9.81)
+            py::arg("a_bar") = 0.75 * 9.81,
+            py::arg("x_collision_envelope") = 0.25,
+            py::arg("y_collision_envelope") = 0.25,
+            py::arg("z_collision_envelope") = 2.0 / 3.0)
         .def(py::init<>())
         .def_readwrite("p_min", &Drone::PhysicalLimits::p_min)
         .def_readwrite("p_max", &Drone::PhysicalLimits::p_max)
         .def_readwrite("v_bar", &Drone::PhysicalLimits::v_bar)
         .def_readwrite("a_bar", &Drone::PhysicalLimits::a_bar)
+        .def_readwrite("x_collision_envelope", &Drone::PhysicalLimits::x_collision_envelope)
+        .def_readwrite("y_collision_envelope", &Drone::PhysicalLimits::y_collision_envelope)
+        .def_readwrite("z_collision_envelope", &Drone::PhysicalLimits::z_collision_envelope)
         .def(py::pickle(
             [](const Drone::PhysicalLimits &l) { // __getstate__
                 /* Return a tuple that fully encodes the state of the object */
-                return py::make_tuple(l.p_min, l.p_max, l.v_bar, l.a_bar);
+                return py::make_tuple(l.p_min, l.p_max, l.v_bar, l.a_bar, l.x_collision_envelope, l.y_collision_envelope, l.z_collision_envelope);
             },
             [](py::tuple t) { // __setstate__
-                if (t.size() != 4)
+                if (t.size() != 7)
                     throw std::runtime_error("Invalid state!");
 
                 /* Create a new C++ instance */
@@ -160,6 +166,9 @@ PYBIND11_MODULE(amswarm, m)
                 l.p_max = t[1].cast<Eigen::VectorXd>();
                 l.v_bar = t[2].cast<double>();
                 l.a_bar = t[3].cast<double>();
+                l.x_collision_envelope = t[4].cast<double>();
+                l.y_collision_envelope = t[5].cast<double>();
+                l.z_collision_envelope = t[6].cast<double>();
                 return l;
             }));
 

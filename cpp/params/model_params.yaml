@@ -23,11 +23,11 @@ MPCConfig:
 
 
 MPCWeights:
-  waypoints_pos: 7000.  # Weight of the position tracking objective in the cost
-  waypoints_vel: 1000.  # Weight of the velocity tracking objective in the cost
-  waypoints_acc: 100.  # Weight of the acceleration tracking objective in the cost
-  smoothness: 100.  # Weight of the smoothness objective in the cost
-  input_smoothness: 1000.  # Weight of the input smoothness objective in the cost
+  waypoints_pos: 70000.  # Weight of the position tracking objective in the cost
+  waypoints_vel: 0.  # Weight of the velocity tracking objective in the cost
+  waypoints_acc: 0.  # Weight of the acceleration tracking objective in the cost
+  smoothness: 10000.  # Weight of the smoothness objective in the cost
+  input_smoothness: 10000.  # Weight of the input smoothness objective in the cost
   input_continuity: 100.  # Weight of the input continuity objective in the cost
   
 PhysicalLimits:
@@ -35,6 +35,9 @@ PhysicalLimits:
   p_max: [10, 10, 10]  # Maximum position of the AMSwarm drones
   v_bar: 1.73  # Maximum velocity of the AMSwarm drones
   a_bar: 7.3575  # Maximum force of the AMSwarm drones (0.75 gs)
+  x_collision_envelope: 0.25  # Length of the drone in the x direction
+  y_collision_envelope: 0.25  # Length of the drone in the y direction
+  z_collision_envelope: 0.6667  # Length of the drone in the z direction - larger due to downwash effect
 
 Dynamics:
   # --- 8Hz pos + vel input model, with >=80Hz Mellinger controller --- #
