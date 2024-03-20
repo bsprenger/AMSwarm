@@ -265,20 +265,6 @@ namespace utils
         return result;
     }
 
-    void replaceSparseBlock(SparseMatrix<double>& sparseMatrix, const MatrixXd& denseBlock, int startRow, int startCol) {
-        // Check if the dimensions match
-        assert(startRow + denseBlock.rows() <= sparseMatrix.rows());
-        assert(startCol + denseBlock.cols() <= sparseMatrix.cols());
-
-        // Iterate through the dense block
-        for (int i = 0; i < denseBlock.rows(); ++i) {
-            for (int j = 0; j < denseBlock.cols(); ++j) {
-                // Set the value in the sparse matrix
-                sparseMatrix.coeffRef(startRow + i, startCol + j) = denseBlock(i, j);
-            }
-        }
-    }
-
     void replaceSparseBlock(SparseMatrix<double>& targetSparseMatrix, const SparseMatrix<double>& sourceSparseMatrix, int startRow, int startCol) {
         // Check if the dimensions match
         assert(startRow + sourceSparseMatrix.rows() <= targetSparseMatrix.rows());

@@ -28,7 +28,6 @@ namespace utils
     SparseMatrix<double> getSparseIdentity(int);
     MatrixXd blkDiag(const std::vector<MatrixXd>&);
     SparseMatrix<double> blkDiag(const std::vector<SparseMatrix<double>>&);
-    void replaceSparseBlock(SparseMatrix<double>&, const MatrixXd&, int, int);
     void replaceSparseBlock(SparseMatrix<double>&, const SparseMatrix<double>&, int, int);
     std::string getExecutablePath();
     std::tuple<MatrixXd, MatrixXd, MatrixXd, MatrixXd> loadDynamicsMatricesFromYAML(const std::string& yamlFilename);

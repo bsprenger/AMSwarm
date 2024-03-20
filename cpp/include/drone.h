@@ -153,7 +153,12 @@ protected:
     // Protected variables
     SparseMatrix<double> W, W_dot, W_ddot, W_input;
     SparseMatrix<double> S_x, S_u, S_x_prime, S_u_prime;
+    SparseMatrix<double> M_p_S_x, M_v_S_x, M_a_S_x_prime;
+    SparseMatrix<double> G_u, G_u_T, G_u_T_G_u;
+    SparseMatrix<double> G_p;
     SparseMatrix<double> S_u_W_input;
+    SparseMatrix<double> M_p_S_u_W_input, M_v_S_u_W_input, M_a_S_u_prime_W_input;
+    SparseMatrix<double> linearCostSmoothnessConstTerm;
     MPCConfig mpcConfig;
     MPCWeights weights;
     PhysicalLimits limits;
