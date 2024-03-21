@@ -19,7 +19,7 @@ def solve_swarm(swarm: amswarm.Swarm, current_time: float, initial_states,
     [cfg.setWaypointsConstraints(True, False, False) for cfg in constraint_configs]
     solve_success, iters, drone_results = swarm.solve(current_time, initial_states, input_drone_results,
                                                constraint_configs)
-    print(iters)
+    # print(iters)
     failed_drones = [index for index, success in enumerate(solve_success) if not success]
     if failed_drones:
         [
@@ -66,7 +66,7 @@ def main():
     for i in range(1, 16):
         drone_results = solve_swarm(swarm, 0.125*i, initial_states, drone_results, constraint_configs)
         initial_states = [extract_next_state_from_result(result) for result in drone_results]
-        print(initial_states)
+        # print(initial_states)
     
     
 if __name__ == "__main__":

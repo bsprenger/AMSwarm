@@ -48,7 +48,7 @@ public:
     virtual ~AMSolver() = default;
 
     void addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant);
-    void updateConstraints(double rho, const VectorXd& x);
+    void updateConstraints(const VectorXd& x);
     void resetConstraints();
     std::tuple<bool, int, ResultType> solve(const SolverArgsType& args);
 };
@@ -97,7 +97,7 @@ std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolv
         x = linearSolver.solve(-q);
 
         // Update the constraints
-        updateConstraints(rho, x);
+        updateConstraints(x);
 
         // Check constraints satisfaction
         bool all_constraints_satisfied = std::all_of(constConstraints.begin(), constConstraints.end(),
@@ -142,15 +142,15 @@ void AMSolver<ResultType, SolverArgsType>::addConstraint(std::unique_ptr<Constra
 }
 
 template<typename ResultType, typename SolverArgsType>
-void AMSolver<ResultType, SolverArgsType>::updateConstraints(double rho, const VectorXd& x) {
+void AMSolver<ResultType, SolverArgsType>::updateConstraints(const VectorXd& x) {
     std::for_each(constConstraints.begin(), constConstraints.end(),
-                  [rho, &x](const std::unique_ptr<Constraint>& constraint) {
-                      constraint->update(rho, x);
+                  [&x](const std::unique_ptr<Constraint>& constraint) {
+                      constraint->update(x);
                   });
 
     std::for_each(nonConstConstraints.begin(), nonConstConstraints.end(),
-                  [rho, &x](const std::unique_ptr<Constraint>& constraint) {
-                      constraint->update(rho, x);
+                  [&x](const std::unique_ptr<Constraint>& constraint) {
+                      constraint->update(x);
                   });
 }
 

@@ -15,7 +15,7 @@ public:
     virtual SparseMatrix<double> getQuadraticTerm() const = 0;
     virtual VectorXd getLinearTerm() const = 0;
     virtual VectorXd getBregmanUpdate(const VectorXd& x) const = 0;
-    virtual void update(double rho, const VectorXd& x) = 0;
+    virtual void update(const VectorXd& x) {};
     virtual bool isSatisfied(const VectorXd& x) const = 0;
     virtual void reset() = 0;
 };
@@ -35,7 +35,6 @@ public:
     SparseMatrix<double> getQuadraticTerm() const override;
     VectorXd getLinearTerm() const override;
     VectorXd getBregmanUpdate(const VectorXd& x) const override;
-    void update(double rho, const VectorXd& x) override;
     bool isSatisfied(const VectorXd& x) const override;
     void reset() override;
 };
@@ -56,7 +55,7 @@ public:
     SparseMatrix<double> getQuadraticTerm() const override;
     VectorXd getLinearTerm() const override;
     VectorXd getBregmanUpdate(const VectorXd& x) const override;
-    void update(double rho, const VectorXd& x) override;
+    void update(const VectorXd& x) override;
     bool isSatisfied(const VectorXd& x) const override;
     void reset() override;
 };
@@ -71,18 +70,17 @@ private:
     VectorXd h;
     double lwr_bound; // can be -inf for unbounded
     double upr_bound; // can be +inf for unbounded
+    bool apply_upr_bound;
+    bool apply_lwr_bound;
     double bf_gamma;
     double tolerance;
-
-    VectorXd calculateOmega(const VectorXd& alpha, const VectorXd& beta) const;
-    VectorXd replicateVector(const VectorXd& vec, int times) const;
 
 public:
     PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound, double upr_bound, double bf_gamma = 1.0, double tolerance = 1e-2);
     SparseMatrix<double> getQuadraticTerm() const override;
     VectorXd getLinearTerm() const override;
     VectorXd getBregmanUpdate(const VectorXd& x) const override;
-    void update(double rho, const VectorXd& x) override;
+    void update(const VectorXd& x) override;
     bool isSatisfied(const VectorXd& x) const override;
     void reset() override;
 };

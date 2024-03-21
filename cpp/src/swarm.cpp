@@ -58,7 +58,7 @@ std::tuple<std::vector<bool>,std::vector<int>,std::vector<DroneResult>> Swarm::s
     std::vector<int> iters(num_drones);
     std::vector<DroneResult> results(num_drones);
     
-    # pragma omp parallel for
+    // # pragma omp parallel for
     for (int i = 0; i < drones.size(); ++i) {
         std::vector<VectorXd> obstacle_positions;
         std::vector<SparseMatrix<double>> obstacle_envelopes;
@@ -86,12 +86,12 @@ std::tuple<std::vector<bool>,std::vector<int>,std::vector<DroneResult>> Swarm::s
         std::tuple<bool, int, DroneResult> result = drones[i]->solve(args);
         
         // use a critical section to update shared vectors
-        # pragma omp critical
-        {
+        // # pragma omp critical
+        // {
             is_success[i] = std::get<0>(result);
             iters[i] = std::get<1>(result);
             results[i] = std::get<2>(result);
-        }
+        // }
     }
     
     return std::make_tuple(is_success, iters, results);
