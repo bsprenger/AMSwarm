@@ -42,6 +42,10 @@ struct ConstraintConfig {
         enable_waypoints_vel_constraint = vel;
         enable_waypoints_acc_constraint = acc;
     }
+
+    void setInputContinuityConstraints(bool flag) {
+        enable_input_continuity_constraint = flag;
+    }
 };
 
 struct DroneSolveArgs {

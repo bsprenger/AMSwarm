@@ -3,3 +3,4 @@
 amswarm.egg-info/
 /.history/
 /.vscode/
+/examples/python/__pycache__/

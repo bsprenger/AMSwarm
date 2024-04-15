@@ -32,7 +32,9 @@ PYBIND11_MODULE(amswarm, m)
         .def_readwrite("enable_waypoints_acc_constraint", &ConstraintConfig::enable_waypoints_acc_constraint)
         .def_readwrite("enable_input_continuity_constraint", &ConstraintConfig::enable_input_continuity_constraint)
         .def("setWaypointsConstraints", &ConstraintConfig::setWaypointsConstraints, 
-            py::arg("pos"), py::arg("vel"), py::arg("acc"));
+            py::arg("pos"), py::arg("vel"), py::arg("acc"))
+        .def("setInputContinuityConstraints", &ConstraintConfig::setInputContinuityConstraints, 
+            py::arg("flag"));
 
     py::class_<DroneSolveArgs>(m, "DroneSolveArgs")
         .def(py::init<>())

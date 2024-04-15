@@ -52,27 +52,18 @@ def generate_random_waypoints(num_drones=3, num_waypoints=2, min_distance=0.5):
 
 def main():
     base_path = Path(__file__).resolve().parent / "data"
-    num_waypoints = 10  # Set to 30 waypoints for each simulation
+    waypoints = generate_random_waypoints(num_drones=1, num_waypoints=5)
+    print(waypoints)
     
-    # Define the batches for simulation runs: first with 3 drones, then 6, and so on up to 15
-    drone_batches = [3]
-    runs_per_batch = 1  # 20 runs for each batch
+    batch_path = base_path
+    batch_path.mkdir(parents=True, exist_ok=True)
 
-    for num_drones in drone_batches:
-        # Create a subfolder for each batch
-        batch_path = base_path
-        batch_path.mkdir(parents=True, exist_ok=True)
-
-        for run in range(1, runs_per_batch + 1):
-            log_file = batch_path / f"{num_drones}_drones_run_{run}.json"
-            logger = FileLogger(log_file)
-            waypoints = generate_random_waypoints(num_drones=num_drones, num_waypoints=num_waypoints)
-            # for k, v in waypoints.items():
-            #     simulation_results = run_online_sim({k: v}, False)
-            #     logger.log(simulation_results)
-            simulation_results = run_online_sim(waypoints, True)
-            logger.log(simulation_results)
-            print(f"Completed: {num_drones} drones, Run {run}")
+    log_file = batch_path / f"no_continuity.json"
+    logger = FileLogger(log_file)
+    
+    simulation_results = run_online_sim(waypoints, False)
+    logger.log(simulation_results)
+    print(f"Completed drones, Run ")
 
 if __name__ == "__main__":
     main()

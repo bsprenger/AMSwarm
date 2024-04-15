@@ -46,6 +46,7 @@ def solve_swarm(swarm: amswarm.Swarm, current_time: float, initial_states,
                 input_drone_results, constraint_configs):
     """Solve the swarm optimization problem. If it fails, disable constraints and try again."""
     [cfg.setWaypointsConstraints(True, False, False) for cfg in constraint_configs]
+    # [cfg.setInputContinuityConstraints(False) for cfg in constraint_configs]
     solve_success, iters, drone_results = swarm.solve(current_time, initial_states, input_drone_results,
                                                constraint_configs)
     # print(iters)

@@ -15,7 +15,8 @@ def extract_next_state_from_result(result: amswarm.DroneResult) -> np.ndarray:
 def solve_swarm(swarm: amswarm.Swarm, current_time: float, initial_states,
                 input_drone_results, constraint_configs):
     """Solve the swarm optimization problem. If it fails, disable constraints and try again."""
-    [cfg.setWaypointsConstraints(True, False, False) for cfg in constraint_configs]
+    [cfg.setWaypointsConstraints(False, False, False) for cfg in constraint_configs]
+    # [cfg.setInputContinuityConstraints(False) for cfg in constraint_configs]
     solve_success, iters, drone_results = swarm.solve(current_time, initial_states, input_drone_results,
                                                constraint_configs)
     # print(iters)
@@ -38,7 +39,10 @@ def run_offline_sim(waypoints):
     last_timestamp = waypoints[list(waypoints.keys())[0]][-1, 0]
     duration_sec = round(last_timestamp * settings["MPCConfig"]["mpc_freq"]) / settings["MPCConfig"]["mpc_freq"]
     num_steps = int(duration_sec * settings["MPCConfig"]["mpc_freq"])
-    results = np.zeros((num_steps, 3, num_drones))
+
+    results = {}
+    results["position"] = np.zeros((num_steps, 3, num_drones))
+    results["control"] = np.zeros((num_steps, 6, num_drones))
     
     initial_positions = {k: waypoints[k][0, 1:4] for k in waypoints}
 
@@ -65,11 +69,20 @@ def run_offline_sim(waypoints):
     last_timestamp = waypoints[list(waypoints.keys())[0]][-1,-0]
     duration_sec = round(last_timestamp * settings["MPCConfig"]["mpc_freq"]) / settings["MPCConfig"]["mpc_freq"]
     for i in range(num_steps):
+        # Record initial state
         for drone_index, state in enumerate(initial_states):
-            results[i, :, drone_index] = state[:3]
+            results["position"][i, :, drone_index] = state[:3]
+        # Solve for optimal input at current time
         drone_results = solve_swarm(swarm, 0.125*i, initial_states, drone_results, constraint_configs)
+        # Record optimal input at current time
+        for drone_index, drone_result in enumerate(drone_results):
+            results["control"][i, 0:3, drone_index] = drone_result.input_position_trajectory[0,:]
+            results["control"][i, 3:6, drone_index] = drone_result.input_velocity_trajectory[0,:]
+
         initial_states = [extract_next_state_from_result(result) for result in drone_results]
         [result.advanceForNextSolveStep() for result in drone_results]
+        
+    return results
     
     
 if __name__ == "__main__":

@@ -4,8 +4,6 @@
 #include <cmath>
 #include <algorithm>
 #include <stdexcept>
-#include <chrono>
-#include <iostream>
 
 
 using namespace Eigen;
