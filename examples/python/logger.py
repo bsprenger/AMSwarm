@@ -1,4 +1,5 @@
-"""Logger module for logging data in the backend to the console/files or any other location."""
+"""Logger module for logging data in the backend to the console/files or any other location.
+   Modified from SwarmGPT from Martin Schuck. """
 
 from __future__ import annotations
 
