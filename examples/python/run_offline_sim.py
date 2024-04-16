@@ -24,21 +24,7 @@ Example:
 """
 import amswarm
 import numpy as np
-import yaml
-from pathlib import Path
-
-def load_yaml_file(file_path: str) -> dict:
-    """
-    Loads a YAML configuration file and returns its contents as a dictionary.
-
-    Args:
-        file_path (str): Relative path to the YAML file from the script's location.
-
-    Returns:
-        dict: The contents of the YAML file as a dictionary.
-    """
-    with open(Path(__file__).resolve().parent / file_path, "r") as f:
-        return yaml.safe_load(f)
+from utils import load_yaml_file
     
 def extract_next_state_from_result(result: amswarm.DroneResult) -> np.ndarray:
     """
@@ -163,7 +149,7 @@ def run_offline_sim(waypoints):
     # Set initial states (current position, zero velocities)
     initial_states = [np.concatenate((initial_positions[k], [0,0,0])) for k in waypoints]
 
-    # Create constraint config objects
+    # Create constraint config objects. NOTE these are modified in solve_swarm
     constraint_configs = [amswarm.ConstraintConfig() for k in waypoints]
     
     # The drones' initial states are set to their current positions and zero velocities.

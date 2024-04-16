@@ -1,4 +1,19 @@
 import numpy as np
+import yaml
+from pathlib import Path
+
+def load_yaml_file(file_path: str) -> dict:
+    """
+    Loads a YAML configuration file and returns its contents as a dictionary.
+
+    Args:
+        file_path (str): Relative path to the YAML file from the script's location.
+
+    Returns:
+        dict: The contents of the YAML file as a dictionary.
+    """
+    with open(Path(__file__).resolve().parent / file_path, "r") as f:
+        return yaml.safe_load(f)
 
 def generate_time_stamps(num_waypoints, min_interval=1.0, max_interval=4):
     """
@@ -34,7 +49,9 @@ def generate_random_waypoints(num_drones=3, num_waypoints=2, min_start_distance=
     - dict: A dictionary where keys are drone IDs (starting from 1) and values are numpy arrays of shape (num_waypoints, 10) representing the waypoints for each drone.
 
     Note:
-    - Waypoints are represented as numpy arrays where the first column contains time stamps for each waypoint, columns 1 to 3 contain the x, y, and z coordinates of the waypoint respectively, and the remaining columns are zeros.
+    - Waypoints are represented as numpy arrays where the first column contains time stamps for each waypoint, columns 1 to 3 contain the x, y, and z coordinates of the waypoint respectively,
+      columns, 4 to 6 are the velocity in x, y, z, and the remaining columns are accel in x, y, z.
+      For the purposes of this project, the velocity and accel target are always zero - this could be changed in future.
     - The starting positions of the drones are randomly generated such that they maintain at least the specified minimum distance from each other.
     - Subsequent waypoints for each drone after the first are generated with positions randomly distributed within specific ranges, ensuring varied flight paths.
     """

@@ -1,6 +1,9 @@
+"""This script is an example of how to generate random waypoints and run an offline simulation.
+Here, offline refers to using a perfect model for the drones i.e. assuming perfect tracking of their
+computed optimal trajectories."""
 import numpy as np
 from run_offline_sim import run_offline_sim
-from generate_random_waypoints import generate_random_waypoints
+from utils import generate_random_waypoints
 from logger import FileLogger
 from pathlib import Path
 
