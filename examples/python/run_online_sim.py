@@ -296,7 +296,3 @@ def run_online_sim(waypoints, gui = True):
     }
     
     return sim_log
-    
-    
-if __name__ == "__main__":
-    run_online_sim()

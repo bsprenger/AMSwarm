@@ -183,7 +183,3 @@ def run_offline_sim(waypoints):
         [result.advanceForNextSolveStep() for result in drone_results]
         
     return results
-    
-    
-if __name__ == "__main__":
-    run_offline_sim()

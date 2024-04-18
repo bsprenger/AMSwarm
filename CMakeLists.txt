@@ -22,7 +22,6 @@ file(GLOB AMSWARM_HEADERS "cpp/include/*.h")
 
 add_library(AMSwarm SHARED ${AMSWARM_SOURCES} ${AMSWARM_HEADERS})
 target_include_directories(AMSwarm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/cpp/include ${CMAKE_CURRENT_SOURCE_DIR}/external)
-target_link_libraries(AMSwarm PRIVATE yaml-cpp)
 
 # pybind11 is installed since it is required by setuptools in pyproject.toml
 find_package(pybind11 REQUIRED) 
