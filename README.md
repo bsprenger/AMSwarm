@@ -4,13 +4,6 @@ AMSwarm 2.0 is a high-speed drone swarm trajectory planner that improves upon th
 
 The core of AMSwarm 2.0 is written in C++, using the Eigen linear algebra library for high-speed, real-time suitable code. We also provide an easy to use Python wrapper that allows for seamless integration to existing simulators such as [gym-pybullet-drones](https://github.com/utiasDSL/gym-pybullet-drones).
 
-This implementation features several key differences from the original AMSwarm formulation:
-- **Temporal waypoint tracking**: the objective of this implementation is to track waypoints (guarantee arrival at waypoints at specific times) instead of minimizing distance to a goal position
-- **Incorporation of dynamics model**: this implementation makes use of identified dynamics model matrices to more accurately predict trajectories (and avoid collisions)
-- **Optimized Alternating-Minimization (AM) algorithm**: we improve upon the previous AM algorithm, eliminating the need for slow trigonometric operations
-- **Distribution of drone avoidance responsibilities**: we distribute avoidance responsibilities among drones, reducing the average collision constraints in the optimization problem by 1/2.
-- **Improved code structure and implementation**: this implementation abstracts out the underlying AM algorithm from the swarm planning problem, making it easier to adapt the algorithms to your own use cases.
-
 ## Key Enhancements
 
 - **Temporal Waypoint Tracking**: Targets precise arrival times at waypoints, optimizing for temporal accuracy.
