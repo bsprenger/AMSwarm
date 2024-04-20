@@ -1,66 +1,65 @@
-# AMSwarm
-New version of AMSwarm for Swarm GPT. 
+# AMSwarm 2.0
+## Overview
+AMSwarm 2.0 is a high-speed drone swarm trajectory planner that improves upon the original [AMSwarm](https://github.com/utiasDSL/AMSwarm) implementation (and associated [paper](https://arxiv.org/abs/2303.04856)).
 
-ROUGH NOTES FOR NOW, to be fixed later
+The core of AMSwarm 2.0 is written in C++, using the Eigen linear algebra library for high-speed, real-time suitable code. We also provide an easy to use Python wrapper that allows for seamless integration to existing simulators such as [gym-pybullet-drones](https://github.com/utiasDSL/gym-pybullet-drones).
+
+This implementation features several key differences from the original AMSwarm formulation:
+- **Temporal waypoint tracking**: the objective of this implementation is to track waypoints (guarantee arrival at waypoints at specific times) instead of minimizing distance to a goal position
+- **Incorporation of dynamics model**: this implementation makes use of identified dynamics model matrices to more accurately predict trajectories (and avoid collisions)
+- **Optimized Alternating-Minimization (AM) algorithm**: we improve upon the previous AM algorithm, eliminating the need for slow trigonometric operations
+- **Distribution of drone avoidance responsibilities**: we distribute avoidance responsibilities among drones, reducing the average collision constraints in the optimization problem by 1/2.
+- **Improved code structure and implementation**: this implementation abstracts out the underlying AM algorithm from the swarm planning problem, making it easier to adapt the algorithms to your own use cases.
+
+## Key Enhancements
+
+- **Temporal Waypoint Tracking**: Targets precise arrival times at waypoints, optimizing for temporal accuracy.
+- **Dynamics Model Incorporation**: Uses identified dynamics models for enhanced trajectory prediction and collision avoidance.
+- **Optimized AM Algorithm**: Improves the Alternating-Minimization algorithm for greater efficiency, completely eliminating slow trigonometric operations.
+- **Distributed Avoidance Responsibilities**: Distributes avoidance tasks among drones to reduce collision constraints by half.
+- **Improved Code Structure**: Abstracts the AM algorithm for easier adaptation and customization to various use cases.
 
 # Build instructions
 
-You can either build just the C++ library by itself or both the CPP and the Python binding.
+## Prerequisites
 
-## Building C++ and Python binding
+Tested on Ubuntu 20.04 with Python 3.8. Requirements include:
 
-In the project's main folder, run
+- CMake (>=3.12)
+- C++ compiler with OpenMP support
+- [pybind11](https://pybind11.readthedocs.io/en/stable/installing.html) (Note: depending on your system, you may need to install the pybind11-global option for CMake visibility)
 
+## Installing AMSwarm
+1. Clone the AMSwarm repository:
 ```
-:$ pip install .
+git clone https://github.com/bsprenger/AMSwarm.git
 ```
+2. Navigate to the cloned directory and install with pip:
+```
+pip install .
+```
+This will automatically compile the C++ code and install the Python module in the appropriate location for your Python installation.
 
-You should now be able to import amswarm in Python as
+# Using AMSwarm
+
+You can use AMSwarm in C++ by including the appropriate headers in your project and linking against the compiled library. For Python usage, after installation, import the `amswarm` module in your scripts:
 
 ```
 import amswarm
 ```
 
+Refer to the examples provided in the `examples/python` directory for comprehensive usage scenarios.
 
-# Using the library
+# Contributing
 
-Currently AMSwarm is accessible through the Simulator class which takes in waypoints for all drones, creates a Swarm, and runs the optimization until they have reached all the waypoints (or stops if some waypoints are unreachable or other errors occur). Other interfaces will be created in future to directly control the swarm or individual drones.
+We welcome contributions to AMSwarm! If you have suggestions for improvements or encounter any issues, please open an issue or pull request on our GitHub repository.
 
-Usage in python:
+# License
 
-```
-import amswarm
-import numpy as np
+AMSwarm is released under the MIT License. See the LICENSE file for more details.
 
-# for now, waypoint timing MUST BE IN ORDER - will give bad results if time steps are not in order
-# if one drone has no waypoints remaining while others do, it will drift - make sure that all drones have a waypoint at final position to avoid this.
-# first index: drone ID from 0 to num_drones - 1
-# second index: time
-# remaining indices: xyz position, xyz velocity
-waypoints = np.array([[0, 1, 1, 1, 1, 0,0,0], [1, 1, 2, 2, 2, 0, 0, 0], [2, 1, 3, 3, 3, 0, 0, 0]])
+# References
 
-num_drones = 3
-K = 15
-n = 10
-delta_t = 0.2
-p_min = np.array([[-10,-10,-10]])
-p_max = np.array([[10, 10, 10]])
-w_g_p = 7000
-w_g_v = 0
-w_s = 0
-kappa = 1
-v_bar = 1
-f_bar = 10
+[1] Vivek K. Adajania, Siqi Zhou, Arun Kumar Singh, and Angela P. Schoellig. Amswarm: An alternating minimization approach for safe motion planning of quadrotor swarms in cluttered environments. In 2023 IEEE International Conference on Robotics and Automation (ICRA), pages 1421–1427, 2023.
 
-initial_positions = np.array([[0,9,9,9],[1,1,2,3],[2,2,3,4]])
-
-params_filepath = "/home/ben/AMSwarm/cpp/params"
-
-
-sim = amswarm.Simulator(num_drones, K, n, delta_t, p_min, p_max, w_g_p, w_g_v, w_s, kappa, v_bar, f_bar, initial_positions, waypoints, params_filepath)
-
-results = sim.run_simulation()
-print(results)
-```
-
-
+[2] [Original AMSwarm repository](https://github.com/utiasDSL/AMSwarm)
