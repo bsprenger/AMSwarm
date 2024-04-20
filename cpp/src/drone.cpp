@@ -15,12 +15,14 @@ Drone::Drone(AMSolverConfig solverConfig, MatrixXd waypoints, MPCConfig mpcConfi
     mpcConfig(mpcConfig), weights(weights), limits(limits), dynamics(dynamics),
     collision_envelope(3,3), selectionMats(mpcConfig.K)
 {   
-    // Initialize drone dynamics and parameters
+    // Initialize Bernstein polynomials and full horizon dynamics matrices
     std::tie(W, W_dot, W_ddot, W_input) = initBernsteinMatrices(mpcConfig); // move to struct and constructor 
     std::tie(S_x, S_u, S_x_prime, S_u_prime) = initFullHorizonDynamicsMatrices(dynamics); // move to struct and constructor
+    
+    // The inverse of the collision envelope matrix is used in the collision constraints, so we precompute it here
     collision_envelope.insert(0,0) = 1.0 / limits.x_collision_envelope;
     collision_envelope.insert(1,1) = 1.0 / limits.y_collision_envelope;
-    collision_envelope.insert(2,2) = 1.0 / limits.z_collision_envelope; // initialize collision envelope - later move this to a yaml or struct or something
+    collision_envelope.insert(2,2) = 1.0 / limits.z_collision_envelope;
 
     // Precompute matrices that don't change at solve time
     S_u_W_input = S_u * W_input;
@@ -52,11 +54,11 @@ Drone::Drone(AMSolverConfig solverConfig, MatrixXd waypoints, MPCConfig mpcConfi
 
 
 void Drone::preSolve(const DroneSolveArgs& args) {
-    // extract waypoints in current horizon
-    // first column is the STEP, not the TIME TODO check this and also round on init instead of each time
-    // Create a matrix to hold filtered waypoints
+    // extract waypoints in current horizon. Each row is a waypoint, where each waypoint is of the form
+    // [k, x, y, z, vx, vy, vz, ax, ay, az]. k is the discrete STEP in the current horizon, not the time.
     Matrix<double, Dynamic, Dynamic, RowMajor> extracted_waypoints = extractWaypointsInCurrentHorizon(args.current_time);
 
+    // separate and reshape the waypoints into position, velocity, and acceleration vectors
     int n = extracted_waypoints.rows();
     VectorXd extracted_waypoints_pos(3 * n);
     VectorXd extracted_waypoints_vel(3 * n);
@@ -70,10 +72,10 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     }
     
     // extract the penalized steps from the first column of extracted_waypoints
-    // note that the first possible penalized step is 1, NOT 0 TODO check this
+    // note that the first possible penalized step is 1, NOT 0 (since the input cannot affect the initial state so no point in penalizing it)
     VectorXd penalized_steps = extracted_waypoints.block(0,0,extracted_waypoints.rows(),1);
 
-    // initialize optimization parameters
+    // Create a matrix that selects the time steps corresponding to the waypoints from either the position, velocity, or acceleration trajectory
     SparseMatrix<double> M_waypoints(3 * penalized_steps.size(), 3 * (mpcConfig.K + 1));
     SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
     for (int i = 0; i < penalized_steps.size(); ++i) {
@@ -83,6 +85,7 @@ void Drone::preSolve(const DroneSolveArgs& args) {
     // Output smoothness cost
     linearCost += linearCostSmoothnessConstTerm * args.x_0;
 
+    /// --- Add constraints - see thesis document for derivations --- ///
     // Waypoint position cost and/or equality constraint
     SparseMatrix<double>  G_wp = M_waypoints * M_p_S_u_W_input;
     VectorXd h_wp = extracted_waypoints_pos - M_waypoints * M_p_S_x * args.x_0;
@@ -150,39 +153,42 @@ void Drone::preSolve(const DroneSolveArgs& args) {
 DroneResult Drone::postSolve(const VectorXd& zeta, const DroneSolveArgs& args) {
     DroneResult drone_result;
 
-    // state trajectory
+    // get state trajectory vector from spline coefficients, reshape it into a matrix where each row is the state at a time step
     drone_result.state_trajectory_vector = S_x * args.x_0 + S_u_W_input * zeta;
     drone_result.state_trajectory = Map<MatrixXd>(drone_result.state_trajectory_vector.data(), 6, (mpcConfig.K+1)).transpose();
 
-    // position trajectory
+    // extract position trajectory from state trajectory, reshape it into a matrix where each row is the position at a time step
     drone_result.position_trajectory_vector = selectionMats.M_p * drone_result.state_trajectory_vector;
     drone_result.position_trajectory = Map<MatrixXd>(drone_result.position_trajectory_vector.data(), 3, (mpcConfig.K+1)).transpose();
 
-    // input position trajectory
+    // get input position reference from spline coefficients, reshape it into a matrix where each row is the input position at a time step
     drone_result.input_position_trajectory_vector = W * zeta;
     drone_result.input_position_trajectory = Map<MatrixXd>(drone_result.input_position_trajectory_vector.data(), 3, (mpcConfig.K)).transpose();
 
-    // input velocity trajectory
+    // get input velocity reference from spline coefficients, reshape it into a matrix where each row is the input velocity at a time step
     drone_result.input_velocity_trajectory_vector = W_dot * zeta;
     drone_result.input_velocity_trajectory = Map<MatrixXd>(drone_result.input_velocity_trajectory_vector.data(), 3, (mpcConfig.K)).transpose();
 
-    // input acceleration trajectory
+    // get input acceleration reference from spline coefficients, reshape it into a matrix where each row is the input acceleration at a time step
     drone_result.input_acceleration_trajectory_vector = W_ddot * zeta;
     drone_result.input_acceleration_trajectory = Map<MatrixXd>(drone_result.input_acceleration_trajectory_vector.data(), 3, (mpcConfig.K)).transpose();
 
-    // Spline
-    drone_result.spline_coeffs = zeta;
+    drone_result.spline_coeffs = zeta; // spline coeffs directly from optimization results
 
     return drone_result;
 };
 
 
 Matrix<double, Dynamic, Dynamic, RowMajor> Drone::extractWaypointsInCurrentHorizon(double t) {
-    // round all the waypoints to the nearest time step. 
-    // negative time steps are allowed -- we will filter them out later
+    // copy the waypoints
     Matrix<double, Dynamic, Dynamic, RowMajor> rounded_waypoints = waypoints;
+
+    // round the first column of the waypoints to the nearest discrete time step for the given frequency, relative to the current time
+    // note that at this point there could be negative time steps for waypoints that happened before the current time
     rounded_waypoints.col(0) = ((rounded_waypoints.col(0).array() - t) / (1 / mpcConfig.mpc_freq)).round();
-    // filter out waypoints that are outside the current horizon
+    
+    // find the time steps with waypoints that are within the current horizon
+    // note that the smallest time step allowed is 1, not 0: the input cannot affect the initial state so we do not want to extract it
     std::vector<int> rows_in_horizon;
     for (int i = 0; i < rounded_waypoints.rows(); ++i) {
         if (rounded_waypoints(i, 0) >= 1 && rounded_waypoints(i, 0) <= mpcConfig.K) {
@@ -197,7 +203,7 @@ Matrix<double, Dynamic, Dynamic, RowMajor> Drone::extractWaypointsInCurrentHoriz
     // Create a matrix to hold filtered waypoints
     Matrix<double, Dynamic, Dynamic, RowMajor> filtered_waypoints(rows_in_horizon.size(), rounded_waypoints.cols());
 
-    // Copy the rows in the horizon to the new matrix
+    // Copy only the rows in the horizon to the new matrix
     for (size_t i = 0; i < rows_in_horizon.size(); ++i) {
         filtered_waypoints.row(i) = rounded_waypoints.row(rows_in_horizon[i]);
     }
@@ -208,10 +214,11 @@ Matrix<double, Dynamic, Dynamic, RowMajor> Drone::extractWaypointsInCurrentHoriz
 
 
 std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>> Drone::initBernsteinMatrices(const MPCConfig& mpcConfig) {    
+    // See thesis document for derivation of these matrices
     SparseMatrix<double> W(3*mpcConfig.K,3*(mpcConfig.n+1));
     SparseMatrix<double> W_dot(3*mpcConfig.K,3*(mpcConfig.n+1));
     SparseMatrix<double> W_ddot(3*mpcConfig.K,3*(mpcConfig.n+1));
-    SparseMatrix<double> W_input(6*mpcConfig.K,3*(mpcConfig.n+1));
+    SparseMatrix<double> W_input(6*mpcConfig.K,3*(mpcConfig.n+1)); // The drones take the position and velocity references as input. This matrix is used to construct the inputs from the spline coefficients
 
     double t_f = (1 / mpcConfig.mpc_freq)*(mpcConfig.K-1);
     float t;
@@ -294,6 +301,7 @@ std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,Sparse
 
 
 std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>> Drone::initFullHorizonDynamicsMatrices(const SparseDynamics& dynamics) {
+    // see thesis document for derivation of these matrices
     int num_states = dynamics.A.rows();
     int num_inputs = dynamics.B.cols();
 
@@ -342,14 +350,17 @@ std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,Sparse
 };
 
 void DroneResult::advanceForNextSolveStep() {
-    // Shift everything up by 3 elements and then extrapolate the new last position
+    // See explanation in header file
+    // Shift everything up by 3 elements (to get rid of the first time step)
+    // then, extrapolate a new position on the end as an estimate for the last time step
+    // This will be used by other drones to avoid collisions
     int size = position_trajectory_vector.size();
     position_trajectory_vector.segment(0, size - 3) = position_trajectory_vector.segment(3, size - 3);
     Vector3d extrapolated_position = position_trajectory_vector.tail(3) + (position_trajectory_vector.tail(3) - position_trajectory_vector.segment(size - 6, 3));
     position_trajectory_vector.tail(3) = extrapolated_position;
     position_trajectory = Map<MatrixXd>(position_trajectory_vector.data(), 3, position_trajectory_vector.size() / 3).transpose();
 
-    // Advance the input trajectories - no need to extrapolate as we only check the first row TODO add extrapolate for future just in case
+    // Advance the input trajectories - no need to extrapolate as we only check the first row, kinda hacky - could be better
     int inputSize = input_position_trajectory_vector.size();
     input_position_trajectory_vector.segment(0, inputSize - 3) = input_position_trajectory_vector.segment(3, inputSize - 3);
     input_velocity_trajectory_vector.segment(0, inputSize - 3) = input_velocity_trajectory_vector.segment(3, inputSize - 3);
@@ -360,6 +371,7 @@ void DroneResult::advanceForNextSolveStep() {
 }
 
 DroneResult DroneResult::generateInitialDroneResult(const VectorXd& initial_position, int K) {
+    // See explanation in header file
     DroneResult drone_result;
 
     // generate state trajectory by appending zero velocity to initial position and replicating
