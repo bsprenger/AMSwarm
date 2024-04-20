@@ -12,6 +12,27 @@
 #include <algorithm>
 #include <execution>
 
+/**
+ * @file AMSolver.h
+ * @brief Header file defining the AMSolver class and associated configuration structure.
+ *
+ * This file contains the definition of the AMSolver class template, which is designed for solving optimization
+ * problems using the Alternating Minimization (AM) algorithm. It includes a configuration structure, AMSolverConfig,
+ * for setting up solver parameters such as the initial penalty, maximum penalty, and maximum iterations. The AMSolver
+ * class is an abstract template that requires specification of the result type and the solver argument types, making
+ * it customizable for various optimization problems.
+ * 
+ * Child classes should inherit from the AMSolver class and implement the preSolve and postSolve functions to define the
+ * optimization problem and the post-processing of the solution, respectively. The AMSolver class provides a generic
+ * solve function that orchestrates the solving process, including pre-solve setup, the actual solving process, and
+ * post-solve processing. Child classes should not override the solve or actualSolve functions (which define the
+ * actual algorithm and workflow), but can customize the optimization problem by implementing the preSolve and
+ * postSolve functions.
+ *
+ * The main entry point for the user is the solve function, which should be called with the appropriate arguments
+ * to solve the optimization problem from a child class.
+ */
+
 using namespace Eigen;
 
 /**
