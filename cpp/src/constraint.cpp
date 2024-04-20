@@ -23,11 +23,11 @@ VectorXd EqualityConstraint::getLinearTerm() const {
 
 VectorXd EqualityConstraint::getBregmanUpdate(const VectorXd& x) const {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
-    return G_T_G * x - G_T_h;
+    return G_T_G * x - G_T_h; // See thesis document for derivation (Bregman iteration)
 }
 
 bool EqualityConstraint::isSatisfied(const VectorXd& x) const {
-    return (G * x - h).cwiseAbs().maxCoeff() <= tolerance;
+    return (G * x - h).cwiseAbs().maxCoeff() <= tolerance; // Instead of maxcoeff could use .norm() < tolerance for stricter satisfaction
 }
 
 void EqualityConstraint::reset() {
@@ -46,21 +46,21 @@ SparseMatrix<double> InequalityConstraint::getQuadraticTerm() const {
 }
 
 VectorXd InequalityConstraint::getLinearTerm() const {
-    return - G_T_h + G_T * slack;
+    return - G_T_h + G_T * slack; // slack is added to the linear term (see thesis document for derivation, converting inequality to equality constraint)
 }
 
 VectorXd InequalityConstraint::getBregmanUpdate(const VectorXd& x) const {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
-    return G_T_G * x - G_T_h + G_T*slack;
+    return G_T_G * x - G_T_h + G_T*slack; // see thesis document for derivation (Bregman iteration)
 }
 
 void InequalityConstraint::update(const VectorXd& x) {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
-    slack = (- G * x + h).array().max(0);
+    slack = (- G * x + h).array().max(0); // Update the slack variables (see thesis document for derivation, converting inequality to equality constraint)
 }
 
 bool InequalityConstraint::isSatisfied(const VectorXd& x) const {
-    return (G * x - h).maxCoeff() < tolerance;
+    return (G * x - h).maxCoeff() < tolerance; // Instead of maxcoeff could use .norm() < tolerance for stricter satisfaction
 }
 
 void InequalityConstraint::reset() {
@@ -91,12 +91,13 @@ VectorXd PolarInequalityConstraint::getLinearTerm() const {
 
 VectorXd PolarInequalityConstraint::getBregmanUpdate(const VectorXd& x) const {
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
-    return G_T_G * x - G_T*h;
+    return G_T_G * x - G_T*h; // See thesis document for derivation (Bregman iteration)
 }
 
 void PolarInequalityConstraint::update(const VectorXd& x) {
+    // See thesis document for derivation of the following
     if (G.cols() != x.size()) throw std::invalid_argument("G and x are not compatible sizes");
-    
+
     VectorXd h_tmp = G * x + c;
     double prev_norm = 0;
 
@@ -144,5 +145,5 @@ bool PolarInequalityConstraint::isSatisfied(const VectorXd& x) const {
 }
 
 void PolarInequalityConstraint::reset() {
-    h = -c;
+    h = -c; // this essentially assumes initial guesses for angles/scaling are zero
 }
