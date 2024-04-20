@@ -11,14 +11,16 @@ Swarm::Swarm(std::vector<std::shared_ptr<Drone>> drones)
 {   
     num_drones = this->drones.size();
     if (!this->drones.empty()) {
-        int K = this->drones[0]->getK();
-        // create collision matrices
-        SparseMatrix<double> eyeKp1 = SparseMatrix<double>(K+1,K+1);
+        int K = this->drones[0]->getK(); // TODO: check if all drones have the same K
+        
+        // create collision matrices over all time steps for each drone
+        SparseMatrix<double> eyeKp1 = SparseMatrix<double>(K+1,K+1); // TODO: replace with getSparseIdentity
         eyeKp1.setIdentity();
+        
+        // create a vector containing the collision envelopes for each drone across all time steps
         for (int i = 0; i < num_drones; ++i) {
-            // create vector defining collision envelope for each drone across all time steps
-            // at each time step, each drone will take the relevant thetas from this vector
-            all_obstacle_envelopes.push_back(utils::kroneckerProduct(eyeKp1, this->drones[i]->getCollisionEnvelope())); // contains collision envelope for all drones for all time steps
+            // at each time step, each drone will take the relevant collision envelopes from this vector according to which drones they need to avoid
+            all_obstacle_envelopes.push_back(utils::kroneckerProduct(eyeKp1, this->drones[i]->getCollisionEnvelope()));
         }
     }
 };
@@ -39,10 +41,10 @@ std::tuple<std::vector<bool>,std::vector<int>,std::vector<DroneResult>> Swarm::s
     // Map each drone to a list of drones it should avoid
     std::unordered_map<int, std::vector<int>> avoidance_map;
 
-    // Determine avoidance responsibilities before the loop
+    // Determine avoidance responsibilities
     for (int i = 0; i < num_drones; ++i) {
         for (int j = i + 1; j < num_drones; ++j) {
-            // Decide which drone should avoid the other
+            // Decide which drone should avoid the other - see thesis document for details
             if (avoidance_counts[i] <= avoidance_counts[j]) {
                 avoidance_map[i].push_back(j);
                 avoidance_counts[i]++;
@@ -98,7 +100,7 @@ std::tuple<std::vector<bool>,std::vector<int>,std::vector<DroneResult>> Swarm::s
 }
 
 bool Swarm::checkIntersection(const VectorXd& traj1, const VectorXd& traj2, const SparseMatrix<double>& theta) {
-    VectorXd diff = theta*(traj1 - traj2);
+    VectorXd diff = theta*(traj1 - traj2); // theta accounts for the collision envelopes by scaling the difference between the two trajectories
     // Iterate over chunks of 3 rows (x,y,z positions for one time)
     for (int i = 0; i < diff.size(); i += 3) {
         double norm = diff.segment(i, 3).norm();
