@@ -14,42 +14,112 @@
 
 using namespace Eigen;
 
+/**
+ * @struct AMSolverConfig
+ * @brief Configuration settings for the AMSolver.
+ * 
+ * Encapsulates configuration options for the AMSolver, including parameters like the initial penalty parameter (`rho_init`),
+ * the maximum allowed penalty parameter (`max_rho`), and the maximum number of iterations to run the solver (`max_iters`).
+ */
 struct AMSolverConfig {
     double rho_init;
     double max_rho;
     int max_iters;
 
+    // Default constructor
     AMSolverConfig () {};
+
+    /**
+     * @brief Constructor with initialization.
+     * @param rho_init Initial value of rho.
+     * @param max_rho Maximum allowable value of rho.
+     * @param max_iters Maximum number of iterations.
+     */
     AMSolverConfig(double rho_init, double max_rho, int max_iters)
         : rho_init(rho_init), max_rho(max_rho), max_iters(max_iters) {};
 };
 
-// Abstract class for solver
+/**
+ * @class AMSolver
+ * @brief Abstract class template for an Alternating Minimization (AM) Solver.
+ * 
+ * The AMSolver is designed to solve optimization problems by alternating between solving for the optimization variables and updating 
+ * dual variables, using a specified set of constraints. The solver is customizable, allowing for various types
+ * of constraints and optimization problems to be solved. The idea is to allow for creating custom solvers by inheriting from this class
+ * and implementing the preSolve and postSolve functions.
+ * 
+ * @tparam ResultType The type of the result produced by the solver.
+ * @tparam SolverArgsType The type of the arguments required for solving the problem.
+ */
 template<typename ResultType, typename SolverArgsType>
 class AMSolver {
 protected:
-    std::vector<std::unique_ptr<Constraint>> constConstraints;
-    std::vector<std::unique_ptr<Constraint>> nonConstConstraints;
-    AMSolverConfig solverConfig;
+    std::vector<std::unique_ptr<Constraint>> constConstraints; // Constant constraints that do not change between solves. They are known at initialization of the solver.
+    std::vector<std::unique_ptr<Constraint>> nonConstConstraints; // Non-constant constraints that can be updated between solves.
+    AMSolverConfig solverConfig; // Configuration for the solver.
 
     // cost of the form 0.5 * x^T * quadCost * x + x^T * linearCost
-    SparseMatrix<double> initialQuadCost;
-    VectorXd initialLinearCost;
-    SparseMatrix<double> quadCost;
-    VectorXd linearCost;
+    SparseMatrix<double> initialQuadCost; // The initial quadratic cost matrix which can be set at construction by child classes.
+    VectorXd initialLinearCost; // The initial linear cost vector which can be set at construction by child classes.
+    SparseMatrix<double> quadCost; // The current quadratic cost matrix (is modified during solving)
+    VectorXd linearCost; // The current linear cost vector (is modified during solving)
 
+    /**
+     * @brief Called before the solve process begins, allowing for setup of the optimization problem
+     * and the constraints which change at solve time (adding non-const constraints, modifying the cost matrices, etc.)
+     * This function should be implemented by child classes for the specific optimization problem.
+     * @param args The arguments required for the pre-solve process.
+     */
     virtual void preSolve(const SolverArgsType& args) = 0;
+    
+    /**
+     * @brief Called after the solve process ends, allowing for any necessary cleanup or result processing.
+     * This function should be implemented by child classes for the specific optimization problem.
+     * @param x The solution vector from the solve process.
+     * @param args The arguments required for the post-solve process.
+     * @return The result of the post-solve process, of type ResultType.
+     */
     virtual ResultType postSolve(const VectorXd& x, const SolverArgsType& args) = 0;
+
+    /**
+     * @brief Conducts the actual solving process, implementing the optimization algorithm.
+     * This function is NOT meant to be overridden by child classes, as it contains the core solving logic.
+     * @param args The arguments required for solving the problem.
+     * @return A tuple containing a success flag, the number of iterations, and the solution vector.
+     */
     std::tuple<bool, int, VectorXd> actualSolve(const SolverArgsType& args);
+
+    /// @brief Resets the cost matrices to their initial values.
     void resetCostMatrices();
 
 public:
     AMSolver(AMSolverConfig config) : solverConfig(config) {};
     virtual ~AMSolver() = default;
 
+    /**
+     * @brief Adds a constraint to the solver via a unique pointer
+     * (which transfers ownership to the solver, as constraints should not be
+     * modified by multiple solvers at once).
+     * @param constraint The constraint to be added.
+     * @param isConstant Indicates if the constraint is constant (true) or can be updated (false).
+     */
     void addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant);
+
+    /**
+     * @brief Updates all the non-constant constraints based on the current optimization variables.
+     * @param x The current optimization variables.
+     */
     void updateConstraints(const VectorXd& x);
+
+    /// @brief Resets the constraints to their initial state.
     void resetConstraints();
+
+    /**
+     * @brief Solves the optimization problem. This is the main function to be called by the user and should NOT be overridden as it
+     * contains the main solving workflow (preSolve, actualSolve, postSolve).
+     * @param args The arguments required for solving the problem.
+     * @return A tuple containing a success flag, the number of iterations, and the result of type ResultType.
+     */
     std::tuple<bool, int, ResultType> solve(const SolverArgsType& args);
 };
 
@@ -63,17 +133,18 @@ void AMSolver<ResultType, SolverArgsType>::resetCostMatrices() {
 
 template<typename ResultType, typename SolverArgsType>
 std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(const SolverArgsType& args) {
-    SimplicialLDLT<SparseMatrix<double>> linearSolver;
+    SimplicialLDLT<SparseMatrix<double>> linearSolver; // SimplicialLDLT is chosen for its efficiency in dealing with sparse systems.
 
     int iters  = 0;
     double rho = solverConfig.rho_init;
     bool solver_initialized = false;
 
-    SparseMatrix<double> Q(quadCost.rows(), quadCost.cols());
-    VectorXd q = VectorXd::Zero(quadCost.rows());
-    VectorXd x = VectorXd::Zero(quadCost.rows());
-    VectorXd bregmanMult = VectorXd::Zero(quadCost.rows());
+    SparseMatrix<double> Q(quadCost.rows(), quadCost.cols()); // Holds the combined quadratic terms
+    VectorXd q = VectorXd::Zero(quadCost.rows()); // Holds the combined linear terms
+    VectorXd x = VectorXd::Zero(quadCost.rows()); // The optimization variable
+    VectorXd bregmanMult = VectorXd::Zero(quadCost.rows()); // The Bregman multiplier (see thesis document for details on Bregman iteration)
 
+    // Aggregate the quadratic and linear terms from all constraints.
     SparseMatrix<double> quadConstraintTerms(quadCost.rows(), quadCost.cols());
     VectorXd linearConstraintTerms = VectorXd::Zero(linearCost.rows());
     for (auto& constraint : constConstraints) {
@@ -85,6 +156,7 @@ std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolv
         linearConstraintTerms += constraint->getLinearTerm();
     }
 
+    // Iteratively solve the optimization problem until a solution is found or the iteration limit is reached.
     while (iters < solverConfig.max_iters) {
         Q = quadCost + rho * quadConstraintTerms;
         
@@ -113,7 +185,7 @@ std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolv
             return std::make_tuple(true, iters, x); // Exit the loop, indicate success with the bool
         }
 
-        // Update the penalty parameter and iters
+        // With the new solution x, recalculate the linear term so we can get the Bregman multiplier
         linearConstraintTerms.setZero();
         for (auto& constraint : constConstraints) {
             linearConstraintTerms += constraint->getLinearTerm();
@@ -121,9 +193,12 @@ std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolv
         for (auto& constraint : nonConstConstraints) {
             linearConstraintTerms += constraint->getLinearTerm();
         }
+
+        // Calculate the Bregman multiplier (see thesis document for derivation)
         VectorXd bregmanUpdate = 0.5 * (quadConstraintTerms * x + linearConstraintTerms);
-        bregmanMult -= bregmanUpdate; // TODO check the direction
+        bregmanMult -= bregmanUpdate;
         
+        // Gradually increase the penalty parameter to enforce constraints
         rho *= solverConfig.rho_init;
         rho = std::min(rho, solverConfig.max_rho);
         iters++;
@@ -134,6 +209,8 @@ std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolv
 
 template<typename ResultType, typename SolverArgsType>
 void AMSolver<ResultType, SolverArgsType>::addConstraint(std::unique_ptr<Constraint> constraint, bool isConstant) {
+    // Add a constraint to the appropriate list, based on whether it is constant or not.
+    // This separation allows for efficient management and updates of constraints between solves.
     if (isConstant) {
         constConstraints.push_back(std::move(constraint));
     } else {
@@ -156,6 +233,8 @@ void AMSolver<ResultType, SolverArgsType>::updateConstraints(const VectorXd& x) 
 
 template<typename ResultType, typename SolverArgsType>
 void AMSolver<ResultType, SolverArgsType>::resetConstraints() {
+    // Resets all constraints to their initial states. This is crucial when re-using the solver instance
+    // for multiple solves, ensuring that stale state from previous solves does not affect new ones.
     std::for_each(constConstraints.begin(), constConstraints.end(),
                   [](const std::unique_ptr<Constraint>& constraint) {
                       constraint->reset();
@@ -169,20 +248,26 @@ void AMSolver<ResultType, SolverArgsType>::resetConstraints() {
 
 template<typename ResultType, typename SolverArgsType>
 std::tuple<bool, int, ResultType> AMSolver<ResultType, SolverArgsType>::solve(const SolverArgsType& args) {
+    // The main entry point for solving the optimization problem. This method orchestrates the entire
+    // process, from preparation through to obtaining and processing the final solution.
+    // This is the function that should be called by the user to solve the problem. To customize the
+    // solving process, the preSolve and postSolve functions should be implemented in child classes, but
+    // this function should not be overridden, and neither should the actualSolve function.
+
     // Reset the cost and get rid of any carryover constraints from previous solves which need to be rebuilt
     resetCostMatrices();
     nonConstConstraints.clear();
 
     // Build new constraints and add to the cost matrices
-    preSolve(args);
+    preSolve(args); // Custom pre-solve logic, implemented by derived classes.
 
     // Ensure no carryover updates from previous solve
     resetConstraints();
 
-    // Solve the problem
-    auto [success, iters, result] = actualSolve(args); // TODO make explicit
+    // Execute the solve process, obtaining the raw solution vector.
+    auto [success, iters, result] = actualSolve(args);
 
-    // Post-solve operations, e.g. modify the return format
+    // Post-processing of the solution, as defined by derived classes, e.g. modify the return format
     return std::make_tuple(success, iters, postSolve(result, args));
 }
 
