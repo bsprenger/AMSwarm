@@ -146,7 +146,7 @@ def run_online_sim(waypoints, gui = True):
     # Set numpy print options for better readability
     np.set_printoptions(precision=3, suppress=True, linewidth=100)
     # Load simulation settings from a YAML file
-    settings = load_yaml_file("../../cpp/params/model_params.yaml")
+    settings = load_yaml_file("../../params/model_params.yaml")
 
     # Extract drone info from waypoints
     drone_ids = list(waypoints.keys())
