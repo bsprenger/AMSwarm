@@ -1,9 +1,9 @@
 # AMSwarm library source files
 set(AMSWARM_SOURCES
-    constraint.cpp
-    drone.cpp
-    swarm.cpp
-    utils.cpp
+    amswarm/constraint.cpp
+    amswarm/drone.cpp
+    amswarm/swarm.cpp
+    amswarm/utils.cpp
 )
 
 # Create the library target
