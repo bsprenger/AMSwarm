@@ -59,3 +59,33 @@ file(GLOB PYTHON_WRAPPER_FILES "pybindings/*.cpp")
 pybind11_add_module(amswarm MODULE ${PYTHON_WRAPPER_FILES})
 target_include_directories(amswarm PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/cpp/include)
 target_link_libraries(amswarm PUBLIC AMSwarm)
+
+# Testing
+enable_testing()
+
+# Fetch Google Test
+find_package(GTest QUIET)
+if(NOT GTest_FOUND)
+  message(STATUS "GTest not found system-wide, fetching from source...")
+  FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.14.0
+    GIT_SHALLOW TRUE
+  )
+  # For Windows: Prevent overriding the parent project's compiler/linker settings
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+endif()
+
+# Add test executable
+add_executable(amswarm_tests tests/test_basic.cpp)
+target_link_libraries(amswarm_tests 
+  PRIVATE 
+    AMSwarm 
+    GTest::gtest
+)
+
+# Register test with CTest
+include(GoogleTest)
+gtest_discover_tests(amswarm_tests)
