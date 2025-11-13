@@ -4,3 +4,7 @@ amswarm.egg-info/
 /.history/
 /.vscode/
 /examples/python/__pycache__/
+/_deps/
+/CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
