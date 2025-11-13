@@ -1,5 +1,5 @@
-#include <swarm.h>
-#include <utils.h>
+#include <amswarm/swarm.h>
+#include <amswarm/utils.h>
 #include <stdexcept>
 
 

@@ -1,4 +1,4 @@
-#include <constraint.h>
+#include <amswarm/constraint.h>
 
 #include <stdexcept>
 #include <cmath>
