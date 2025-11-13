@@ -1,0 +1,7 @@
+add_test([=[BasicTest.EigenDependencyAvailable]=]  /home/runner/work/AMSwarm/AMSwarm/_codeql_build_dir/amswarm_tests [==[--gtest_filter=BasicTest.EigenDependencyAvailable]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[BasicTest.EigenDependencyAvailable]=]  PROPERTIES WORKING_DIRECTORY /home/runner/work/AMSwarm/AMSwarm/_codeql_build_dir SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+add_test([=[BasicTest.AMSwarmHeadersAvailable]=]  /home/runner/work/AMSwarm/AMSwarm/_codeql_build_dir/amswarm_tests [==[--gtest_filter=BasicTest.AMSwarmHeadersAvailable]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[BasicTest.AMSwarmHeadersAvailable]=]  PROPERTIES WORKING_DIRECTORY /home/runner/work/AMSwarm/AMSwarm/_codeql_build_dir SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+add_test([=[BasicTest.DummyTest]=]  /home/runner/work/AMSwarm/AMSwarm/_codeql_build_dir/amswarm_tests [==[--gtest_filter=BasicTest.DummyTest]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[BasicTest.DummyTest]=]  PROPERTIES WORKING_DIRECTORY /home/runner/work/AMSwarm/AMSwarm/_codeql_build_dir SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+set(  amswarm_tests_TESTS BasicTest.EigenDependencyAvailable BasicTest.AMSwarmHeadersAvailable BasicTest.DummyTest)
