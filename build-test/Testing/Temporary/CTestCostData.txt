@@ -1,3 +1,0 @@
-BasicTest.GoogleTestWorks 1 0.00211171
-UtilsTest.BasicFunctionality 1 0.00151799
----

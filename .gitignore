@@ -1,4 +1,5 @@
 /build/
+/build-*/
 /cpp/build/
 amswarm.egg-info/
 /.history/
