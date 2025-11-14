@@ -15,9 +15,11 @@ add_library(AMSwarm::AMSwarm ALIAS AMSwarm)
 # Set target properties
 target_include_directories(AMSwarm PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external>
     $<INSTALL_INTERFACE:include>
 )
 
 # Link dependencies
-target_link_libraries(AMSwarm PUBLIC OpenMP::OpenMP_CXX)
+target_link_libraries(AMSwarm PUBLIC 
+    OpenMP::OpenMP_CXX
+    eigen
+)
