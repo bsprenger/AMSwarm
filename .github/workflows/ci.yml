@@ -23,27 +23,16 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ libomp-dev
+          sudo apt-get install -y cmake g++ libomp-dev ninja-build
 
       - name: Configure CMake
-        run: |
-          mkdir -p build
-          cd build
-          cmake -DCMAKE_BUILD_TYPE=Release \
-                -DBUILD_TESTS=ON \
-                -DBUILD_PYTHON_BINDINGS=OFF \
-                -DCMAKE_CXX_COMPILER=g++ \
-                ..
+        run: cmake --preset gcc-release
 
       - name: Build
-        run: |
-          cd build
-          make -j$(nproc)
+        run: cmake --build --preset gcc-release
 
       - name: Run tests
-        run: |
-          cd build
-          ctest --output-on-failure --verbose
+        run: ctest --preset gcc-release
 
   # Build and test with Clang
   build-clang:
@@ -57,27 +46,16 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake clang libomp-dev
+          sudo apt-get install -y cmake clang libomp-dev ninja-build
 
       - name: Configure CMake
-        run: |
-          mkdir -p build
-          cd build
-          cmake -DCMAKE_BUILD_TYPE=Release \
-                -DBUILD_TESTS=ON \
-                -DBUILD_PYTHON_BINDINGS=OFF \
-                -DCMAKE_CXX_COMPILER=clang++ \
-                ..
+        run: cmake --preset clang-release
 
       - name: Build
-        run: |
-          cd build
-          make -j$(nproc)
+        run: cmake --build --preset clang-release
 
       - name: Run tests
-        run: |
-          cd build
-          ctest --output-on-failure --verbose
+        run: ctest --preset clang-release
 
   # Code formatting check
   format-check:
@@ -117,24 +95,16 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake clang clang-tidy libomp-dev
+          sudo apt-get install -y cmake clang clang-tidy libomp-dev ninja-build
 
       - name: Configure CMake
-        run: |
-          mkdir -p build
-          cd build
-          cmake -DCMAKE_BUILD_TYPE=Debug \
-                -DBUILD_TESTS=ON \
-                -DBUILD_PYTHON_BINDINGS=OFF \
-                -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-                -DCMAKE_CXX_COMPILER=clang++ \
-                ..
+        run: cmake --preset clang-tidy
 
       - name: Run clang-tidy
         run: |
-          cd build
+          cd build/clang-tidy
           # Run clang-tidy on source files
-          find ../amswarm -name "*.cpp" -type f -exec clang-tidy -p . {} \; 2>&1 | tee clang-tidy.log || true
+          find ../../amswarm -name "*.cpp" -type f -exec clang-tidy -p . {} \; 2>&1 | tee clang-tidy.log || true
           # Show summary
           echo "Clang-tidy analysis completed. Check log for details."
 
@@ -150,28 +120,16 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake clang libomp-dev
+          sudo apt-get install -y cmake clang libomp-dev ninja-build
 
       - name: Configure CMake with AddressSanitizer
-        run: |
-          mkdir -p build
-          cd build
-          cmake -DCMAKE_BUILD_TYPE=Debug \
-                -DBUILD_TESTS=ON \
-                -DBUILD_PYTHON_BINDINGS=OFF \
-                -DCMAKE_CXX_COMPILER=clang++ \
-                -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer -g" \
-                ..
+        run: cmake --preset asan
 
       - name: Build with AddressSanitizer
-        run: |
-          cd build
-          make -j$(nproc)
+        run: cmake --build --preset asan
 
       - name: Run tests with AddressSanitizer
-        run: |
-          cd build
-          ASAN_OPTIONS=detect_leaks=1 ctest --output-on-failure --verbose
+        run: ctest --preset asan
 
   # CMake configuration validation
   cmake-validation:
@@ -185,21 +143,15 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ libomp-dev
+          sudo apt-get install -y cmake g++ libomp-dev ninja-build
 
-      - name: Test different CMake configurations
+      - name: Test different CMake presets
         run: |
-          # Test with tests enabled
-          mkdir -p build-test-on
-          cd build-test-on
-          cmake -DBUILD_TESTS=ON -DBUILD_PYTHON_BINDINGS=OFF ..
-          cd ..
+          # Test debug preset
+          cmake --preset debug
           
-          # Test with tests disabled
-          mkdir -p build-test-off
-          cd build-test-off
-          cmake -DBUILD_TESTS=OFF -DBUILD_PYTHON_BINDINGS=OFF ..
-          cd ..
+          # Test release preset
+          cmake --preset release
 
       - name: Validate CMake files
         run: |
