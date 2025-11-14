@@ -1,0 +1,5 @@
+add_test([=[BasicTest.GoogleTestWorks]=]  /home/runner/work/AMSwarm/AMSwarm/build-test/tests/amswarm_tests [==[--gtest_filter=BasicTest.GoogleTestWorks]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[BasicTest.GoogleTestWorks]=]  PROPERTIES WORKING_DIRECTORY /home/runner/work/AMSwarm/AMSwarm/build-test/tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+add_test([=[UtilsTest.BasicFunctionality]=]  /home/runner/work/AMSwarm/AMSwarm/build-test/tests/amswarm_tests [==[--gtest_filter=UtilsTest.BasicFunctionality]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[UtilsTest.BasicFunctionality]=]  PROPERTIES WORKING_DIRECTORY /home/runner/work/AMSwarm/AMSwarm/build-test/tests SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+set(  amswarm_tests_TESTS BasicTest.GoogleTestWorks UtilsTest.BasicFunctionality)

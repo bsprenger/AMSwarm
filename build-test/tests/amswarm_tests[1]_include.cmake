@@ -1,0 +1,5 @@
+if(EXISTS "/home/runner/work/AMSwarm/AMSwarm/build-test/tests/amswarm_tests[1]_tests.cmake")
+  include("/home/runner/work/AMSwarm/AMSwarm/build-test/tests/amswarm_tests[1]_tests.cmake")
+else()
+  add_test(amswarm_tests_NOT_BUILT amswarm_tests_NOT_BUILT)
+endif()
