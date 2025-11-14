@@ -21,8 +21,9 @@ The core of AMSwarm 2.0 is written in C++, using the Eigen linear algebra librar
 
 Tested on Ubuntu 20.04 with Python 3.8. Requirements include:
 
-- CMake (>=3.12)
+- CMake (>=3.14)
 - C++ compiler with OpenMP support
+- Ninja build system (recommended)
 - [pybind11](https://pybind11.readthedocs.io/en/stable/installing.html) (Note: depending on your system, you may need to install the pybind11-global option for CMake visibility)
 
 ## Installing AMSwarm
@@ -35,6 +36,25 @@ git clone https://github.com/bsprenger/AMSwarm.git
 pip install .
 ```
 This will automatically compile the C++ code and install the Python module in the appropriate location for your Python installation.
+
+## Building for Development
+
+This project uses CMake Presets for standardized build configurations. See [CMAKE_PRESETS.md](CMAKE_PRESETS.md) for detailed instructions.
+
+Quick start:
+```bash
+# Debug build
+cmake --preset debug
+cmake --build --preset debug
+ctest --preset debug
+
+# Release build
+cmake --preset release
+cmake --build --preset release
+ctest --preset release
+```
+
+Available presets include: debug, release, relwithdebinfo, asan, tsan, ubsan, clang-tidy, coverage, gcc-release, and clang-release.
 
 # Using AMSwarm
 
