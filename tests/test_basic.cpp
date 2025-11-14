@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include "utils.h"
-#include "swarm.h"
+#include <amswarm/utils.h>
+#include <amswarm/swarm.h>
 
 // Basic test to verify Google Test is working
 TEST(BasicTest, GoogleTestWorks) {

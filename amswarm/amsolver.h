@@ -1,7 +1,7 @@
 #ifndef AMSOLVER_H
 #define AMSOLVER_H
 
-#include <constraint.h>
+#include "constraint.h"
 
 #include <Eigen/Dense>
 #include <Eigen/Sparse>

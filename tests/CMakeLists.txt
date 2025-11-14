@@ -1,11 +1,13 @@
 # Test executable
-add_executable(amswarm_tests
+set(TEST_SOURCES
     test_basic.cpp
 )
 
+add_executable(amswarm_tests ${TEST_SOURCES})
+
 target_link_libraries(amswarm_tests
     PRIVATE
-    AMSwarm
+    AMSwarm::AMSwarm
     GTest::gtest_main
 )
 
