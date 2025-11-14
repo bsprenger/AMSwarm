@@ -1,6 +1,10 @@
 # Test executable
 set(TEST_SOURCES
-    test_basic.cpp
+    test_utils.cpp
+    test_drone.cpp
+    test_swarm.cpp
+    test_constraint.cpp
+    test_amsolver.cpp
 )
 
 add_executable(amswarm_tests ${TEST_SOURCES})
