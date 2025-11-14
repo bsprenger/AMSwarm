@@ -29,20 +29,20 @@ public:
     virtual ~Constraint() {}
 
     /**
-     * Retrieves the quadratic term of the constraint-as-penalty. 
-     * 
+     * Retrieves the quadratic term of the constraint-as-penalty.
+     *
      * All constraints can be reformulated as quadratic penalties ||Ax - b||^2
      * in the cost function instead of hard constraints. This penalty can be
      * expanded into a quadratic term of the form x^T*Q*x, a linear term of the
      * form c^T * x, and a constant term. This function returns the sparse
      * matrix Q representing the quadratic term.
-     * @return A sparse matrix representing the quadratic term.
+     * @return A const reference to a sparse matrix representing the quadratic term.
      */
-    virtual SparseMatrix<double> getQuadraticTerm() const = 0;
+    virtual const SparseMatrix<double>& getQuadraticTerm() const = 0;
 
     /**
-     * Retrieves the linear term of the constraint-as-penalty. 
-     * 
+     * Retrieves the linear term of the constraint-as-penalty.
+     *
      * All constraints can be formulated as quadratic penalties ||Gx - h||^2
      * in the cost function instead of hard constraints. This penalty can be
      * expanded into a quadratic term of the form x^T*Q*x, a linear term of the
@@ -54,7 +54,7 @@ public:
 
     /**
      * Calculates and returns the Bregman "multiplier" update based on the current point.
-     * 
+     *
      * See thesis document for more information on Bregman iteration.
      * @param x The current point as a vector.
      * @return The Bregman update as a vector.
@@ -86,22 +86,21 @@ public:
  */
 class EqualityConstraint : public Constraint {
 private:
-    SparseMatrix<double> G; // The matrix part of the constraint Gx = h
-    VectorXd h; // The vector part of the constraint Gx = h
-    SparseMatrix<double> G_T; // Transpose of G, precomputed for efficiency
-    SparseMatrix<double> G_T_G; // G^T * G, precomputed for efficiency
-    VectorXd G_T_h; // G^T * h, precomputed for efficiency
-    double tolerance; // Tolerance within which the constraint is considered satisfied
+    SparseMatrix<double> G;      // The matrix part of the constraint Gx = h
+    VectorXd h;                  // The vector part of the constraint Gx = h
+    SparseMatrix<double> G_T;    // Transpose of G, precomputed for efficiency
+    SparseMatrix<double> G_T_G;  // G^T * G, precomputed for efficiency
+    VectorXd G_T_h;              // G^T * h, precomputed for efficiency
+    double tolerance;            // Tolerance within which the constraint is considered satisfied
 
 public:
     EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-2);
-    SparseMatrix<double> getQuadraticTerm() const override;
+    const SparseMatrix<double>& getQuadraticTerm() const override;
     VectorXd getLinearTerm() const override;
     VectorXd getBregmanUpdate(const VectorXd& x) const override;
     bool isSatisfied(const VectorXd& x) const override;
     void reset() override;
 };
-
 
 /**
  * @class InequalityConstraint
@@ -109,17 +108,18 @@ public:
  */
 class InequalityConstraint : public Constraint {
 private:
-    SparseMatrix<double> G; // The matrix part of the constraint Gx <= h
-    VectorXd h; // The vector part of the constraint Gx <= h
-    SparseMatrix<double> G_T; // Transpose of G, precomputed for efficiency
-    SparseMatrix<double> G_T_G; // G^T * G, precomputed for efficiency
-    VectorXd G_T_h; // G^T * h, precomputed for efficiency
-    VectorXd slack; // Slack variable to convert inequality to equality constraint (see thesis document)
-    double tolerance; // Tolerance within which the constraint is considered satisfied
+    SparseMatrix<double> G;      // The matrix part of the constraint Gx <= h
+    VectorXd h;                  // The vector part of the constraint Gx <= h
+    SparseMatrix<double> G_T;    // Transpose of G, precomputed for efficiency
+    SparseMatrix<double> G_T_G;  // G^T * G, precomputed for efficiency
+    VectorXd G_T_h;              // G^T * h, precomputed for efficiency
+    VectorXd
+        slack;  // Slack variable to convert inequality to equality constraint (see thesis document)
+    double tolerance;  // Tolerance within which the constraint is considered satisfied
 
 public:
     InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-2);
-    SparseMatrix<double> getQuadraticTerm() const override;
+    const SparseMatrix<double>& getQuadraticTerm() const override;
     VectorXd getLinearTerm() const override;
     VectorXd getBregmanUpdate(const VectorXd& x) const override;
     void update(const VectorXd& x) override;
@@ -131,36 +131,39 @@ public:
  * @class PolarInequalityConstraint
  * @brief Manages polar inequality constraints of a specialized form.
  *
- * This class is designed to handle constraints defined by polar coordinates that conform to the formula:
- * Gx + c = h(alpha, beta, d), with the boundary condition lwr_bound <= d <= upr_bound.
+ * This class is designed to handle constraints defined by polar coordinates that conform to the
+ * formula: Gx + c = h(alpha, beta, d), with the boundary condition lwr_bound <= d <= upr_bound.
  *
- * Here, 'alpha', 'beta', and 'd' are vectors with a length of K+1, where 'd' represents the distance from the origin, 
- * 'alpha' the azimuthal angle, and 'beta' the polar angle. The vector 'h' has a length of 3(K+1), where each set of three elements
- * in 'h()' represents a point in 3D space expressed as:
- * 
+ * Here, 'alpha', 'beta', and 'd' are vectors with a length of K+1, where 'd' represents the
+ * distance from the origin, 'alpha' the azimuthal angle, and 'beta' the polar angle. The vector 'h'
+ * has a length of 3(K+1), where each set of three elements in 'h()' represents a point in 3D space
+ * expressed as:
+ *
  * d[k] * [cos(alpha[k]) * sin(beta[k]), sin(alpha[k]) * sin(beta[k]), cos(beta[k])]^T
- * 
- * This represents a unit vector defined by angles 'alpha[k]' and 'beta[k]', scaled by 'd[k]', where 'k' is an index running from 0 to K. 
- * The index range from 0 to K can be interpreted as discrete time steps, allowing this constraint to serve as a Barrier Function (BF) 
- * constraint to manage the rate at which a constraint boundary is approached over successive time steps.
+ *
+ * This represents a unit vector defined by angles 'alpha[k]' and 'beta[k]', scaled by 'd[k]', where
+ * 'k' is an index running from 0 to K. The index range from 0 to K can be interpreted as discrete
+ * time steps, allowing this constraint to serve as a Barrier Function (BF) constraint to manage the
+ * rate at which a constraint boundary is approached over successive time steps.
  */
 class PolarInequalityConstraint : public Constraint {
 private:
-    SparseMatrix<double> G; // The matrix part of the constraint Gx + c = h(alpha, beta, d)
-    SparseMatrix<double> G_T; // Transpose of G, precomputed for efficiency
-    SparseMatrix<double> G_T_G; // G^T * G, precomputed for efficiency
-    VectorXd c; // The vector part of the constraint Gx + c = h(alpha, beta, d)
-    VectorXd h; // Variable to hold the h part of the constraint Gx + c = h(alpha, beta, d)
-    double lwr_bound; // can be -inf for unbounded (see -std::numeric_limits<double>::infinity())
-    double upr_bound; // can be +inf for unbounded (see std::numeric_limits<double>::infinity())
-    bool apply_upr_bound; // Flag to indicate if the upper bound is finite
-    bool apply_lwr_bound; // Flag to indicate if the lower bound is finite
-    double bf_gamma; // Barrier function gamma parameter (see thesis document)
-    double tolerance; // Tolerance within which the constraint is considered satisfied
+    SparseMatrix<double> G;      // The matrix part of the constraint Gx + c = h(alpha, beta, d)
+    SparseMatrix<double> G_T;    // Transpose of G, precomputed for efficiency
+    SparseMatrix<double> G_T_G;  // G^T * G, precomputed for efficiency
+    VectorXd c;                  // The vector part of the constraint Gx + c = h(alpha, beta, d)
+    VectorXd h;        // Variable to hold the h part of the constraint Gx + c = h(alpha, beta, d)
+    double lwr_bound;  // can be -inf for unbounded (see -std::numeric_limits<double>::infinity())
+    double upr_bound;  // can be +inf for unbounded (see std::numeric_limits<double>::infinity())
+    bool apply_upr_bound;  // Flag to indicate if the upper bound is finite
+    bool apply_lwr_bound;  // Flag to indicate if the lower bound is finite
+    double bf_gamma;       // Barrier function gamma parameter (see thesis document)
+    double tolerance;      // Tolerance within which the constraint is considered satisfied
 
 public:
-    PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound, double upr_bound, double bf_gamma = 1.0, double tolerance = 1e-2);
-    SparseMatrix<double> getQuadraticTerm() const override;
+    PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound,
+                              double upr_bound, double bf_gamma = 1.0, double tolerance = 1e-2);
+    const SparseMatrix<double>& getQuadraticTerm() const override;
     VectorXd getLinearTerm() const override;
     VectorXd getBregmanUpdate(const VectorXd& x) const override;
     void update(const VectorXd& x) override;
@@ -168,4 +171,4 @@ public:
     void reset() override;
 };
 
-#endif // CONSTRAINT_H
+#endif  // CONSTRAINT_H
