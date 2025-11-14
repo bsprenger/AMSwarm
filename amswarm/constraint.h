@@ -36,9 +36,9 @@ public:
      * expanded into a quadratic term of the form x^T*Q*x, a linear term of the
      * form c^T * x, and a constant term. This function returns the sparse
      * matrix Q representing the quadratic term.
-     * @return A sparse matrix representing the quadratic term.
+     * @return A const reference to a sparse matrix representing the quadratic term.
      */
-    virtual SparseMatrix<double> getQuadraticTerm() const = 0;
+    virtual const SparseMatrix<double>& getQuadraticTerm() const = 0;
 
     /**
      * Retrieves the linear term of the constraint-as-penalty. 
@@ -95,7 +95,7 @@ private:
 
 public:
     EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-2);
-    SparseMatrix<double> getQuadraticTerm() const override;
+    const SparseMatrix<double>& getQuadraticTerm() const override;
     VectorXd getLinearTerm() const override;
     VectorXd getBregmanUpdate(const VectorXd& x) const override;
     bool isSatisfied(const VectorXd& x) const override;
@@ -119,7 +119,7 @@ private:
 
 public:
     InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-2);
-    SparseMatrix<double> getQuadraticTerm() const override;
+    const SparseMatrix<double>& getQuadraticTerm() const override;
     VectorXd getLinearTerm() const override;
     VectorXd getBregmanUpdate(const VectorXd& x) const override;
     void update(const VectorXd& x) override;
@@ -160,7 +160,7 @@ private:
 
 public:
     PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound, double upr_bound, double bf_gamma = 1.0, double tolerance = 1e-2);
-    SparseMatrix<double> getQuadraticTerm() const override;
+    const SparseMatrix<double>& getQuadraticTerm() const override;
     VectorXd getLinearTerm() const override;
     VectorXd getBregmanUpdate(const VectorXd& x) const override;
     void update(const VectorXd& x) override;
