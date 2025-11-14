@@ -26,6 +26,8 @@ Tested on Ubuntu 20.04 with Python 3.8. Requirements include:
 - Ninja build system (recommended)
 - [pybind11](https://pybind11.readthedocs.io/en/stable/installing.html) (Note: depending on your system, you may need to install the pybind11-global option for CMake visibility)
 
+**Note:** The Eigen linear algebra library and GoogleTest (for testing) are automatically downloaded and configured by CMake using FetchContent. You do not need to install these dependencies manually.
+
 ## Installing AMSwarm
 1. Clone the AMSwarm repository:
 ```
