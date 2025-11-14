@@ -1,0 +1,200 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  # Build and test with GCC
+  build-gcc:
+    name: Build & Test (GCC)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libomp-dev
+
+      - name: Configure CMake
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DBUILD_TESTS=ON \
+                -DBUILD_PYTHON_BINDINGS=OFF \
+                -DCMAKE_CXX_COMPILER=g++ \
+                ..
+
+      - name: Build
+        run: |
+          cd build
+          make -j$(nproc)
+
+      - name: Run tests
+        run: |
+          cd build
+          ctest --output-on-failure --verbose
+
+  # Build and test with Clang
+  build-clang:
+    name: Build & Test (Clang)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake clang libomp-dev
+
+      - name: Configure CMake
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release \
+                -DBUILD_TESTS=ON \
+                -DBUILD_PYTHON_BINDINGS=OFF \
+                -DCMAKE_CXX_COMPILER=clang++ \
+                ..
+
+      - name: Build
+        run: |
+          cd build
+          make -j$(nproc)
+
+      - name: Run tests
+        run: |
+          cd build
+          ctest --output-on-failure --verbose
+
+  # Code formatting check
+  format-check:
+    name: Code Format Check
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+
+      - name: Check formatting
+        run: |
+          # Find all C++ source and header files
+          find amswarm tests -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) | while read file; do
+            clang-format --dry-run --Werror "$file" 2>&1 | tee -a format-check.log
+          done
+          # Check if there were any formatting issues
+          if [ -s format-check.log ]; then
+            echo "Formatting issues found. Run 'clang-format -i' on the files above."
+            exit 1
+          fi
+
+  # Static analysis with clang-tidy
+  static-analysis:
+    name: Static Analysis (clang-tidy)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake clang clang-tidy libomp-dev
+
+      - name: Configure CMake
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Debug \
+                -DBUILD_TESTS=ON \
+                -DBUILD_PYTHON_BINDINGS=OFF \
+                -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+                -DCMAKE_CXX_COMPILER=clang++ \
+                ..
+
+      - name: Run clang-tidy
+        run: |
+          cd build
+          # Run clang-tidy on source files
+          find ../amswarm -name "*.cpp" -type f -exec clang-tidy -p . {} \; 2>&1 | tee clang-tidy.log || true
+          # Show summary
+          echo "Clang-tidy analysis completed. Check log for details."
+
+  # Memory check with sanitizers
+  sanitizers:
+    name: Memory Sanitizers
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake clang libomp-dev
+
+      - name: Configure CMake with AddressSanitizer
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Debug \
+                -DBUILD_TESTS=ON \
+                -DBUILD_PYTHON_BINDINGS=OFF \
+                -DCMAKE_CXX_COMPILER=clang++ \
+                -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer -g" \
+                ..
+
+      - name: Build with AddressSanitizer
+        run: |
+          cd build
+          make -j$(nproc)
+
+      - name: Run tests with AddressSanitizer
+        run: |
+          cd build
+          ASAN_OPTIONS=detect_leaks=1 ctest --output-on-failure --verbose
+
+  # CMake configuration validation
+  cmake-validation:
+    name: CMake Configuration Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libomp-dev
+
+      - name: Test different CMake configurations
+        run: |
+          # Test with tests enabled
+          mkdir -p build-test-on
+          cd build-test-on
+          cmake -DBUILD_TESTS=ON -DBUILD_PYTHON_BINDINGS=OFF ..
+          cd ..
+          
+          # Test with tests disabled
+          mkdir -p build-test-off
+          cd build-test-off
+          cmake -DBUILD_TESTS=OFF -DBUILD_PYTHON_BINDINGS=OFF ..
+          cd ..
+
+      - name: Validate CMake files
+        run: |
+          echo "All CMake configurations validated successfully"

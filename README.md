@@ -1,4 +1,7 @@
 # AMSwarm 2.0
+
+[![CI](https://github.com/bsprenger/AMSwarm/actions/workflows/ci.yml/badge.svg)](https://github.com/bsprenger/AMSwarm/actions/workflows/ci.yml)
+
 ## Overview
 AMSwarm 2.0 is a high-speed drone swarm trajectory planner that improves upon the original [AMSwarm](https://github.com/utiasDSL/AMSwarm) implementation (and associated [paper](https://arxiv.org/abs/2303.04856)).
 
