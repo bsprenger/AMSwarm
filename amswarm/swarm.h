@@ -1,7 +1,7 @@
 #ifndef SWARM_H
 #define SWARM_H
 
-#include <amswarm/drone.h>
+#include "drone.h"
 
 /**
  * @file swarm.h

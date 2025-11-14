@@ -27,7 +27,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 # Add subdirectories
-add_subdirectory(src)
+add_subdirectory(amswarm)
 add_subdirectory(bindings)
 
 # Google Test for unit testing

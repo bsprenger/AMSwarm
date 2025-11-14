@@ -1,8 +1,8 @@
 #ifndef DRONE_H
 #define DRONE_H
 
-#include <amswarm/amsolver.h>
-#include <amswarm/utils.h>
+#include "amsolver.h"
+#include "utils.h"
 
 #include <cmath>
 #include <vector>
