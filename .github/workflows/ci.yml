@@ -184,3 +184,25 @@ jobs:
       - name: Validate CMake files
         run: |
           echo "All CMake configurations validated successfully"
+
+  # Python tests
+  python-tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: Install pytest
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+
+      - name: Run Python tests
+        run: |
+          pytest tests/python -v

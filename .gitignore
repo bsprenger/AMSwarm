@@ -7,3 +7,15 @@ amswarm.egg-info/
 /examples/python/__pycache__/
 /_deps/
 /cpp/tests/build/
+# Python test artifacts
+**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.eggs/
+*.egg
+dist/
+*.egg-info/

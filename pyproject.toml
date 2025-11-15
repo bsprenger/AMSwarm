@@ -29,3 +29,8 @@ classifiers = [
 keywords = ["drones", "control", "swarm", "path planning"]
 dependencies = []
 requires-python = ">=3.8"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+]
