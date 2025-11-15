@@ -13,18 +13,17 @@ include(FetchContent)
 find_package(OpenMP REQUIRED)
 
 # Fetch Eigen linear algebra library
-# Note: Using version 3.3.7 as it's the latest available from the GitHub mirror
-# Eigen 3.4.0 is only available from GitLab which may not be accessible
+# Using Eigen 5.0.0 from the official GitLab repository
 FetchContent_Declare(
-    Eigen3
-    GIT_REPOSITORY https://github.com/eigenteam/eigen-git-mirror.git
-    GIT_TAG 3.3.7
+    Eigen
+    GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+    GIT_TAG 5.0.0
     GIT_SHALLOW TRUE
 )
 set(EIGEN_BUILD_DOC OFF CACHE BOOL "" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(Eigen3)
+FetchContent_MakeAvailable(Eigen)
 
 # Option to enable/disable tests
 option(BUILD_TESTS "Build tests" OFF)
