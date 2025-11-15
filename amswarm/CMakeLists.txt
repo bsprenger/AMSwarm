@@ -21,5 +21,5 @@ target_include_directories(AMSwarm PUBLIC
 # Link dependencies
 target_link_libraries(AMSwarm PUBLIC 
     OpenMP::OpenMP_CXX
-    eigen
+    Eigen3::Eigen
 )
