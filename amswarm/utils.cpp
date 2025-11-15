@@ -1,5 +1,7 @@
 #include "utils.h"
 
+#include <cassert>
+#include <stdexcept>
 
 namespace amswarm {
 namespace utils {
