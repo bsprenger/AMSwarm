@@ -1,10 +1,14 @@
 #include "utils.h"
 
 
-using namespace Eigen;
-
-
+namespace amswarm {
 namespace utils {
+
+// Eigen type aliases for implementation file
+using MatrixXd = Eigen::MatrixXd;
+using VectorXd = Eigen::VectorXd;
+template<typename T>
+using SparseMatrix = Eigen::SparseMatrix<T>;
     
 int nchoosek(int n, int k) {
     if (k < 0 || k > n) {
@@ -248,5 +252,6 @@ void replaceSparseBlock(SparseMatrix<double>& targetSparseMatrix, const SparseMa
         }
     }
 }
-        
-} // end namespace utils
+
+} // namespace utils
+} // namespace amswarm

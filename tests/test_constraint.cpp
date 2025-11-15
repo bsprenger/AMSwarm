@@ -4,7 +4,8 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
-using namespace Eigen;
+using namespace amswarm;
+using Eigen::Triplet;
 
 // Test EqualityConstraint construction and basic getters
 TEST(EqualityConstraintTest, ConstructionAndGetters) {

@@ -4,7 +4,12 @@
 #include <limits>
 #include <stdexcept>
 
-using namespace Eigen;
+namespace amswarm {
+
+// Eigen type aliases
+using VectorXd = Eigen::VectorXd;
+template<typename T>
+using SparseMatrix = Eigen::SparseMatrix<T>;
 
 EqualityConstraint::EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h,
                                        double tolerance)
@@ -174,3 +179,5 @@ bool PolarInequalityConstraint::isSatisfied(const VectorXd& x) const {
 void PolarInequalityConstraint::reset() {
     h = -c;  // this essentially assumes initial guesses for angles/scaling are zero
 }
+
+} // namespace amswarm

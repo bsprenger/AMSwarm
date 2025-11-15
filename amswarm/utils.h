@@ -13,9 +13,14 @@
  * horizontal and vertical concatenation, block diagonal, and sparse matrix replication.
  */
 
-using namespace Eigen;
-
+namespace amswarm {
 namespace utils {
+
+// Eigen type aliases
+using MatrixXd = Eigen::MatrixXd;
+using VectorXd = Eigen::VectorXd;
+template<typename T>
+using SparseMatrix = Eigen::SparseMatrix<T>;
 
     /**
      * Calculates the binomial coefficient ("n choose k").
@@ -128,7 +133,8 @@ namespace utils {
      */
     void replaceSparseBlock(SparseMatrix<double>& targetSparseMatrix, const SparseMatrix<double>& sourceSparseMatrix, int startRow, int startCol);
 
-} // end namespace utils
+} // namespace utils
+} // namespace amswarm
 
 
 #endif

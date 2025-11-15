@@ -14,7 +14,12 @@
  * functionality for each type of constraint.
  */
 
-using namespace Eigen;
+namespace amswarm {
+
+// Eigen type aliases
+using VectorXd = Eigen::VectorXd;
+template<typename T>
+using SparseMatrix = Eigen::SparseMatrix<T>;
 
 /**
  * @class Constraint
@@ -170,5 +175,7 @@ public:
     bool isSatisfied(const VectorXd& x) const override;
     void reset() override;
 };
+
+} // namespace amswarm
 
 #endif  // CONSTRAINT_H

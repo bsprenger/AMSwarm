@@ -33,7 +33,15 @@
  * - SparseDynamics: Structure to hold the sparse dynamics matrices for the drone.
  */
 
-using namespace Eigen;
+namespace amswarm {
+
+// Eigen type aliases
+using MatrixXd = Eigen::MatrixXd;
+using VectorXd = Eigen::VectorXd;
+template<typename T>
+using SparseMatrix = Eigen::SparseMatrix<T>;
+template<typename T, int Rows, int Cols, int Options>
+using Matrix = Eigen::Matrix<T, Rows, Cols, Options>;
 
 /**
  * @struct DroneResult
@@ -308,7 +316,7 @@ protected:
      * @return A matrix containing the waypoints within the current optimization horizon where each row is a waypoint,
      * with a waypoint given by [t, x, y, z, vx, vy, vz, ax, ay. az] (v = velocity, a = acceleration).
      */
-    Matrix<double, Dynamic, Dynamic, RowMajor> extractWaypointsInCurrentHorizon(double t);
+    Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> extractWaypointsInCurrentHorizon(double t);
 
     /**
      * @brief Initializes the Bernstein matrices and their derivatives.
@@ -331,5 +339,7 @@ protected:
      */
     std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>> initFullHorizonDynamicsMatrices(const SparseDynamics& dynamics);
 };
+
+} // namespace amswarm
 
 #endif

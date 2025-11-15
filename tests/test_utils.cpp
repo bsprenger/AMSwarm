@@ -3,8 +3,8 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
-using namespace Eigen;
-using namespace utils;
+using namespace amswarm::utils;
+using Eigen::Triplet;
 
 // Test nchoosek function
 TEST(UtilsTest, NChooseK) {

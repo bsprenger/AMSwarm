@@ -2,8 +2,12 @@
 #include "utils.h"
 #include <stdexcept>
 
+namespace amswarm {
 
-using namespace Eigen;
+// Eigen type aliases
+using VectorXd = Eigen::VectorXd;
+template<typename T>
+using SparseMatrix = Eigen::SparseMatrix<T>;
 
 
 Swarm::Swarm(std::vector<std::shared_ptr<Drone>> drones)
@@ -112,3 +116,5 @@ bool Swarm::checkIntersection(const VectorXd& traj1, const VectorXd& traj2, cons
     // If no chunk's norm was <= 1, then no intersection was detected
     return false;
 }
+
+} // namespace amswarm

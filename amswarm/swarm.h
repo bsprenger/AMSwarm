@@ -15,7 +15,12 @@
  * @see Drone
  */
 
-using namespace Eigen;
+namespace amswarm {
+
+// Eigen type aliases
+using VectorXd = Eigen::VectorXd;
+template<typename T>
+using SparseMatrix = Eigen::SparseMatrix<T>;
 
 
 class Swarm {
@@ -65,5 +70,7 @@ private:
      */
     bool checkIntersection(const VectorXd& traj1, const VectorXd& traj2, const SparseMatrix<double>& theta_tmp);
 };
+
+} // namespace amswarm
 
 #endif

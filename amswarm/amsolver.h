@@ -33,7 +33,14 @@
  * to solve the optimization problem from a child class.
  */
 
-using namespace Eigen;
+namespace amswarm {
+
+// Eigen type aliases
+using VectorXd = Eigen::VectorXd;
+template<typename T>
+using SparseMatrix = Eigen::SparseMatrix<T>;
+template<typename T>
+using SimplicialLDLT = Eigen::SimplicialLDLT<T>;
 
 /**
  * @struct AMSolverConfig
@@ -291,5 +298,7 @@ std::tuple<bool, int, ResultType> AMSolver<ResultType, SolverArgsType>::solve(co
     // Post-processing of the solution, as defined by derived classes, e.g. modify the return format
     return std::make_tuple(success, iters, postSolve(result, args));
 }
+
+} // namespace amswarm
 
 #endif // AMSOLVER_H

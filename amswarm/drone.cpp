@@ -5,8 +5,16 @@
 #include <algorithm>
 #include <stdexcept>
 
+namespace amswarm {
 
-using namespace Eigen;
+// Eigen type aliases
+using MatrixXd = Eigen::MatrixXd;
+using VectorXd = Eigen::VectorXd;
+using Vector3d = Eigen::Vector3d;
+template<typename T>
+using SparseMatrix = Eigen::SparseMatrix<T>;
+template<typename PlainObjectType, int MapOptions, typename StrideType>
+using Map = Eigen::Map<PlainObjectType, MapOptions, StrideType>;
 
 
 Drone::Drone(AMSolverConfig solverConfig, MatrixXd waypoints, MPCConfig mpcConfig, MPCWeights weights,
@@ -56,7 +64,7 @@ Drone::Drone(AMSolverConfig solverConfig, MatrixXd waypoints, MPCConfig mpcConfi
 void Drone::preSolve(const DroneSolveArgs& args) {
     // extract waypoints in current horizon. Each row is a waypoint, where each waypoint is of the form
     // [k, x, y, z, vx, vy, vz, ax, ay, az]. k is the discrete STEP in the current horizon, not the time.
-    Matrix<double, Dynamic, Dynamic, RowMajor> extracted_waypoints = extractWaypointsInCurrentHorizon(args.current_time);
+    Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> extracted_waypoints = extractWaypointsInCurrentHorizon(args.current_time);
 
     // separate and reshape the waypoints into position, velocity, and acceleration vectors
     int n = extracted_waypoints.rows();
@@ -155,23 +163,23 @@ DroneResult Drone::postSolve(const VectorXd& zeta, const DroneSolveArgs& args) {
 
     // get state trajectory vector from spline coefficients, reshape it into a matrix where each row is the state at a time step
     drone_result.state_trajectory_vector = S_x * args.x_0 + S_u_W_input * zeta;
-    drone_result.state_trajectory = Map<MatrixXd>(drone_result.state_trajectory_vector.data(), 6, (mpcConfig.K+1)).transpose();
+    drone_result.state_trajectory = Eigen::Map<MatrixXd>(drone_result.state_trajectory_vector.data(), 6, (mpcConfig.K+1)).transpose();
 
     // extract position trajectory from state trajectory, reshape it into a matrix where each row is the position at a time step
     drone_result.position_trajectory_vector = selectionMats.M_p * drone_result.state_trajectory_vector;
-    drone_result.position_trajectory = Map<MatrixXd>(drone_result.position_trajectory_vector.data(), 3, (mpcConfig.K+1)).transpose();
+    drone_result.position_trajectory = Eigen::Map<MatrixXd>(drone_result.position_trajectory_vector.data(), 3, (mpcConfig.K+1)).transpose();
 
     // get input position reference from spline coefficients, reshape it into a matrix where each row is the input position at a time step
     drone_result.input_position_trajectory_vector = W * zeta;
-    drone_result.input_position_trajectory = Map<MatrixXd>(drone_result.input_position_trajectory_vector.data(), 3, (mpcConfig.K)).transpose();
+    drone_result.input_position_trajectory = Eigen::Map<MatrixXd>(drone_result.input_position_trajectory_vector.data(), 3, (mpcConfig.K)).transpose();
 
     // get input velocity reference from spline coefficients, reshape it into a matrix where each row is the input velocity at a time step
     drone_result.input_velocity_trajectory_vector = W_dot * zeta;
-    drone_result.input_velocity_trajectory = Map<MatrixXd>(drone_result.input_velocity_trajectory_vector.data(), 3, (mpcConfig.K)).transpose();
+    drone_result.input_velocity_trajectory = Eigen::Map<MatrixXd>(drone_result.input_velocity_trajectory_vector.data(), 3, (mpcConfig.K)).transpose();
 
     // get input acceleration reference from spline coefficients, reshape it into a matrix where each row is the input acceleration at a time step
     drone_result.input_acceleration_trajectory_vector = W_ddot * zeta;
-    drone_result.input_acceleration_trajectory = Map<MatrixXd>(drone_result.input_acceleration_trajectory_vector.data(), 3, (mpcConfig.K)).transpose();
+    drone_result.input_acceleration_trajectory = Eigen::Map<MatrixXd>(drone_result.input_acceleration_trajectory_vector.data(), 3, (mpcConfig.K)).transpose();
 
     drone_result.spline_coeffs = zeta; // spline coeffs directly from optimization results
 
@@ -179,9 +187,9 @@ DroneResult Drone::postSolve(const VectorXd& zeta, const DroneSolveArgs& args) {
 };
 
 
-Matrix<double, Dynamic, Dynamic, RowMajor> Drone::extractWaypointsInCurrentHorizon(double t) {
+Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Drone::extractWaypointsInCurrentHorizon(double t) {
     // copy the waypoints
-    Matrix<double, Dynamic, Dynamic, RowMajor> rounded_waypoints = waypoints;
+    Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> rounded_waypoints = waypoints;
 
     // round the first column of the waypoints to the nearest discrete time step for the given frequency, relative to the current time
     // note that at this point there could be negative time steps for waypoints that happened before the current time
@@ -201,7 +209,7 @@ Matrix<double, Dynamic, Dynamic, RowMajor> Drone::extractWaypointsInCurrentHoriz
     }
 
     // Create a matrix to hold filtered waypoints
-    Matrix<double, Dynamic, Dynamic, RowMajor> filtered_waypoints(rows_in_horizon.size(), rounded_waypoints.cols());
+    Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> filtered_waypoints(rows_in_horizon.size(), rounded_waypoints.cols());
 
     // Copy only the rows in the horizon to the new matrix
     for (size_t i = 0; i < rows_in_horizon.size(); ++i) {
@@ -358,16 +366,16 @@ void DroneResult::advanceForNextSolveStep() {
     position_trajectory_vector.segment(0, size - 3) = position_trajectory_vector.segment(3, size - 3);
     Vector3d extrapolated_position = position_trajectory_vector.tail(3) + (position_trajectory_vector.tail(3) - position_trajectory_vector.segment(size - 6, 3));
     position_trajectory_vector.tail(3) = extrapolated_position;
-    position_trajectory = Map<MatrixXd>(position_trajectory_vector.data(), 3, position_trajectory_vector.size() / 3).transpose();
+    position_trajectory = Eigen::Map<MatrixXd>(position_trajectory_vector.data(), 3, position_trajectory_vector.size() / 3).transpose();
 
     // Advance the input trajectories - no need to extrapolate as we only check the first row, kinda hacky - could be better
     int inputSize = input_position_trajectory_vector.size();
     input_position_trajectory_vector.segment(0, inputSize - 3) = input_position_trajectory_vector.segment(3, inputSize - 3);
     input_velocity_trajectory_vector.segment(0, inputSize - 3) = input_velocity_trajectory_vector.segment(3, inputSize - 3);
     input_acceleration_trajectory_vector.segment(0, inputSize - 3) = input_acceleration_trajectory_vector.segment(3, inputSize - 3);
-    input_position_trajectory = Map<MatrixXd>(input_position_trajectory_vector.data(), 3, (input_position_trajectory_vector.size()/3)).transpose();
-    input_velocity_trajectory = Map<MatrixXd>(input_velocity_trajectory_vector.data(), 3, (input_velocity_trajectory_vector.size()/3)).transpose();
-    input_acceleration_trajectory = Map<MatrixXd>(input_acceleration_trajectory_vector.data(), 3, (input_acceleration_trajectory_vector.size()/3)).transpose();
+    input_position_trajectory = Eigen::Map<MatrixXd>(input_position_trajectory_vector.data(), 3, (input_position_trajectory_vector.size()/3)).transpose();
+    input_velocity_trajectory = Eigen::Map<MatrixXd>(input_velocity_trajectory_vector.data(), 3, (input_velocity_trajectory_vector.size()/3)).transpose();
+    input_acceleration_trajectory = Eigen::Map<MatrixXd>(input_acceleration_trajectory_vector.data(), 3, (input_acceleration_trajectory_vector.size()/3)).transpose();
 }
 
 DroneResult DroneResult::generateInitialDroneResult(const VectorXd& initial_position, int K) {
@@ -378,23 +386,23 @@ DroneResult DroneResult::generateInitialDroneResult(const VectorXd& initial_posi
     VectorXd initial_state = VectorXd::Zero(6);
     initial_state.head(3) = initial_position;
     drone_result.state_trajectory_vector = initial_state.replicate(K+1,1);
-    drone_result.state_trajectory = Map<MatrixXd>(drone_result.state_trajectory_vector.data(), 6, (K+1)).transpose();
+    drone_result.state_trajectory = Eigen::Map<MatrixXd>(drone_result.state_trajectory_vector.data(), 6, (K+1)).transpose();
 
     // generate position trajectory by replicating initial position
     drone_result.position_trajectory_vector = initial_position.replicate(K+1,1);
-    drone_result.position_trajectory = Map<MatrixXd>(drone_result.position_trajectory_vector.data(), 3, (K+1)).transpose();
+    drone_result.position_trajectory = Eigen::Map<MatrixXd>(drone_result.position_trajectory_vector.data(), 3, (K+1)).transpose();
 
     // generate input position trajectory by replicating initial position K times
     drone_result.input_position_trajectory_vector = initial_position.replicate(K,1);
-    drone_result.input_position_trajectory = Map<MatrixXd>(drone_result.input_position_trajectory_vector.data(), 3, (K)).transpose();
+    drone_result.input_position_trajectory = Eigen::Map<MatrixXd>(drone_result.input_position_trajectory_vector.data(), 3, (K)).transpose();
 
     // generate input velocity trajectory by replicating zero K times
     drone_result.input_velocity_trajectory_vector = VectorXd::Zero(3*K);
-    drone_result.input_velocity_trajectory = Map<MatrixXd>(drone_result.input_velocity_trajectory_vector.data(), 3, (K)).transpose();
+    drone_result.input_velocity_trajectory = Eigen::Map<MatrixXd>(drone_result.input_velocity_trajectory_vector.data(), 3, (K)).transpose();
 
     // generate input acceleration trajectory by replicating zero K times
     drone_result.input_acceleration_trajectory_vector = VectorXd::Zero(3*K);
-    drone_result.input_acceleration_trajectory = Map<MatrixXd>(drone_result.input_acceleration_trajectory_vector.data(), 3, (K)).transpose();
+    drone_result.input_acceleration_trajectory = Eigen::Map<MatrixXd>(drone_result.input_acceleration_trajectory_vector.data(), 3, (K)).transpose();
 
     return drone_result;
 }
@@ -407,3 +415,5 @@ SparseMatrix<double> Drone::getCollisionEnvelope() {
 int Drone::getK() {
     return mpcConfig.K;
 }
+
+} // namespace amswarm
