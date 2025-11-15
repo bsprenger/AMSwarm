@@ -34,6 +34,11 @@ jobs:
         run: |
           brew install cmake libomp ninja
 
+      - name: Set OpenMP paths (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "OpenMP_ROOT=$(brew --prefix libomp)" >> $GITHUB_ENV
+
       - name: Configure CMake
         run: cmake --preset gcc-release
 
@@ -65,6 +70,11 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install cmake libomp ninja
+
+      - name: Set OpenMP paths (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "OpenMP_ROOT=$(brew --prefix libomp)" >> $GITHUB_ENV
 
       - name: Configure CMake
         run: cmake --preset clang-release
