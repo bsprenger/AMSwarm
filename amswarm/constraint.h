@@ -14,7 +14,7 @@
  * functionality for each type of constraint.
  */
 
-using namespace Eigen;
+namespace amswarm {
 
 /**
  * @class Constraint
@@ -38,7 +38,7 @@ public:
      * matrix Q representing the quadratic term.
      * @return A const reference to a sparse matrix representing the quadratic term.
      */
-    virtual const SparseMatrix<double>& getQuadraticTerm() const = 0;
+    virtual const Eigen::SparseMatrix<double>& getQuadraticTerm() const = 0;
 
     /**
      * Retrieves the linear term of the constraint-as-penalty.
@@ -50,7 +50,7 @@ public:
      * representing the linear term.
      * @return A vector representing the linear term.
      */
-    virtual VectorXd getLinearTerm() const = 0;
+    virtual Eigen::VectorXd getLinearTerm() const = 0;
 
     /**
      * Calculates and returns the Bregman "multiplier" update based on the current point.
@@ -59,20 +59,20 @@ public:
      * @param x The current point as a vector.
      * @return The Bregman update as a vector.
      */
-    virtual VectorXd getBregmanUpdate(const VectorXd& x) const = 0;
+    virtual Eigen::VectorXd getBregmanUpdate(const Eigen::VectorXd& x) const = 0;
 
     /**
      * Updates the internal state of the constraint if necessary (e.g. slack variables).
      * @param x The current point as a vector.
      */
-    virtual void update(const VectorXd& x) {};
+    virtual void update(const Eigen::VectorXd& x) {};
 
     /**
      * Checks if the constraint is satisfied at the given point.
      * @param x The point to check as a vector.
      * @return True if the constraint is satisfied, false otherwise.
      */
-    virtual bool isSatisfied(const VectorXd& x) const = 0;
+    virtual bool isSatisfied(const Eigen::VectorXd& x) const = 0;
 
     /**
      * Resets the internal state of the constraint to its initial state.
@@ -86,19 +86,19 @@ public:
  */
 class EqualityConstraint : public Constraint {
 private:
-    SparseMatrix<double> G;      // The matrix part of the constraint Gx = h
-    VectorXd h;                  // The vector part of the constraint Gx = h
-    SparseMatrix<double> G_T;    // Transpose of G, precomputed for efficiency
-    SparseMatrix<double> G_T_G;  // G^T * G, precomputed for efficiency
-    VectorXd G_T_h;              // G^T * h, precomputed for efficiency
+    Eigen::SparseMatrix<double> G;      // The matrix part of the constraint Gx = h
+    Eigen::VectorXd h;                  // The vector part of the constraint Gx = h
+    Eigen::SparseMatrix<double> G_T;    // Transpose of G, precomputed for efficiency
+    Eigen::SparseMatrix<double> G_T_G;  // G^T * G, precomputed for efficiency
+    Eigen::VectorXd G_T_h;              // G^T * h, precomputed for efficiency
     double tolerance;            // Tolerance within which the constraint is considered satisfied
 
 public:
-    EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-2);
-    const SparseMatrix<double>& getQuadraticTerm() const override;
-    VectorXd getLinearTerm() const override;
-    VectorXd getBregmanUpdate(const VectorXd& x) const override;
-    bool isSatisfied(const VectorXd& x) const override;
+    EqualityConstraint(const Eigen::SparseMatrix<double>& G, const Eigen::VectorXd& h, double tolerance = 1e-2);
+    const Eigen::SparseMatrix<double>& getQuadraticTerm() const override;
+    Eigen::VectorXd getLinearTerm() const override;
+    Eigen::VectorXd getBregmanUpdate(const Eigen::VectorXd& x) const override;
+    bool isSatisfied(const Eigen::VectorXd& x) const override;
     void reset() override;
 };
 
@@ -108,22 +108,22 @@ public:
  */
 class InequalityConstraint : public Constraint {
 private:
-    SparseMatrix<double> G;      // The matrix part of the constraint Gx <= h
-    VectorXd h;                  // The vector part of the constraint Gx <= h
-    SparseMatrix<double> G_T;    // Transpose of G, precomputed for efficiency
-    SparseMatrix<double> G_T_G;  // G^T * G, precomputed for efficiency
-    VectorXd G_T_h;              // G^T * h, precomputed for efficiency
-    VectorXd
+    Eigen::SparseMatrix<double> G;      // The matrix part of the constraint Gx <= h
+    Eigen::VectorXd h;                  // The vector part of the constraint Gx <= h
+    Eigen::SparseMatrix<double> G_T;    // Transpose of G, precomputed for efficiency
+    Eigen::SparseMatrix<double> G_T_G;  // G^T * G, precomputed for efficiency
+    Eigen::VectorXd G_T_h;              // G^T * h, precomputed for efficiency
+    Eigen::VectorXd
         slack;  // Slack variable to convert inequality to equality constraint (see thesis document)
     double tolerance;  // Tolerance within which the constraint is considered satisfied
 
 public:
-    InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h, double tolerance = 1e-2);
-    const SparseMatrix<double>& getQuadraticTerm() const override;
-    VectorXd getLinearTerm() const override;
-    VectorXd getBregmanUpdate(const VectorXd& x) const override;
-    void update(const VectorXd& x) override;
-    bool isSatisfied(const VectorXd& x) const override;
+    InequalityConstraint(const Eigen::SparseMatrix<double>& G, const Eigen::VectorXd& h, double tolerance = 1e-2);
+    const Eigen::SparseMatrix<double>& getQuadraticTerm() const override;
+    Eigen::VectorXd getLinearTerm() const override;
+    Eigen::VectorXd getBregmanUpdate(const Eigen::VectorXd& x) const override;
+    void update(const Eigen::VectorXd& x) override;
+    bool isSatisfied(const Eigen::VectorXd& x) const override;
     void reset() override;
 };
 
@@ -148,11 +148,11 @@ public:
  */
 class PolarInequalityConstraint : public Constraint {
 private:
-    SparseMatrix<double> G;      // The matrix part of the constraint Gx + c = h(alpha, beta, d)
-    SparseMatrix<double> G_T;    // Transpose of G, precomputed for efficiency
-    SparseMatrix<double> G_T_G;  // G^T * G, precomputed for efficiency
-    VectorXd c;                  // The vector part of the constraint Gx + c = h(alpha, beta, d)
-    VectorXd h;        // Variable to hold the h part of the constraint Gx + c = h(alpha, beta, d)
+    Eigen::SparseMatrix<double> G;      // The matrix part of the constraint Gx + c = h(alpha, beta, d)
+    Eigen::SparseMatrix<double> G_T;    // Transpose of G, precomputed for efficiency
+    Eigen::SparseMatrix<double> G_T_G;  // G^T * G, precomputed for efficiency
+    Eigen::VectorXd c;                  // The vector part of the constraint Gx + c = h(alpha, beta, d)
+    Eigen::VectorXd h;        // Variable to hold the h part of the constraint Gx + c = h(alpha, beta, d)
     double lwr_bound;  // can be -inf for unbounded (see -std::numeric_limits<double>::infinity())
     double upr_bound;  // can be +inf for unbounded (see std::numeric_limits<double>::infinity())
     bool apply_upr_bound;  // Flag to indicate if the upper bound is finite
@@ -161,14 +161,16 @@ private:
     double tolerance;      // Tolerance within which the constraint is considered satisfied
 
 public:
-    PolarInequalityConstraint(const SparseMatrix<double>& G, const VectorXd& c, double lwr_bound,
+    PolarInequalityConstraint(const Eigen::SparseMatrix<double>& G, const Eigen::VectorXd& c, double lwr_bound,
                               double upr_bound, double bf_gamma = 1.0, double tolerance = 1e-2);
-    const SparseMatrix<double>& getQuadraticTerm() const override;
-    VectorXd getLinearTerm() const override;
-    VectorXd getBregmanUpdate(const VectorXd& x) const override;
-    void update(const VectorXd& x) override;
-    bool isSatisfied(const VectorXd& x) const override;
+    const Eigen::SparseMatrix<double>& getQuadraticTerm() const override;
+    Eigen::VectorXd getLinearTerm() const override;
+    Eigen::VectorXd getBregmanUpdate(const Eigen::VectorXd& x) const override;
+    void update(const Eigen::VectorXd& x) override;
+    bool isSatisfied(const Eigen::VectorXd& x) const override;
     void reset() override;
 };
+
+} // namespace amswarm
 
 #endif  // CONSTRAINT_H

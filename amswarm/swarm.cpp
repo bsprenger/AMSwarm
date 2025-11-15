@@ -2,8 +2,10 @@
 #include "utils.h"
 #include <stdexcept>
 
+namespace amswarm {
 
-using namespace Eigen;
+using VectorXd = Eigen::VectorXd;
+using SparseMatrixDouble = Eigen::SparseMatrix<double>;
 
 
 Swarm::Swarm(std::vector<std::shared_ptr<Drone>> drones)
@@ -14,7 +16,7 @@ Swarm::Swarm(std::vector<std::shared_ptr<Drone>> drones)
         int K = this->drones[0]->getK(); // TODO: check if all drones have the same K
         
         // create collision matrices over all time steps for each drone
-        SparseMatrix<double> eyeKp1 = SparseMatrix<double>(K+1,K+1); // TODO: replace with getSparseIdentity
+        SparseMatrixDouble eyeKp1 = SparseMatrixDouble(K+1,K+1); // TODO: replace with getSparseIdentity
         eyeKp1.setIdentity();
         
         // create a vector containing the collision envelopes for each drone across all time steps
@@ -63,7 +65,7 @@ std::tuple<std::vector<bool>,std::vector<int>,std::vector<DroneResult>> Swarm::s
     // # pragma omp parallel for
     for (int i = 0; i < drones.size(); ++i) {
         std::vector<VectorXd> obstacle_positions;
-        std::vector<SparseMatrix<double>> obstacle_envelopes;
+        std::vector<SparseMatrixDouble> obstacle_envelopes;
         int num_obstacles = 0;
 
         for (const int& avoid_drone : avoidance_map[i]) {
@@ -99,7 +101,7 @@ std::tuple<std::vector<bool>,std::vector<int>,std::vector<DroneResult>> Swarm::s
     return std::make_tuple(is_success, iters, results);
 }
 
-bool Swarm::checkIntersection(const VectorXd& traj1, const VectorXd& traj2, const SparseMatrix<double>& theta) {
+bool Swarm::checkIntersection(const VectorXd& traj1, const VectorXd& traj2, const SparseMatrixDouble& theta) {
     VectorXd diff = theta*(traj1 - traj2); // theta accounts for the collision envelopes by scaling the difference between the two trajectories
     // Iterate over chunks of 3 rows (x,y,z positions for one time)
     for (int i = 0; i < diff.size(); i += 3) {
@@ -112,3 +114,5 @@ bool Swarm::checkIntersection(const VectorXd& traj1, const VectorXd& traj2, cons
     // If no chunk's norm was <= 1, then no intersection was detected
     return false;
 }
+
+} // namespace amswarm

@@ -33,7 +33,7 @@
  * - SparseDynamics: Structure to hold the sparse dynamics matrices for the drone.
  */
 
-using namespace Eigen;
+namespace amswarm {
 
 /**
  * @struct DroneResult
@@ -41,17 +41,17 @@ using namespace Eigen;
  * Includes the position, state, and input trajectories along with the spline coefficients.
  */
 struct DroneResult {
-    MatrixXd position_trajectory; // Trajectory MATRIX. Each row is the position vector at a time step. Dimensions: K+1 x 3
-    VectorXd position_trajectory_vector; // Reshape of the above. Dimensions: 3(K+1) x 1, each 3-element segment is the position at a time step
-    MatrixXd state_trajectory; // State MATRIX. Drone state is [position, velocity]. Each row is the state vector at a time step. Dimensions: K+1 x 6
-    VectorXd state_trajectory_vector; // Reshape of the above. Dimensions: 6(K+1) x 1, each 6-element segment is the state at a time step
-    MatrixXd input_position_trajectory; // Input position reference MATRIX. Each row is the input position reference at a time step. Dimensions: K x 3
-    VectorXd input_position_trajectory_vector; // Reshape of the above. Dimensions: 3K x 1, each 3-element segment is the input position reference at a time step
-    MatrixXd input_velocity_trajectory; // Input velocity reference MATRIX (derivative of input position reference). Each row is the input velocity reference at a time step. Dimensions: K x 3
-    VectorXd input_velocity_trajectory_vector; // Reshape of the above. Dimensions: 3K x 1, each 3-element segment is the input velocity reference at a time step
-    MatrixXd input_acceleration_trajectory; // Input acceleration reference MATRIX (derivative of input velocity reference). Each row is the input acceleration reference at a time step. Dimensions: K x 3
-    VectorXd input_acceleration_trajectory_vector; // Reshape of the above. Dimensions: 3K x 1, each 3-element segment is the input acceleration reference at a time step
-    VectorXd spline_coeffs; // Input is parameterized as a spline during the optimization. These are the spline coefficients. The above input trajectories are generated from these coefficients
+    Eigen::MatrixXd position_trajectory; // Trajectory MATRIX. Each row is the position vector at a time step. Dimensions: K+1 x 3
+    Eigen::VectorXd position_trajectory_vector; // Reshape of the above. Dimensions: 3(K+1) x 1, each 3-element segment is the position at a time step
+    Eigen::MatrixXd state_trajectory; // State MATRIX. Drone state is [position, velocity]. Each row is the state vector at a time step. Dimensions: K+1 x 6
+    Eigen::VectorXd state_trajectory_vector; // Reshape of the above. Dimensions: 6(K+1) x 1, each 6-element segment is the state at a time step
+    Eigen::MatrixXd input_position_trajectory; // Input position reference MATRIX. Each row is the input position reference at a time step. Dimensions: K x 3
+    Eigen::VectorXd input_position_trajectory_vector; // Reshape of the above. Dimensions: 3K x 1, each 3-element segment is the input position reference at a time step
+    Eigen::MatrixXd input_velocity_trajectory; // Input velocity reference MATRIX (derivative of input position reference). Each row is the input velocity reference at a time step. Dimensions: K x 3
+    Eigen::VectorXd input_velocity_trajectory_vector; // Reshape of the above. Dimensions: 3K x 1, each 3-element segment is the input velocity reference at a time step
+    Eigen::MatrixXd input_acceleration_trajectory; // Input acceleration reference MATRIX (derivative of input velocity reference). Each row is the input acceleration reference at a time step. Dimensions: K x 3
+    Eigen::VectorXd input_acceleration_trajectory_vector; // Reshape of the above. Dimensions: 3K x 1, each 3-element segment is the input acceleration reference at a time step
+    Eigen::VectorXd spline_coeffs; // Input is parameterized as a spline during the optimization. These are the spline coefficients. The above input trajectories are generated from these coefficients
 
     /**
      * @brief Advances the drone's state and input trajectories by one step.
@@ -71,11 +71,11 @@ struct DroneResult {
      * is critical for the first optimization solve step if input continuity constraints are enabled,
      * so that the first input is not an abrupt change from the drone's current state.
      * 
-     * @param initial_position The drone's initial position as a VectorXd.
+     * @param initial_position The drone's initial position as a Eigen::VectorXd.
      * @param K The horizon length over which to initialize the trajectories.
      * @return A `DroneResult` object initialized with the drone's initial state and input trajectories.
      */
-    static DroneResult generateInitialDroneResult(const VectorXd& initial_position, int K);
+    static DroneResult generateInitialDroneResult(const Eigen::VectorXd& initial_position, int K);
 };
 
 /**
@@ -106,12 +106,12 @@ struct ConstraintConfig {
 struct DroneSolveArgs {
     double current_time = 0.0;
     int num_obstacles = 0;
-    std::vector<SparseMatrix<double>> obstacle_envelopes = {};
-    std::vector<VectorXd> obstacle_positions = {};
-    VectorXd x_0 = VectorXd::Zero(6); // Initial state [position, velocity]
-    VectorXd u_0 = VectorXd::Zero(3); // Initial input position reference
-    VectorXd u_dot_0 = VectorXd::Zero(3); // Initial input velocity reference (derivative of input position reference)
-    VectorXd u_ddot_0 = VectorXd::Zero(3); // Initial input acceleration reference (derivative of input velocity reference)
+    std::vector<Eigen::SparseMatrix<double>> obstacle_envelopes = {};
+    std::vector<Eigen::VectorXd> obstacle_positions = {};
+    Eigen::VectorXd x_0 = Eigen::VectorXd::Zero(6); // Initial state [position, velocity]
+    Eigen::VectorXd u_0 = Eigen::VectorXd::Zero(3); // Initial input position reference
+    Eigen::VectorXd u_dot_0 = Eigen::VectorXd::Zero(3); // Initial input velocity reference (derivative of input position reference)
+    Eigen::VectorXd u_ddot_0 = Eigen::VectorXd::Zero(3); // Initial input acceleration reference (derivative of input velocity reference)
     ConstraintConfig constraintConfig; // Configuration for enabling or disabling various constraints in the optimization problem
 };
 /**
@@ -172,8 +172,8 @@ public:
      * @brief Physical limits for the drone, including position bounds and velocity/acceleration limits.
      */
     struct PhysicalLimits {
-        VectorXd p_min = VectorXd::Constant(3,-10); // minimum position bounds
-        VectorXd p_max = VectorXd::Constant(3,10); // maximum position bounds
+        Eigen::VectorXd p_min = Eigen::VectorXd::Constant(3,-10); // minimum position bounds
+        Eigen::VectorXd p_max = Eigen::VectorXd::Constant(3,10); // maximum position bounds
         double v_bar = 1.73; // maximum velocity
         double a_bar = 0.75 * 9.81; // maximum acceleration (0.75g)
         double x_collision_envelope = 0.25; // collision envelope width in x direction
@@ -194,7 +194,7 @@ public:
      * See the thesis document for more information on the dynamics matrices and derivation of the derivative matrices.
      */
     struct SparseDynamics {
-        SparseMatrix<double> A, B, A_prime, B_prime;
+        Eigen::SparseMatrix<double> A, B, A_prime, B_prime;
 
         SparseDynamics() {}
         SparseDynamics(const Eigen::SparseMatrix<double>& A, const Eigen::SparseMatrix<double>& B, 
@@ -214,14 +214,14 @@ public:
      * @param dynamics Dynamics matrices for the drone.
      */
     Drone(AMSolverConfig solverConfig,
-            MatrixXd waypoints,
+            Eigen::MatrixXd waypoints,
             MPCConfig mpcConfig,
             MPCWeights weights,
             PhysicalLimits limits,
             SparseDynamics dynamics);
     
     // Getters
-    SparseMatrix<double> getCollisionEnvelope();
+    Eigen::SparseMatrix<double> getCollisionEnvelope();
     int getK();
 
 protected:
@@ -232,7 +232,7 @@ protected:
      * as functions of the overall state trajectory.
      */
     struct SelectionMatrices {
-        SparseMatrix<double> M_p, M_v, M_a; // pos,vel,acc
+        Eigen::SparseMatrix<double> M_p, M_v, M_a; // pos,vel,acc
 
         /**
          * Constructor for SelectionMatrices.
@@ -242,9 +242,9 @@ protected:
          */
         SelectionMatrices(int K) {
             // Intermediate matrices used in building selection matrices
-            SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
-            SparseMatrix<double> eyeKplus1 = utils::getSparseIdentity(K+1);
-            SparseMatrix<double> zeroMat(3, 3);
+            Eigen::SparseMatrix<double> eye3 = utils::getSparseIdentity(3);
+            Eigen::SparseMatrix<double> eyeKplus1 = utils::getSparseIdentity(K+1);
+            Eigen::SparseMatrix<double> zeroMat(3, 3);
             zeroMat.setZero();
 
             M_p = utils::kroneckerProduct(eyeKplus1, utils::horzcat(eye3, zeroMat));
@@ -259,15 +259,15 @@ protected:
     // These are member variables so that we can precompute them once and reuse them for each optimization solve step,
     // rather than recomputing them each time which is very slow
 
-    SparseMatrix<double> W, W_dot, W_ddot, W_input; // Bernstein matrices and derivates for parameterizing the input as spline
-    SparseMatrix<double> S_x, S_u, S_x_prime, S_u_prime; // State and input matrices for the full horizon (state condensing to write the trajectory as a function of the initial state and the input)
+    Eigen::SparseMatrix<double> W, W_dot, W_ddot, W_input; // Bernstein matrices and derivates for parameterizing the input as spline
+    Eigen::SparseMatrix<double> S_x, S_u, S_x_prime, S_u_prime; // State and input matrices for the full horizon (state condensing to write the trajectory as a function of the initial state and the input)
 
-    SparseMatrix<double> M_p_S_x, M_v_S_x, M_a_S_x_prime; // Precomputed matrix terms
-    SparseMatrix<double> G_u, G_u_T, G_u_T_G_u; 
-    SparseMatrix<double> G_p;
-    SparseMatrix<double> S_u_W_input;
-    SparseMatrix<double> M_p_S_u_W_input, M_v_S_u_W_input, M_a_S_u_prime_W_input;
-    SparseMatrix<double> linearCostSmoothnessConstTerm;
+    Eigen::SparseMatrix<double> M_p_S_x, M_v_S_x, M_a_S_x_prime; // Precomputed matrix terms
+    Eigen::SparseMatrix<double> G_u, G_u_T, G_u_T_G_u; 
+    Eigen::SparseMatrix<double> G_p;
+    Eigen::SparseMatrix<double> S_u_W_input;
+    Eigen::SparseMatrix<double> M_p_S_u_W_input, M_v_S_u_W_input, M_a_S_u_prime_W_input;
+    Eigen::SparseMatrix<double> linearCostSmoothnessConstTerm;
 
     // The following members are the configuration and parameters for the drone trajectory optimization problem
     MPCConfig mpcConfig;
@@ -275,8 +275,8 @@ protected:
     PhysicalLimits limits;
     SparseDynamics dynamics;
     SelectionMatrices selectionMats;
-    MatrixXd waypoints;
-    SparseMatrix<double> collision_envelope; // this drone's collision envelope - NOT the other obstacles' collision envelopes
+    Eigen::MatrixXd waypoints;
+    Eigen::SparseMatrix<double> collision_envelope; // this drone's collision envelope - NOT the other obstacles' collision envelopes
 
     // Protected methods
     /**
@@ -297,7 +297,7 @@ protected:
      * @param args The arguments used for solving the drone trajectory optimization problem.
      * @return A DroneResult object containing the optimized trajectories and other results.
      */
-    DroneResult postSolve(const VectorXd& zeta, const DroneSolveArgs& args) override;
+    DroneResult postSolve(const Eigen::VectorXd& zeta, const DroneSolveArgs& args) override;
 
     /**
      * @brief Extracts waypoints within the current optimization horizon.
@@ -308,7 +308,7 @@ protected:
      * @return A matrix containing the waypoints within the current optimization horizon where each row is a waypoint,
      * with a waypoint given by [t, x, y, z, vx, vy, vz, ax, ay. az] (v = velocity, a = acceleration).
      */
-    Matrix<double, Dynamic, Dynamic, RowMajor> extractWaypointsInCurrentHorizon(double t);
+    Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> extractWaypointsInCurrentHorizon(double t);
 
     /**
      * @brief Initializes the Bernstein matrices and their derivatives.
@@ -319,7 +319,7 @@ protected:
      * @param mpcConfig The configuration for the MPC optimization problem.
      * @return A tuple containing the Bernstein polynomial matrices and their first and second derivatives.
      */
-    std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>> initBernsteinMatrices(const MPCConfig& mpcConfig);
+    std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> initBernsteinMatrices(const MPCConfig& mpcConfig);
 
     /**
      * @brief Initializes the full horizon dynamics matrices based on the drone's dynamics (state condensing),
@@ -329,7 +329,9 @@ protected:
      * @param dynamics The dynamics matrices of the drone.
      * @return A tuple containing the state and input selection matrices and their derivatives.
      */
-    std::tuple<SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>,SparseMatrix<double>> initFullHorizonDynamicsMatrices(const SparseDynamics& dynamics);
+    std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> initFullHorizonDynamicsMatrices(const SparseDynamics& dynamics);
 };
+
+} // namespace amswarm
 
 #endif

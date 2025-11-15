@@ -13,8 +13,7 @@
  * horizontal and vertical concatenation, block diagonal, and sparse matrix replication.
  */
 
-using namespace Eigen;
-
+namespace amswarm {
 namespace utils {
 
     /**
@@ -31,7 +30,7 @@ namespace utils {
      * @param exponent The exponent to raise the base matrix to.
      * @return The resultant matrix.
      */
-    MatrixXd matrixPower(const MatrixXd& base, int exponent);
+    Eigen::MatrixXd matrixPower(const Eigen::MatrixXd& base, int exponent);
 
     /**
      * Computes the power of a sparse matrix.
@@ -39,7 +38,7 @@ namespace utils {
      * @param exponent The exponent to raise the base matrix to.
      * @return The resultant sparse matrix.
      */
-    SparseMatrix<double> matrixPower(const SparseMatrix<double>& base, int exponent);
+    Eigen::SparseMatrix<double> matrixPower(const Eigen::SparseMatrix<double>& base, int exponent);
 
     /**
      * Computes the Kronecker product of two dense matrices.
@@ -47,7 +46,7 @@ namespace utils {
      * @param B The second matrix.
      * @return The Kronecker product.
      */
-    MatrixXd kroneckerProduct(const MatrixXd& A, const MatrixXd& B);
+    Eigen::MatrixXd kroneckerProduct(const Eigen::MatrixXd& A, const Eigen::MatrixXd& B);
 
     /**
      * Computes the Kronecker product of two sparse matrices.
@@ -55,7 +54,7 @@ namespace utils {
      * @param B The second sparse matrix.
      * @return The Kronecker product.
      */
-    SparseMatrix<double> kroneckerProduct(const SparseMatrix<double>& A, const SparseMatrix<double>& B);
+    Eigen::SparseMatrix<double> kroneckerProduct(const Eigen::SparseMatrix<double>& A, const Eigen::SparseMatrix<double>& B);
 
     /**
      * Concatenates two dense matrices horizontally.
@@ -63,7 +62,7 @@ namespace utils {
      * @param B The second matrix.
      * @return The concatenated matrix.
      */
-    MatrixXd horzcat(const MatrixXd& A, const MatrixXd& B);
+    Eigen::MatrixXd horzcat(const Eigen::MatrixXd& A, const Eigen::MatrixXd& B);
 
     /**
      * Concatenates two sparse matrices horizontally.
@@ -71,7 +70,7 @@ namespace utils {
      * @param B The second sparse matrix.
      * @return The concatenated sparse matrix.
      */
-    SparseMatrix<double> horzcat(const SparseMatrix<double>& A, const SparseMatrix<double>& B);
+    Eigen::SparseMatrix<double> horzcat(const Eigen::SparseMatrix<double>& A, const Eigen::SparseMatrix<double>& B);
 
     /**
      * Concatenates two dense matrices vertically.
@@ -79,7 +78,7 @@ namespace utils {
      * @param B The second matrix.
      * @return The concatenated matrix.
      */
-    MatrixXd vertcat(const MatrixXd& A, const MatrixXd& B);
+    Eigen::MatrixXd vertcat(const Eigen::MatrixXd& A, const Eigen::MatrixXd& B);
 
     /**
      * Concatenates two sparse matrices vertically.
@@ -87,7 +86,7 @@ namespace utils {
      * @param B The second sparse matrix.
      * @return The concatenated sparse matrix.
      */
-    SparseMatrix<double> vertcat(const SparseMatrix<double>& A, const SparseMatrix<double>& B);
+    Eigen::SparseMatrix<double> vertcat(const Eigen::SparseMatrix<double>& A, const Eigen::SparseMatrix<double>& B);
 
     /**
      * Replicates a sparse matrix to create a larger matrix by tiling it.
@@ -96,28 +95,28 @@ namespace utils {
      * @param m The number of horizontal replications.
      * @return The replicated sparse matrix.
      */
-    SparseMatrix<double> replicateSparseMatrix(const SparseMatrix<double>& input, int n, int m);
+    Eigen::SparseMatrix<double> replicateSparseMatrix(const Eigen::SparseMatrix<double>& input, int n, int m);
 
     /**
      * Generates a sparse identity matrix of given size.
      * @param n The size of the identity matrix.
      * @return The sparse identity matrix.
      */
-    SparseMatrix<double> getSparseIdentity(int n);
+    Eigen::SparseMatrix<double> getSparseIdentity(int n);
 
     /**
      * Creates a block diagonal matrix from a vector of dense matrices.
      * @param matrices A vector containing the matrices to be placed on the diagonal.
      * @return The block diagonal matrix.
      */
-    MatrixXd blkDiag(const std::vector<MatrixXd>& matrices);
+    Eigen::MatrixXd blkDiag(const std::vector<Eigen::MatrixXd>& matrices);
 
     /**
      * Creates a block diagonal matrix from a vector of sparse matrices.
      * @param matrices A vector containing the matrices to be placed on the diagonal.
      * @return The block diagonal sparse matrix.
      */
-    SparseMatrix<double> blkDiag(const std::vector<SparseMatrix<double>>& matrices);
+    Eigen::SparseMatrix<double> blkDiag(const std::vector<Eigen::SparseMatrix<double>>& matrices);
 
     /**
      * Replaces a block in a sparse matrix with another sparse matrix.
@@ -126,9 +125,10 @@ namespace utils {
      * @param startRow The starting row index for the block replacement.
      * @param startCol The starting column index for the block replacement.
      */
-    void replaceSparseBlock(SparseMatrix<double>& targetSparseMatrix, const SparseMatrix<double>& sourceSparseMatrix, int startRow, int startCol);
+    void replaceSparseBlock(Eigen::SparseMatrix<double>& targetSparseMatrix, const Eigen::SparseMatrix<double>& sourceSparseMatrix, int startRow, int startCol);
 
-} // end namespace utils
+} // namespace utils
+} // namespace amswarm
 
 
 #endif

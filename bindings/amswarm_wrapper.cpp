@@ -5,6 +5,7 @@
 #include <pybind11/stl.h>
 
 namespace py = pybind11;
+using namespace amswarm;
 
 PYBIND11_MODULE(amswarm, m)
 {

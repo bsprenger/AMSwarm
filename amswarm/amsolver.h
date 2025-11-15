@@ -33,7 +33,7 @@
  * to solve the optimization problem from a child class.
  */
 
-using namespace Eigen;
+namespace amswarm {
 
 /**
  * @struct AMSolverConfig
@@ -80,10 +80,10 @@ protected:
     AMSolverConfig solverConfig; // Configuration for the solver.
 
     // cost of the form 0.5 * x^T * quadCost * x + x^T * linearCost
-    SparseMatrix<double> initialQuadCost; // The initial quadratic cost matrix which can be set at construction by child classes.
-    VectorXd initialLinearCost; // The initial linear cost vector which can be set at construction by child classes.
-    SparseMatrix<double> quadCost; // The current quadratic cost matrix (is modified during solving)
-    VectorXd linearCost; // The current linear cost vector (is modified during solving)
+    Eigen::SparseMatrix<double> initialQuadCost; // The initial quadratic cost matrix which can be set at construction by child classes.
+    Eigen::VectorXd initialLinearCost; // The initial linear cost vector which can be set at construction by child classes.
+    Eigen::SparseMatrix<double> quadCost; // The current quadratic cost matrix (is modified during solving)
+    Eigen::VectorXd linearCost; // The current linear cost vector (is modified during solving)
 
     /**
      * @brief Called before the solve process begins, allowing for setup of the optimization problem
@@ -100,7 +100,7 @@ protected:
      * @param args The arguments required for the post-solve process.
      * @return The result of the post-solve process, of type ResultType.
      */
-    virtual ResultType postSolve(const VectorXd& x, const SolverArgsType& args) = 0;
+    virtual ResultType postSolve(const Eigen::VectorXd& x, const SolverArgsType& args) = 0;
 
     /**
      * @brief Conducts the actual solving process, implementing the optimization algorithm.
@@ -108,7 +108,7 @@ protected:
      * @param args The arguments required for solving the problem.
      * @return A tuple containing a success flag, the number of iterations, and the solution vector.
      */
-    std::tuple<bool, int, VectorXd> actualSolve(const SolverArgsType& args);
+    std::tuple<bool, int, Eigen::VectorXd> actualSolve(const SolverArgsType& args);
 
     /// @brief Resets the cost matrices to their initial values.
     void resetCostMatrices();
@@ -130,7 +130,7 @@ public:
      * @brief Updates all the non-constant constraints based on the current optimization variables.
      * @param x The current optimization variables.
      */
-    void updateConstraints(const VectorXd& x);
+    void updateConstraints(const Eigen::VectorXd& x);
 
     /// @brief Resets the constraints to their initial state.
     void resetConstraints();
@@ -153,21 +153,21 @@ void AMSolver<ResultType, SolverArgsType>::resetCostMatrices() {
 }
 
 template<typename ResultType, typename SolverArgsType>
-std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(const SolverArgsType& args) {
-    SimplicialLDLT<SparseMatrix<double>> linearSolver; // SimplicialLDLT is chosen for its efficiency in dealing with sparse systems.
+std::tuple<bool, int, Eigen::VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolve(const SolverArgsType& args) {
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> linearSolver; // SimplicialLDLT is chosen for its efficiency in dealing with sparse systems.
 
     int iters  = 0;
     double rho = solverConfig.rho_init;
     bool solver_initialized = false;
 
-    SparseMatrix<double> Q(quadCost.rows(), quadCost.cols()); // Holds the combined quadratic terms
-    VectorXd q = VectorXd::Zero(quadCost.rows()); // Holds the combined linear terms
-    VectorXd x = VectorXd::Zero(quadCost.rows()); // The optimization variable
-    VectorXd bregmanMult = VectorXd::Zero(quadCost.rows()); // The Bregman multiplier (see thesis document for details on Bregman iteration)
+    Eigen::SparseMatrix<double> Q(quadCost.rows(), quadCost.cols()); // Holds the combined quadratic terms
+    Eigen::VectorXd q = Eigen::VectorXd::Zero(quadCost.rows()); // Holds the combined linear terms
+    Eigen::VectorXd x = Eigen::VectorXd::Zero(quadCost.rows()); // The optimization variable
+    Eigen::VectorXd bregmanMult = Eigen::VectorXd::Zero(quadCost.rows()); // The Bregman multiplier (see thesis document for details on Bregman iteration)
 
     // Aggregate the quadratic and linear terms from all constraints.
-    SparseMatrix<double> quadConstraintTerms(quadCost.rows(), quadCost.cols());
-    VectorXd linearConstraintTerms = VectorXd::Zero(linearCost.rows());
+    Eigen::SparseMatrix<double> quadConstraintTerms(quadCost.rows(), quadCost.cols());
+    Eigen::VectorXd linearConstraintTerms = Eigen::VectorXd::Zero(linearCost.rows());
     for (auto& constraint : constConstraints) {
         quadConstraintTerms += constraint->getQuadraticTerm();
         linearConstraintTerms += constraint->getLinearTerm();
@@ -216,7 +216,7 @@ std::tuple<bool, int, VectorXd> AMSolver<ResultType, SolverArgsType>::actualSolv
         }
 
         // Calculate the Bregman multiplier (see thesis document for derivation)
-        VectorXd bregmanUpdate = 0.5 * (quadConstraintTerms * x + linearConstraintTerms);
+        Eigen::VectorXd bregmanUpdate = 0.5 * (quadConstraintTerms * x + linearConstraintTerms);
         bregmanMult -= bregmanUpdate;
         
         // Gradually increase the penalty parameter to enforce constraints
@@ -240,7 +240,7 @@ void AMSolver<ResultType, SolverArgsType>::addConstraint(std::unique_ptr<Constra
 }
 
 template<typename ResultType, typename SolverArgsType>
-void AMSolver<ResultType, SolverArgsType>::updateConstraints(const VectorXd& x) {
+void AMSolver<ResultType, SolverArgsType>::updateConstraints(const Eigen::VectorXd& x) {
     std::for_each(constConstraints.begin(), constConstraints.end(),
                   [&x](const std::unique_ptr<Constraint>& constraint) {
                       constraint->update(x);
@@ -291,5 +291,7 @@ std::tuple<bool, int, ResultType> AMSolver<ResultType, SolverArgsType>::solve(co
     // Post-processing of the solution, as defined by derived classes, e.g. modify the return format
     return std::make_tuple(success, iters, postSolve(result, args));
 }
+
+} // namespace amswarm
 
 #endif // AMSOLVER_H
