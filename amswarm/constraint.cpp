@@ -18,7 +18,7 @@ EqualityConstraint::EqualityConstraint(const SparseMatrixDouble& G, const Vector
     G_T_h = G_T * h;
 }
 
-const Eigen::SparseMatrix<double>& EqualityConstraint::getQuadraticTerm() const {
+const SparseMatrixDouble& EqualityConstraint::getQuadraticTerm() const {
     return G_T_G;
 }
 
@@ -49,7 +49,7 @@ InequalityConstraint::InequalityConstraint(const SparseMatrixDouble& G, const Ve
     G_T_h = G_T * h;
 }
 
-const Eigen::SparseMatrix<double>& InequalityConstraint::getQuadraticTerm() const {
+const SparseMatrixDouble& InequalityConstraint::getQuadraticTerm() const {
     return G_T_G;
 }
 
@@ -109,7 +109,7 @@ PolarInequalityConstraint::PolarInequalityConstraint(const SparseMatrixDouble& G
     apply_lwr_bound = !std::isinf(lwr_bound);  // isinf returns true for negative infinity too
 }
 
-const Eigen::SparseMatrix<double>& PolarInequalityConstraint::getQuadraticTerm() const {
+const SparseMatrixDouble& PolarInequalityConstraint::getQuadraticTerm() const {
     return G_T_G;
 }
 

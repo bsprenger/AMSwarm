@@ -237,7 +237,7 @@ SparseMatrixDouble vertcat(const SparseMatrixDouble& A, const SparseMatrixDouble
     return result;
 }
 
-void replaceSparseBlock(Eigen::SparseMatrix<double>& targetSparseMatrix, const Eigen::SparseMatrix<double>& sourceSparseMatrix, int startRow, int startCol) {
+void replaceSparseBlock(SparseMatrixDouble& targetSparseMatrix, const SparseMatrixDouble& sourceSparseMatrix, int startRow, int startCol) {
     // Check if the dimensions match
     assert(startRow + sourceSparseMatrix.rows() <= targetSparseMatrix.rows());
     assert(startCol + sourceSparseMatrix.cols() <= targetSparseMatrix.cols());

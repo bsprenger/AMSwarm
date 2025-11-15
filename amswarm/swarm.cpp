@@ -101,7 +101,7 @@ std::tuple<std::vector<bool>,std::vector<int>,std::vector<DroneResult>> Swarm::s
     return std::make_tuple(is_success, iters, results);
 }
 
-bool Swarm::checkIntersection(const VectorXd& traj1, const VectorXd& traj2, const Eigen::SparseMatrix<double>& theta) {
+bool Swarm::checkIntersection(const VectorXd& traj1, const VectorXd& traj2, const SparseMatrixDouble& theta) {
     VectorXd diff = theta*(traj1 - traj2); // theta accounts for the collision envelopes by scaling the difference between the two trajectories
     // Iterate over chunks of 3 rows (x,y,z positions for one time)
     for (int i = 0; i < diff.size(); i += 3) {

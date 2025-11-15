@@ -217,7 +217,7 @@ Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Drone::ex
 };
 
 
-std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> Drone::initBernsteinMatrices(const MPCConfig& mpcConfig) {    
+std::tuple<SparseMatrixDouble,SparseMatrixDouble,SparseMatrixDouble,SparseMatrixDouble> Drone::initBernsteinMatrices(const MPCConfig& mpcConfig) {    
     // See thesis document for derivation of these matrices
     SparseMatrixDouble W(3*mpcConfig.K,3*(mpcConfig.n+1));
     SparseMatrixDouble W_dot(3*mpcConfig.K,3*(mpcConfig.n+1));
@@ -304,7 +304,7 @@ std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::Sparse
 };
 
 
-std::tuple<Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>,Eigen::SparseMatrix<double>> Drone::initFullHorizonDynamicsMatrices(const SparseDynamics& dynamics) {
+std::tuple<SparseMatrixDouble,SparseMatrixDouble,SparseMatrixDouble,SparseMatrixDouble> Drone::initFullHorizonDynamicsMatrices(const SparseDynamics& dynamics) {
     // see thesis document for derivation of these matrices
     int num_states = dynamics.A.rows();
     int num_inputs = dynamics.B.cols();
@@ -403,7 +403,7 @@ DroneResult DroneResult::generateInitialDroneResult(const VectorXd& initial_posi
     return drone_result;
 }
 
-Eigen::SparseMatrix<double> Drone::getCollisionEnvelope() {
+SparseMatrixDouble Drone::getCollisionEnvelope() {
     return collision_envelope;
 }
 
