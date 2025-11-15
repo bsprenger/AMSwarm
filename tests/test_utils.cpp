@@ -5,6 +5,9 @@
 
 using namespace amswarm::utils;
 using Eigen::Triplet;
+using Eigen::MatrixXd;
+using Eigen::VectorXd;
+using Eigen::SparseMatrix;
 
 // Test nchoosek function
 TEST(UtilsTest, NChooseK) {

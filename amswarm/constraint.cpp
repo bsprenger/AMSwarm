@@ -6,12 +6,10 @@
 
 namespace amswarm {
 
-// Eigen type aliases
 using VectorXd = Eigen::VectorXd;
-template<typename T>
-using SparseMatrix = Eigen::SparseMatrix<T>;
+using SparseMatrixDouble = Eigen::SparseMatrix<double>;
 
-EqualityConstraint::EqualityConstraint(const SparseMatrix<double>& G, const VectorXd& h,
+EqualityConstraint::EqualityConstraint(const SparseMatrixDouble& G, const VectorXd& h,
                                        double tolerance)
     : G(G), G_T(G.transpose()), h(h), tolerance(tolerance) {
     if (G.rows() != h.size())
@@ -20,7 +18,7 @@ EqualityConstraint::EqualityConstraint(const SparseMatrix<double>& G, const Vect
     G_T_h = G_T * h;
 }
 
-const SparseMatrix<double>& EqualityConstraint::getQuadraticTerm() const {
+const Eigen::SparseMatrix<double>& EqualityConstraint::getQuadraticTerm() const {
     return G_T_G;
 }
 
@@ -41,7 +39,7 @@ bool EqualityConstraint::isSatisfied(const VectorXd& x) const {
 
 void EqualityConstraint::reset() {}
 
-InequalityConstraint::InequalityConstraint(const SparseMatrix<double>& G, const VectorXd& h,
+InequalityConstraint::InequalityConstraint(const SparseMatrixDouble& G, const VectorXd& h,
                                            double tolerance)
     : G(G), G_T(G.transpose()), h(h), tolerance(tolerance) {
     if (G.rows() != h.size())
@@ -51,7 +49,7 @@ InequalityConstraint::InequalityConstraint(const SparseMatrix<double>& G, const 
     G_T_h = G_T * h;
 }
 
-const SparseMatrix<double>& InequalityConstraint::getQuadraticTerm() const {
+const Eigen::SparseMatrix<double>& InequalityConstraint::getQuadraticTerm() const {
     return G_T_G;
 }
 
@@ -84,7 +82,7 @@ void InequalityConstraint::reset() {
     slack.setZero();
 }
 
-PolarInequalityConstraint::PolarInequalityConstraint(const SparseMatrix<double>& G,
+PolarInequalityConstraint::PolarInequalityConstraint(const SparseMatrixDouble& G,
                                                      const VectorXd& c, double lwr_bound,
                                                      double upr_bound, double bf_gamma,
                                                      double tolerance)
@@ -111,7 +109,7 @@ PolarInequalityConstraint::PolarInequalityConstraint(const SparseMatrix<double>&
     apply_lwr_bound = !std::isinf(lwr_bound);  // isinf returns true for negative infinity too
 }
 
-const SparseMatrix<double>& PolarInequalityConstraint::getQuadraticTerm() const {
+const Eigen::SparseMatrix<double>& PolarInequalityConstraint::getQuadraticTerm() const {
     return G_T_G;
 }
 

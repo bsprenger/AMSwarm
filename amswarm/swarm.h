@@ -17,11 +17,6 @@
 
 namespace amswarm {
 
-// Eigen type aliases
-using VectorXd = Eigen::VectorXd;
-template<typename T>
-using SparseMatrix = Eigen::SparseMatrix<T>;
-
 
 class Swarm {
 public:
@@ -51,14 +46,14 @@ public:
      *         and a vector of results for the current computation.
      */
     std::tuple<std::vector<bool>, std::vector<int>, std::vector<DroneResult>> solve(double current_time,
-                        const std::vector<VectorXd>& initial_states,
+                        const std::vector<Eigen::VectorXd>& initial_states,
                         const std::vector<DroneResult>& previous_results,
                         const std::vector<ConstraintConfig>& constraint_configs);
 
 private:
     int num_drones;
     std::vector<std::shared_ptr<Drone>> drones;
-    std::vector<SparseMatrix<double>> all_obstacle_envelopes; // the collision envelope for each drone at each time step
+    std::vector<Eigen::SparseMatrix<double>> all_obstacle_envelopes; // the collision envelope for each drone at each time step
 
     /**
      * @brief Checks if two trajectories intersect given their positions and a matrix theta which defines the collision envelope.
@@ -68,7 +63,7 @@ private:
      * @param theta The collision envelope matrix
      * @return true if the trajectories intersect, false otherwise.
      */
-    bool checkIntersection(const VectorXd& traj1, const VectorXd& traj2, const SparseMatrix<double>& theta_tmp);
+    bool checkIntersection(const Eigen::VectorXd& traj1, const Eigen::VectorXd& traj2, const Eigen::SparseMatrix<double>& theta_tmp);
 };
 
 } // namespace amswarm

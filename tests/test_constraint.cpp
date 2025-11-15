@@ -6,6 +6,8 @@
 
 using namespace amswarm;
 using Eigen::Triplet;
+using Eigen::VectorXd;
+using Eigen::SparseMatrix;
 
 // Test EqualityConstraint construction and basic getters
 TEST(EqualityConstraintTest, ConstructionAndGetters) {
