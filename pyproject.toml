@@ -28,6 +28,9 @@ requires-python = ">=3.11"
 dev = [
     "pytest>=7.0.0",
 ]
+crazyflow = [
+    "crazyflow>=0.1.0",
+]
 
 [tool.scikit-build]
 wheel.packages = ["amswarm"]
