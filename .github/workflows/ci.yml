@@ -199,17 +199,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Install uv and set the Python version
+      - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Create virtual environment and install dependencies
-        run: |
-          uv venv
-          uv pip install pytest
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
 
       - name: Run tests
-        run: |
-          source .venv/bin/activate
-          pytest tests/python -v
+        run: uv run pytest tests/python
