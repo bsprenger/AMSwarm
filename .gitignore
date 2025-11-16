@@ -7,3 +7,6 @@ amswarm.egg-info/
 /examples/python/__pycache__/
 /_deps/
 /cpp/tests/build/
+.venv/
+__pycache__/
+.pytest_cache/
