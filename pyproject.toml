@@ -28,7 +28,7 @@ requires-python = ">=3.11"
 dev = [
     "pytest>=7.0.0",
 ]
-crazyflow = [
+examples = [
     "crazyflow>=0.0.1",
 ]
 

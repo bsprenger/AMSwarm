@@ -31,19 +31,19 @@ version = "0.1.0"
 source = { editable = "." }
 
 [package.optional-dependencies]
-crazyflow = [
-    { name = "crazyflow" },
-]
 dev = [
     { name = "pytest" },
+]
+examples = [
+    { name = "crazyflow" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "crazyflow", marker = "extra == 'crazyflow'", specifier = ">=0.0.1" },
+    { name = "crazyflow", marker = "extra == 'examples'", specifier = ">=0.0.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
 ]
-provides-extras = ["dev", "crazyflow"]
+provides-extras = ["dev", "examples"]
 
 [[package]]
 name = "casadi"

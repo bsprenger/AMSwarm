@@ -210,9 +210,9 @@ jobs:
       - name: Run tests
         run: uv run pytest tests/python
 
-  # Crazyflow integration tests
-  crazyflow-tests:
-    name: Crazyflow Integration Tests (Python ${{ matrix.python-version }})
+  # Python example scripts
+  python-examples:
+    name: Python Examples (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -229,11 +229,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install the project with crazyflow
-        run: uv sync --locked --extra crazyflow --extra dev
-
-      - name: Run crazyflow integration tests
-        run: uv run pytest tests/python/test_crazyflow_example.py -v
+      - name: Install the project with examples dependencies
+        run: uv sync --locked --extra examples --extra dev
 
       - name: Run crazyflow example
         run: uv run python examples/python/crazyflow_example.py

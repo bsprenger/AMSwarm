@@ -12,8 +12,8 @@ Future enhancements could include:
 - Running multi-drone swarm simulations
 
 Requirements:
-    Install with crazyflow optional dependency:
-    pip install -e .[crazyflow]
+    Install with examples optional dependency:
+    pip install -e .[examples]
 
 Usage:
     python examples/python/crazyflow_example.py
