@@ -29,7 +29,7 @@ dev = [
     "pytest>=7.0.0",
 ]
 crazyflow = [
-    "crazyflow>=0.1.0",
+    "crazyflow>=0.0.1",
 ]
 
 [tool.scikit-build]
