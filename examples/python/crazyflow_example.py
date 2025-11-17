@@ -19,12 +19,14 @@ Usage:
     python examples/python/crazyflow_example.py
 """
 
+import amswarm
 import crazyflow
 
 
 def main():
     """Main function to demonstrate crazyflow integration."""
-    print("Successfully imported crazyflow!")
+    print("Successfully imported amswarm and crazyflow!")
+    print(f"amswarm module: {amswarm}")
     print(f"Crazyflow module: {crazyflow}")
     print(f"Crazyflow version: {crazyflow.__version__}")
     print("\nThis example demonstrates that crazyflow can be used with AMSwarm.")
