@@ -209,3 +209,28 @@ jobs:
 
       - name: Run tests
         run: uv run pytest tests/python
+
+  # Python example scripts
+  python-examples:
+    name: Python Examples (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version:
+          - "3.11"
+          - "3.12"
+          - "3.13"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install the project with examples dependencies
+        run: uv sync --locked --extra examples --extra dev
+
+      - name: Run crazyflow example
+        run: uv run python examples/python/crazyflow_example.py
