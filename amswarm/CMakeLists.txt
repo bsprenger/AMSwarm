@@ -1,6 +1,6 @@
 # Generate protobuf sources for the library
 set(PROTO_FILES
-    ${CMAKE_SOURCE_DIR}/tests/constraint.proto
+    constraint.proto
 )
 
 protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})

@@ -1,6 +1,7 @@
 #include "constraint_proto_conversion.h"
 #include "constraint.pb.h"
 #include <vector>
+#include <stdexcept>
 
 namespace amswarm {
 namespace proto {
@@ -10,27 +11,13 @@ void toProto(const Eigen::SparseMatrix<double>& matrix, SparseMatrixProto* proto
     proto->set_rows(matrix.rows());
     proto->set_cols(matrix.cols());
     
-    // Extract triplets from sparse matrix
-    std::vector<int> row_indices;
-    std::vector<int> col_indices;
-    std::vector<double> values;
-    
+    // Extract triplets from sparse matrix and add directly to proto
     for (int k = 0; k < matrix.outerSize(); ++k) {
         for (Eigen::SparseMatrix<double>::InnerIterator it(matrix, k); it; ++it) {
-            row_indices.push_back(it.row());
-            col_indices.push_back(it.col());
-            values.push_back(it.value());
+            proto->add_row_indices(it.row());
+            proto->add_col_indices(it.col());
+            proto->add_values(it.value());
         }
-    }
-    
-    for (int idx : row_indices) {
-        proto->add_row_indices(idx);
-    }
-    for (int idx : col_indices) {
-        proto->add_col_indices(idx);
-    }
-    for (double val : values) {
-        proto->add_values(val);
     }
 }
 
@@ -38,8 +25,15 @@ void toProto(const Eigen::SparseMatrix<double>& matrix, SparseMatrixProto* proto
 void fromProto(const SparseMatrixProto& proto, Eigen::SparseMatrix<double>& matrix) {
     matrix.resize(proto.rows(), proto.cols());
     
-    std::vector<Eigen::Triplet<double>> triplets;
     int nnz = proto.row_indices_size();
+    
+    // Validate that all arrays have the same size
+    if (proto.col_indices_size() != nnz || proto.values_size() != nnz) {
+        throw std::invalid_argument("SparseMatrixProto arrays have inconsistent sizes");
+    }
+    
+    std::vector<Eigen::Triplet<double>> triplets;
+    triplets.reserve(nnz);
     
     for (int i = 0; i < nnz; ++i) {
         triplets.push_back(Eigen::Triplet<double>(

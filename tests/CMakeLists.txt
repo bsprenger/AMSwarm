@@ -1,7 +1,6 @@
 # Generate protobuf sources for testing
 set(PROTO_FILES
     test_message.proto
-    constraint.proto
 )
 
 protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
