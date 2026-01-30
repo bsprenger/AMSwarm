@@ -5,6 +5,7 @@ set(TEST_SOURCES
     test_swarm.cpp
     test_constraint.cpp
     test_amsolver.cpp
+    test_protobuf.cpp
 )
 
 add_executable(amswarm_tests ${TEST_SOURCES})

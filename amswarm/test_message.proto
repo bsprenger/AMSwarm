@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package amswarm;
+
+message TestMessage {
+  string name = 1;
+  int32 id = 2;
+  double value = 3;
+}

@@ -12,18 +12,11 @@ include(FetchContent)
 # Find OpenMP
 find_package(OpenMP REQUIRED)
 
-# Fetch Eigen linear algebra library
-# Using Eigen 5.0.0 from the official GitLab repository
-FetchContent_Declare(
-    Eigen
-    GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-    GIT_TAG 5.0.0
-    GIT_SHALLOW TRUE
-)
-set(EIGEN_BUILD_DOC OFF CACHE BOOL "" FORCE)
-set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
-set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(Eigen)
+# Find Protobuf
+find_package(Protobuf REQUIRED)
+
+# Find Eigen3
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 
 # Option to enable/disable tests
 option(BUILD_TESTS "Build tests" OFF)
