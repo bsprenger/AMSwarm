@@ -12,6 +12,9 @@ include(FetchContent)
 # Find OpenMP
 find_package(OpenMP REQUIRED)
 
+# Find Protobuf
+find_package(Protobuf REQUIRED)
+
 # Fetch Eigen linear algebra library
 # Using Eigen 5.0.0 from the official GitLab repository
 FetchContent_Declare(
