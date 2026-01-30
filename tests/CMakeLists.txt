@@ -1,6 +1,7 @@
 # Generate protobuf sources for testing
 set(PROTO_FILES
     test_message.proto
+    constraint.proto
 )
 
 protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
@@ -11,6 +12,7 @@ set(TEST_SOURCES
     test_drone.cpp
     test_swarm.cpp
     test_constraint.cpp
+    test_constraint_proto.cpp
     test_amsolver.cpp
     test_protobuf.cpp
     ${PROTO_SRCS}
