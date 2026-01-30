@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <amswarm/constraint.h>
-#include <amswarm/constraint_proto_conversion.h>
+#include <amswarm/constraint_serialization.h>
 #include "constraint.pb.h"
 
 #include <Eigen/Dense>

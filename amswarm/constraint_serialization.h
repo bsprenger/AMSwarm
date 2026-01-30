@@ -1,5 +1,5 @@
-#ifndef CONSTRAINT_PROTO_CONVERSION_H
-#define CONSTRAINT_PROTO_CONVERSION_H
+#ifndef CONSTRAINT_SERIALIZATION_H
+#define CONSTRAINT_SERIALIZATION_H
 
 #include "constraint.h"
 #include <Eigen/Dense>
@@ -46,4 +46,4 @@ PolarInequalityConstraint fromProto(const PolarInequalityConstraintProto& proto)
 } // namespace proto
 } // namespace amswarm
 
-#endif  // CONSTRAINT_PROTO_CONVERSION_H
+#endif  // CONSTRAINT_SERIALIZATION_H

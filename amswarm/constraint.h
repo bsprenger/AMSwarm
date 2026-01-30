@@ -101,18 +101,10 @@ public:
     bool isSatisfied(const Eigen::VectorXd& x) const override;
     void reset() override;
     
-    /**
-     * @name Serialization Support
-     * @brief Getter methods for accessing internal state for protobuf serialization.
-     * 
-     * These methods provide read-only access to the internal constraint parameters
-     * to enable conversion to protobuf format.
-     */
-    ///@{
+    // Getters for serialization
     const Eigen::SparseMatrix<double>& getG() const { return G; }
     const Eigen::VectorXd& getH() const { return h; }
     double getTolerance() const { return tolerance; }
-    ///@}
 };
 
 /**
@@ -139,23 +131,14 @@ public:
     bool isSatisfied(const Eigen::VectorXd& x) const override;
     void reset() override;
     
-    /**
-     * @name Serialization Support
-     * @brief Methods for accessing and restoring internal state for protobuf serialization.
-     * 
-     * These methods provide access to internal constraint parameters and allow restoration
-     * of internal state (slack variables) during deserialization from protobuf format.
-     * The setter should only be used during deserialization to restore a previously saved state.
-     */
-    ///@{
+    // Getters for serialization
     const Eigen::SparseMatrix<double>& getG() const { return G; }
     const Eigen::VectorXd& getH() const { return h; }
     const Eigen::VectorXd& getSlack() const { return slack; }
     double getTolerance() const { return tolerance; }
     
-    /// @brief Restore slack variable state during deserialization. Use with caution.
+    // TODO: Remove this setter later
     void setSlack(const Eigen::VectorXd& slack_val) { slack = slack_val; }
-    ///@}
 };
 
 /**
@@ -201,15 +184,7 @@ public:
     bool isSatisfied(const Eigen::VectorXd& x) const override;
     void reset() override;
     
-    /**
-     * @name Serialization Support
-     * @brief Methods for accessing and restoring internal state for protobuf serialization.
-     * 
-     * These methods provide access to internal constraint parameters and allow restoration
-     * of internal state (h vector) during deserialization from protobuf format.
-     * The setter should only be used during deserialization to restore a previously saved state.
-     */
-    ///@{
+    // Getters for serialization
     const Eigen::SparseMatrix<double>& getG() const { return G; }
     const Eigen::VectorXd& getC() const { return c; }
     const Eigen::VectorXd& getHInternal() const { return h; }
@@ -218,9 +193,8 @@ public:
     double getBFGamma() const { return bf_gamma; }
     double getTolerance() const { return tolerance; }
     
-    /// @brief Restore internal h vector state during deserialization. Use with caution.
+    // TODO: Remove this setter later
     void setHInternal(const Eigen::VectorXd& h_val) { h = h_val; }
-    ///@}
 };
 
 } // namespace amswarm

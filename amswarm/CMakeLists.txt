@@ -8,7 +8,7 @@ protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
 # AMSwarm library source files
 set(AMSWARM_SOURCES
     constraint.cpp
-    constraint_proto_conversion.cpp
+    constraint_serialization.cpp
     drone.cpp
     swarm.cpp
     utils.cpp

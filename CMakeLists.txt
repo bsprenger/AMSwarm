@@ -15,25 +15,18 @@ find_package(OpenMP REQUIRED)
 # Find Protobuf
 find_package(Protobuf REQUIRED)
 
-# Try to find system Eigen first, if not found fetch from GitLab
-find_package(Eigen3 3.4 QUIET)
-if(NOT Eigen3_FOUND)
-    message(STATUS "System Eigen3 not found, fetching from GitLab")
-    # Fetch Eigen linear algebra library
-    # Using Eigen 5.0.0 from the official GitLab repository
-    FetchContent_Declare(
-        Eigen
-        GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-        GIT_TAG 5.0.0
-        GIT_SHALLOW TRUE
-    )
-    set(EIGEN_BUILD_DOC OFF CACHE BOOL "" FORCE)
-    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
-    set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(Eigen)
-else()
-    message(STATUS "Found system Eigen3: ${Eigen3_VERSION}")
-endif()
+# Fetch Eigen linear algebra library
+# Using Eigen 5.0.0 from the official GitLab repository
+FetchContent_Declare(
+    Eigen
+    GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+    GIT_TAG 5.0.0
+    GIT_SHALLOW TRUE
+)
+set(EIGEN_BUILD_DOC OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(Eigen)
 
 # Option to enable/disable tests
 option(BUILD_TESTS "Build tests" OFF)
