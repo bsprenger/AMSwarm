@@ -31,3 +31,17 @@ target_link_libraries(amswarm_tests
 # Discover tests
 include(GoogleTest)
 gtest_discover_tests(amswarm_tests)
+
+# ROS2 dependency tests (only built when BUILD_ROS2_SUPPORT is ON)
+if(BUILD_ROS2_SUPPORT)
+    add_executable(ros2_dependency_tests test_ros2_dependency.cpp)
+    
+    target_link_libraries(ros2_dependency_tests
+        PRIVATE
+        GTest::gtest_main
+        rclcpp::rclcpp
+        ${std_msgs_TARGETS}
+    )
+    
+    gtest_discover_tests(ros2_dependency_tests)
+endif()
