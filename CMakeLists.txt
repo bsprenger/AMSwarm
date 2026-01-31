@@ -45,8 +45,6 @@ if(BUILD_ROS2_SUPPORT)
     # Find std_msgs - standard ROS2 message types
     find_package(std_msgs REQUIRED)
     
-    # Export ROS2 found status for use in tests
-    set(ROS2_FOUND TRUE)
     message(STATUS "ROS2 support enabled - rclcpp found")
 endif()
 
