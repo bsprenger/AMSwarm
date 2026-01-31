@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package amswarm;
+
+// Message to represent a sparse matrix in triplet format
+message SparseMatrixProto {
+  int32 rows = 1;
+  int32 cols = 2;
+  repeated int32 row_indices = 3;
+  repeated int32 col_indices = 4;
+  repeated double values = 5;
+}
+
+// Message to represent a dense vector
+message VectorProto {
+  repeated double values = 1;
+}
+
+// Message for EqualityConstraint: Gx = h
+message EqualityConstraintProto {
+  SparseMatrixProto G = 1;
+  VectorProto h = 2;
+  double tolerance = 3;
+}
+
+// Message for InequalityConstraint: Gx <= h
+message InequalityConstraintProto {
+  SparseMatrixProto G = 1;
+  VectorProto h = 2;
+  VectorProto slack = 3;  // Internal state that needs to be preserved
+  double tolerance = 4;
+}
+
+// Message for PolarInequalityConstraint: Gx + c = h(alpha, beta, d)
+message PolarInequalityConstraintProto {
+  SparseMatrixProto G = 1;
+  VectorProto c = 2;
+  VectorProto h = 3;  // Internal state that needs to be preserved
+  double lwr_bound = 4;
+  double upr_bound = 5;
+  double bf_gamma = 6;
+  double tolerance = 7;
+}

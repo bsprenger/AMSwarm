@@ -100,6 +100,11 @@ public:
     Eigen::VectorXd getBregmanUpdate(const Eigen::VectorXd& x) const override;
     bool isSatisfied(const Eigen::VectorXd& x) const override;
     void reset() override;
+    
+    // Getters for serialization
+    const Eigen::SparseMatrix<double>& getG() const { return G; }
+    const Eigen::VectorXd& getH() const { return h; }
+    double getTolerance() const { return tolerance; }
 };
 
 /**
@@ -125,6 +130,15 @@ public:
     void update(const Eigen::VectorXd& x) override;
     bool isSatisfied(const Eigen::VectorXd& x) const override;
     void reset() override;
+    
+    // Getters for serialization
+    const Eigen::SparseMatrix<double>& getG() const { return G; }
+    const Eigen::VectorXd& getH() const { return h; }
+    const Eigen::VectorXd& getSlack() const { return slack; }
+    double getTolerance() const { return tolerance; }
+    
+    // TODO: Remove this setter later
+    void setSlack(const Eigen::VectorXd& slack_val) { slack = slack_val; }
 };
 
 /**
@@ -169,6 +183,18 @@ public:
     void update(const Eigen::VectorXd& x) override;
     bool isSatisfied(const Eigen::VectorXd& x) const override;
     void reset() override;
+    
+    // Getters for serialization
+    const Eigen::SparseMatrix<double>& getG() const { return G; }
+    const Eigen::VectorXd& getC() const { return c; }
+    const Eigen::VectorXd& getHInternal() const { return h; }
+    double getLowerBound() const { return lwr_bound; }
+    double getUpperBound() const { return upr_bound; }
+    double getBFGamma() const { return bf_gamma; }
+    double getTolerance() const { return tolerance; }
+    
+    // TODO: Remove this setter later
+    void setHInternal(const Eigen::VectorXd& h_val) { h = h_val; }
 };
 
 } // namespace amswarm

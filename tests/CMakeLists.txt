@@ -11,6 +11,7 @@ set(TEST_SOURCES
     test_drone.cpp
     test_swarm.cpp
     test_constraint.cpp
+    test_constraint_proto.cpp
     test_amsolver.cpp
     test_protobuf.cpp
     ${PROTO_SRCS}
