@@ -32,6 +32,21 @@ FetchContent_MakeAvailable(Eigen)
 option(BUILD_TESTS "Build tests" OFF)
 # Option to enable/disable Python bindings
 option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
+# Option to enable/disable ROS2 support
+option(BUILD_ROS2_SUPPORT "Build with ROS2 support" OFF)
+
+# ROS2 support
+# ROS2 requires a full ROS2 installation and cannot be fetched via FetchContent
+# due to its complex build system (ament_cmake). When BUILD_ROS2_SUPPORT is ON,
+# the build expects a ROS2 installation to be sourced in the environment.
+if(BUILD_ROS2_SUPPORT)
+    # Find rclcpp - the ROS2 C++ client library
+    find_package(rclcpp REQUIRED)
+    # Find std_msgs - standard ROS2 message types
+    find_package(std_msgs REQUIRED)
+    
+    message(STATUS "ROS2 support enabled - rclcpp found")
+endif()
 
 # Set optimization level to O3 (highest level) for Release builds
 if(NOT CMAKE_BUILD_TYPE)
